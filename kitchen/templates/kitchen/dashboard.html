@@ -1,0 +1,243 @@
+{% extends 'kitchen/base.html' %} {% block content %}
+<div class="flex justify-between items-center mb-8">
+ <div>
+  <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight">
+   Kitchen Monitor
+  </h2>
+  <p class="text-gray-500 mt-1">Live order tracking</p>
+ </div>
+ <div class="flex items-center space-x-4">
+  <!-- Menu Upload Button -->
+  <a
+   href="{% url 'kitchen:menu_upload' %}"
+   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow transition-colors duration-150 flex items-center">
+   <svg
+    class="w-4 h-4 mr-2"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24">
+    <path
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     stroke-width="2"
+     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+   </svg>
+   Manage Menu
+  </a>
+  <!-- Audio Enable Button -->
+  <button
+   id="enableAudioBtn"
+   class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow transition-colors duration-150 flex items-center">
+   <svg
+    class="w-4 h-4 mr-2"
+    fill="none"
+    stroke="currentColor"
+    viewBox="0 0 24 24">
+    <path
+     stroke-linecap="round"
+     stroke-linejoin="round"
+     stroke-width="2"
+     d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+   </svg>
+   Enable Sound
+  </button>
+
+  <!-- Test Button (Debug) -->
+  <button
+   onclick="simulateOrder()"
+   class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow transition-colors duration-150 flex items-center">
+   🔔 Test Notification
+  </button>
+
+  <div class="flex items-center">
+   <span class="relative flex h-3 w-3 mr-2">
+    <span
+     class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
+   </span>
+   <span class="text-sm font-medium text-gray-600">Live</span>
+  </div>
+ </div>
+</div>
+
+<!-- Toast Notification Container -->
+<div id="toast-container" class="fixed top-5 right-5 z-50"></div>
+
+<!-- Cards Grid -->
+<div
+ class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+ {% for order in orders %}
+ <div
+  class="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col h-full border border-gray-100">
+  <!-- Header -->
+  <div
+   class="p-5 border-b border-gray-50 flex justify-between items-start bg-gray-50/50">
+   <div>
+    <h3 class="text-lg font-bold text-gray-900">Order #{{ order.id }}</h3>
+    <span class="text-xs text-gray-500 flex items-center mt-1">
+     {{ order.created_at|timesince }} ago
+    </span>
+   </div>
+   <span
+    class="px-3 py-1 rounded-full text-xs font-semibold {% if order.status == 'PENDING' %}bg-yellow-100 text-yellow-800 {% elif order.status == 'PREPARING' %}bg-blue-100 text-blue-800 {% elif order.status == 'READY' %}bg-green-100 text-green-800 {% else %}bg-gray-100 text-gray-800{% endif %}">
+    {{ order.get_status_display }}
+   </span>
+  </div>
+  <!-- Body -->
+  <div class="p-5 flex-grow">
+   <div class="mb-4">
+    <div
+     class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+     Pickup
+    </div>
+    <div class="text-sm text-gray-700">
+     {{ order.pickup_date|default:"Today" }} {% if order.pickup_slot %}
+     <span class="ml-2 text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-xs"
+      >{{ order.pickup_slot.label }}</span
+     >
+     {% endif %}
+    </div>
+   </div>
+   <div>
+    <div
+     class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+     Items ({{ order.items.count }})
+    </div>
+    <ul class="space-y-2">
+     {% for item in order.items.all|slice:":3" %}
+     <li class="flex justify-between text-sm text-gray-700">
+      <span class="truncate pr-2">{{ item.menu_item.name }}</span>
+      <span class="font-bold text-gray-900">x{{ item.quantity }}</span>
+     </li>
+     {% endfor %}
+    </ul>
+   </div>
+  </div>
+  <!-- Footer -->
+  <div class="p-5 border-t border-gray-50 bg-gray-50/30">
+   <a
+    href="{% url 'kitchen:order_detail' order.id %}"
+    class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
+    View Details
+   </a>
+  </div>
+ </div>
+ {% empty %}
+ <div
+  class="col-span-full flex flex-col items-center justify-center py-20 bg-white rounded-xl border-2 border-dashed border-gray-200">
+  <h3 class="text-xl font-medium text-gray-500">No active orders</h3>
+ </div>
+ {% endfor %}
+</div>
+
+<!-- Sound -->
+<audio
+ id="notificationSound"
+ src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+ preload="auto"></audio>
+
+<script>
+ let knownOrderIds = new Set(
+  "{% for order in orders %}{{ order.id }},{% endfor %}"
+   .split(",")
+   .filter((id) => id)
+   .map(Number)
+ );
+ const pollInterval = 5000;
+ const notificationSound = document.getElementById("notificationSound");
+ const enableAudioBtn = document.getElementById("enableAudioBtn");
+ let audioEnabled = false;
+
+ // Explicit Audio Enable
+ enableAudioBtn.addEventListener("click", () => {
+  notificationSound
+   .play()
+   .then(() => {
+    notificationSound.pause();
+    notificationSound.currentTime = 0;
+    audioEnabled = true;
+    enableAudioBtn.textContent = "Sound Enabled ✅";
+    enableAudioBtn.classList.add("bg-green-100", "text-green-800");
+    enableAudioBtn.classList.remove("bg-gray-200", "text-gray-700");
+    showToast("Audio notifications enabled!", "success");
+   })
+   .catch((err) => {
+    console.error("Audio init failed", err);
+    showToast("Could not enable audio. Check browser settings.", "error");
+   });
+ });
+
+ function showToast(message, type = "info") {
+  const container = document.getElementById("toast-container");
+  const toast = document.createElement("div");
+  const colorClass =
+   type === "success"
+    ? "bg-green-500"
+    : type === "error"
+    ? "bg-red-500"
+    : "bg-blue-600";
+
+  toast.className = `${colorClass} text-white px-6 py-4 rounded-lg shadow-lg mb-3 flex items-center transform transition-all duration-300 translate-x-full`;
+  toast.innerHTML = `
+         <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+         <div>
+             <p class="font-bold">Notification</p>
+             <p class="text-sm">${message}</p>
+         </div>
+     `;
+
+  container.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => {
+   toast.classList.remove("translate-x-full");
+  });
+
+  // Remove after 3s
+  setTimeout(() => {
+   toast.classList.add("opacity-0", "translate-x-full");
+   setTimeout(() => toast.remove(), 300);
+  }, 5000);
+ }
+
+ function playNotification() {
+  if (audioEnabled) {
+   notificationSound.play().catch((e) => console.error("Audio play error", e));
+  } else {
+   console.warn("Audio not enabled yet");
+   showToast("New Order! (Enable sound to hear alert)", "info");
+  }
+ }
+
+ // Polling Logic
+ function checkForNewOrders() {
+  fetch('{% url "kitchen:active_orders_api" %}')
+   .then((response) => response.json())
+   .then((data) => {
+    const currentIds = new Set(data.orders.map((o) => o.id));
+    let newOrders = [];
+    for (let id of currentIds) {
+     if (!knownOrderIds.has(id)) {
+      newOrders.push(id);
+      knownOrderIds.add(id);
+     }
+    }
+
+    if (newOrders.length > 0) {
+     playNotification();
+     showToast(`${newOrders.length} New Order(s) Received!`, "success");
+     setTimeout(() => window.location.reload(), 2000);
+    }
+   })
+   .catch((err) => console.error("Polling error:", err));
+ }
+
+ // Test Function
+ window.simulateOrder = function () {
+  playNotification();
+  showToast("Test Notification: New Order #000", "success");
+ };
+
+ setInterval(checkForNewOrders, pollInterval);
+</script>
+{% endblock %}

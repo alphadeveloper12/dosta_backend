@@ -150,8 +150,9 @@ class PlanMenuView(APIView):
     def get(self, request, subtype):
         if subtype == "WEEKLY":
             week_data = {}
+            # Defaults to Week 1 for weekly rotation unless specified otherwise
             for day, _ in DayOfWeek.choices:
-                menu = Menu.objects.filter(day_of_week=day).first()
+                menu = Menu.objects.filter(day_of_week=day, week_number=1).first()
                 week_data[day] = MenuSerializer(menu, context={'request': request}).data if menu else None
             return Response({
                 "plan_subtype": "WEEKLY",
@@ -164,7 +165,7 @@ class PlanMenuView(APIView):
             for week in range(1, 5):
                 week_menu = {}
                 for day, _ in DayOfWeek.choices:
-                    menu = Menu.objects.filter(day_of_week=day).first()
+                    menu = Menu.objects.filter(day_of_week=day, week_number=week).first()
                     week_menu[day] = MenuSerializer(menu, context={'request': request}).data if menu else None
                 month_data.append({"week": week, "menu": week_menu})
 

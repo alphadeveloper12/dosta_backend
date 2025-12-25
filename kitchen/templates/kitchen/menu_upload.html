@@ -1,0 +1,69 @@
+{% extends 'kitchen/base.html' %} {% block content %}
+<div class="max-w-4xl mx-auto py-8">
+ <div class="bg-white shadow-lg rounded-2xl overflow-hidden p-8">
+  <h2 class="text-3xl font-bold text-gray-900 mb-6">Upload Weekly Menu</h2>
+
+  <div class="mb-8 p-4 bg-blue-50 border-l-4 border-blue-500 text-blue-700">
+   <h4 class="font-bold mb-2">Instructions:</h4>
+   <p>Upload a CSV or Excel file with the following columns:</p>
+   <ul class="list-disc ml-5 mt-2 space-y-1 text-sm">
+    <li><b>Week</b> (e.g., "Week 1", "Week 2")</li>
+    <li><b>Day</b> (e.g., "Monday", "Tuesday")</li>
+    <li><b>Item</b> (Name of the dish)</li>
+    <li><b>Description</b> (Details about the dish)</li>
+    <li><b>Ingredients</b> (Optional)</li>
+    <li><b>Price</b> (Numeric value)</li>
+    <li><b>Calories</b> (e.g., 478 or 478kcal)</li>
+    <li><b>Protein</b> (e.g., 36g)</li>
+    <li><b>Carbs</b> (e.g., 9g)</li>
+    <li><b>Fats</b> (e.g., 23g)</li>
+   </ul>
+  </div>
+
+  <form method="post" enctype="multipart/form-data" class="space-y-6">
+   {% csrf_token %}
+
+   <div>
+    <label for="menu_file" class="block text-sm font-medium text-gray-700 mb-2"
+     >Select File (CSV or Excel)</label
+    >
+    <input
+     type="file"
+     name="menu_file"
+     id="menu_file"
+     accept=".csv, .xlsx, .xls"
+     required
+     class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 border border-gray-300 rounded-lg cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+   </div>
+
+   <button
+    type="submit"
+    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors">
+    <svg
+     class="w-5 h-5 mr-2 -ml-1"
+     fill="none"
+     stroke="currentColor"
+     viewBox="0 0 24 24">
+     <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+    </svg>
+    Upload and Process Menu
+   </button>
+  </form>
+
+  {% if messages %}
+  <div class="mt-8 space-y-4">
+   {% for message in messages %}
+   <div
+    class="p-4 rounded-lg {% if message.tags == 'success' %}bg-green-100 text-green-700{% elif message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+    {{ message }}
+   </div>
+   {% endfor %}
+  </div>
+  {% endif %}
+ </div>
+</div>
+{% endblock %}
