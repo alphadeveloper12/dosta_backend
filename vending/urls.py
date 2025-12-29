@@ -10,6 +10,8 @@ from .views import (
     SavedPlansView,
     ConfirmOrderView,
     OrderProgressView,
+    CartView,
+    UserOrdersView,
 )
 
 # -----------------------------------------------------------
@@ -34,4 +36,6 @@ urlpatterns = [
     path('saved-plans/', SavedPlansView.as_view(), name='saved-plans'),
     path('order/confirm/', ConfirmOrderView.as_view(), name='order-confirm'),
     path('order/progress/', OrderProgressView.as_view(), name='order-progress'),
+    path('orders/', UserOrdersView.as_view(), name='user-orders'),
+    path('cart/', CartView.as_view(), name='cart'),
 ]

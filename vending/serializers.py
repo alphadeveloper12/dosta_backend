@@ -138,7 +138,7 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CartItem
-        fields = ['id', 'menu_item', 'quantity', 'subtotal']
+        fields = ['id', 'menu_item', 'quantity', 'day_of_week', 'week_number', 'subtotal']
 
     def get_subtotal(self, obj):
         return obj.subtotal
@@ -146,10 +146,26 @@ class CartItemSerializer(serializers.ModelSerializer):
 
 class CartSerializer(serializers.ModelSerializer):
     items = CartItemSerializer(many=True, read_only=True)
+    location = VendingLocationSerializer(read_only=True)
+    pickup_slot = PickupTimeSlotSerializer(read_only=True)
 
     class Meta:
         model = Cart
-        fields = ['id', 'total_price', 'is_checked_out', 'created_at', 'updated_at', 'items']
+        fields = [
+            'id', 
+            'location',
+            'plan_type',
+            'plan_subtype',
+            'pickup_type',
+            'pickup_date',
+            'pickup_slot',
+            'total_price', 
+            'current_step',
+            'is_checked_out', 
+            'created_at', 
+            'updated_at', 
+            'items'
+        ]
 
 
 # -----------------------------------------------------------

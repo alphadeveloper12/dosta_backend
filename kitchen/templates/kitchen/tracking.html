@@ -1,0 +1,139 @@
+{% extends 'kitchen/base.html' %} {% block content %}
+<div class="mb-8 flex justify-between items-center">
+ <div>
+  <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight">
+   Order Tracking
+  </h2>
+  <p class="text-gray-500 mt-1">Operations Overview & History</p>
+ </div>
+
+ <!-- Simple Status Filter -->
+ <div class="flex space-x-2">
+  <a
+   href="?status="
+   class="px-3 py-1 rounded-full text-sm font-medium {% if not request.GET.status %}bg-blue-600 text-white{% else %}bg-white text-gray-600 border{% endif %}">
+   All
+  </a>
+  <a
+   href="?status=CONFIRMED"
+   class="px-3 py-1 rounded-full text-sm font-medium {% if request.GET.status == 'CONFIRMED' %}bg-blue-600 text-white{% else %}bg-white text-gray-600 border{% endif %}">
+   Confirmed
+  </a>
+  <a
+   href="?status=COMPLETED"
+   class="px-3 py-1 rounded-full text-sm font-medium {% if request.GET.status == 'COMPLETED' %}bg-blue-600 text-white{% else %}bg-white text-gray-600 border{% endif %}">
+   Completed
+  </a>
+  <a
+   href="?status=CANCELLED"
+   class="px-3 py-1 rounded-full text-sm font-medium {% if request.GET.status == 'CANCELLED' %}bg-blue-600 text-white{% else %}bg-white text-gray-600 border{% endif %}">
+   Cancelled
+  </a>
+ </div>
+</div>
+
+<div class="bg-white shadow rounded-lg overflow-hidden border border-gray-200">
+ <div class="overflow-x-auto">
+  <table class="min-w-full divide-y divide-gray-200">
+   <thead class="bg-gray-50">
+    <tr>
+     <th
+      scope="col"
+      class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Order ID
+     </th>
+     <th
+      scope="col"
+      class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Date
+     </th>
+     <th
+      scope="col"
+      class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      User / Location
+     </th>
+     <th
+      scope="col"
+      class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Type
+     </th>
+     <th
+      scope="col"
+      class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Total
+     </th>
+     <th
+      scope="col"
+      class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Status
+     </th>
+     <th
+      scope="col"
+      class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Action
+     </th>
+    </tr>
+   </thead>
+   <tbody class="bg-white divide-y divide-gray-200">
+    {% for order in orders %}
+    <tr class="hover:bg-gray-50 transition-colors">
+     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+      #{{ order.id }}
+     </td>
+     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+      {{ order.created_at|date:"M d, Y H:i" }}
+     </td>
+     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+      <div class="font-medium">
+       {{ order.user.email|default:order.user.username }}
+      </div>
+      <div class="text-xs text-gray-500">{{ order.location.name }}</div>
+     </td>
+     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+      {% if order.is_weekly %}
+      <span
+       class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+       Weekly
+      </span>
+      {% elif order.is_monthly %}
+      <span
+       class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800">
+       Monthly
+      </span>
+      {% else %}
+      <span
+       class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+       {{ order.get_plan_type_display }}
+      </span>
+      {% endif %}
+     </td>
+     <td
+      class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-semibold">
+      AED {{ order.total_amount }}
+     </td>
+     <td class="px-6 py-4 whitespace-nowrap">
+      <span
+       class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if order.status == 'COMPLETED' %}bg-green-100 text-green-800 {% elif order.status == 'CANCELLED' %}bg-red-100 text-red-800 {% elif order.status == 'CONFIRMED' %}bg-blue-100 text-blue-800 {% elif order.status == 'PENDING' %}bg-yellow-100 text-yellow-800 {% else %}bg-gray-100 text-gray-800{% endif %}">
+       {{ order.get_status_display }}
+      </span>
+     </td>
+     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+      <a
+       href="{% url 'kitchen:order_detail' order.id %}"
+       class="text-indigo-600 hover:text-indigo-900">
+       Details
+      </a>
+     </td>
+    </tr>
+    {% empty %}
+    <tr>
+     <td colspan="7" class="px-6 py-10 text-center text-gray-500">
+      No orders found.
+     </td>
+    </tr>
+    {% endfor %}
+   </tbody>
+  </table>
+ </div>
+</div>
+{% endblock %}

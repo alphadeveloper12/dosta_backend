@@ -16,8 +16,13 @@
      <a href="{% url 'kitchen:dashboard' %}">👨‍🍳 Kitchen Dashboard</a>
     </h1>
     <div>
-     <a href="{% url 'kitchen:dashboard' %}" class="hover:text-blue-300"
+     <a href="{% url 'kitchen:dashboard' %}" class="hover:text-blue-300 mr-4"
       >Orders</a
+     >
+     <a
+      href="{% url 'kitchen:tracking_dashboard' %}"
+      class="hover:text-blue-300"
+      >Tracking</a
      >
     </div>
    </div>

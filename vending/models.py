@@ -197,7 +197,16 @@ class OrderItem(models.Model):
 class Cart(models.Model):
     user = models.ForeignKey(settings.AUTH_USER_MODEL, related_name="cart", on_delete=models.CASCADE)
     location = models.ForeignKey(VendingLocation, related_name="cart_items", on_delete=models.SET_NULL, null=True, blank=True)
+    
+    # Context fields (same as Order)
+    plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)
+    plan_subtype = models.CharField(max_length=20, choices=PlanSubType.choices, default=PlanSubType.NONE)
+    pickup_type = models.CharField(max_length=20, choices=PickupType.choices, null=True, blank=True)
+    pickup_date = models.DateField(null=True, blank=True)
+    pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="carts", on_delete=models.SET_NULL, null=True, blank=True)
+
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    current_step = models.PositiveSmallIntegerField(default=1)
     is_checked_out = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -219,6 +228,11 @@ class CartItem(models.Model):
     cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
     menu_item = models.ForeignKey(MenuItem, related_name="cart_items", on_delete=models.PROTECT)
     quantity = models.PositiveIntegerField(default=1)
+    
+    # Item context (for weekly/monthly plans)
+    day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
+    week_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

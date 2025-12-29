@@ -22,6 +22,20 @@ class DashboardView(ListView):
             ]
         ).order_by('created_at')
 
+class TrackingView(ListView):
+    model = Order
+    template_name = 'kitchen/tracking.html'
+    context_object_name = 'orders'
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        # Tracking needs ALL orders
+        qs = Order.objects.all().order_by('-created_at')
+        status_filter = self.request.GET.get('status')
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        return qs
+
 class OrderDetailView(DetailView):
     model = Order
     template_name = 'kitchen/order_detail.html'

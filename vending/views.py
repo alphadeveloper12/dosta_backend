@@ -15,7 +15,10 @@ from .models import (
     MealPlan,
     Order,
     OrderItem,
-    OrderStatus
+    OrderStatus,
+    Cart,
+    CartItem,
+    PickupType
 )
 from .serializers import (
     VendingLocationSerializer,
@@ -23,7 +26,8 @@ from .serializers import (
     MenuSerializer,
     PickupTimeSlotSerializer,
     MealPlanSerializer,
-    OrderSerializer
+    OrderSerializer,
+    CartSerializer
 )
 
 # -----------------------------------------------------------
@@ -300,3 +304,84 @@ class OrderProgressView(APIView):
             6: "confirm_order"
         }
         return steps.get(current_step + 1, "completed")
+    
+# -----------------------------------------------------------
+# ORDER HISTORY API
+# -----------------------------------------------------------
+
+class UserOrdersView(APIView):
+    """
+    GET /api/vending/orders/
+    Returns all orders for the authenticated user, ordered by newest first.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        orders = Order.objects.filter(user=request.user).order_by('-created_at')
+        serializer = OrderSerializer(orders, many=True, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+# -----------------------------------------------------------
+# CART API
+# -----------------------------------------------------------
+
+class CartView(APIView):
+    """
+    GET /api/cart/
+    POST /api/cart/
+    Syncs the entire cart state (User selected items + Plan context).
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        # Get active cart (not checked out)
+        cart = Cart.objects.filter(user=request.user, is_checked_out=False).first()
+        if not cart:
+            return Response({"message": "Cart is empty", "items": []})
+        
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data)
+
+    def post(self, request):
+        try:
+            data = request.data
+            user = request.user
+
+            # 1. Get or Create Cart
+            cart, created = Cart.objects.get_or_create(user=user, is_checked_out=False)
+
+            # 2. Update Context Fields
+            cart.location_id = data.get("location_id")
+            cart.plan_type = data.get("plan_type", PlanType.ORDER_NOW)
+            cart.plan_subtype = data.get("plan_subtype", PlanSubType.NONE)
+            cart.pickup_type = data.get("pickup_type")
+            cart.pickup_date = data.get("pickup_date")
+            cart.pickup_slot_id = data.get("pickup_slot_id")
+            cart.current_step = data.get("current_step", 1)  # Save current step
+            cart.save()
+
+            # 3. Update Items (Full Sync Strategy: Clear existing, add new)
+            cart.items.all().delete()
+
+            items_data = data.get("items", [])
+            for item in items_data:
+                # Validation: Ensure menu_item_id is present
+                if not item.get("menu_item_id"):
+                    continue 
+
+                CartItem.objects.create(
+                    cart=cart,
+                    menu_item_id=item["menu_item_id"],
+                    quantity=item.get("quantity", 1),
+                    day_of_week=item.get("day_of_week"),
+                    week_number=item.get("week_number")
+                )
+
+            cart.update_total()
+            
+            serializer = CartSerializer(cart, context={'request': request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as e:
+            print(f"Cart Sync Error: {e}") # Log to terminal
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
