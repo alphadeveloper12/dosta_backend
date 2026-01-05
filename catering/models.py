@@ -11,6 +11,14 @@ class EventType(models.Model):
         return self.name
 
 
+
+class EventName(models.Model):
+    name = models.CharField(max_length=100)
+    
+    def __str__(self):
+        return self.name
+
+
 class ProviderType(models.Model):
     name = models.CharField(max_length=100)
     image = models.FileField(upload_to='providers/', blank=True, null=True)  # ✅ allows SVG
@@ -22,6 +30,13 @@ class ProviderType(models.Model):
 
 
 class ServiceStyle(models.Model):
+    name = models.CharField(max_length=100)
+    
+    def __str__(self):
+        return self.name
+
+
+class ServiceStylePrivate(models.Model):
     name = models.CharField(max_length=100)
     
     def __str__(self):
@@ -57,6 +72,29 @@ class BudgetOption(models.Model):
     
     def __str__(self):
         return f"{self.label} ({self.price_range})"
+
+
+class BudgetOptionPrivate(models.Model):
+    label = models.CharField(max_length=100)  # e.g., "Economy", "Premium", etc.
+    price_range = models.CharField(max_length=100)  # e.g., "$500–$1000"
+    
+    def __str__(self):
+        return f"{self.label} ({self.price_range})"
+
+
+class Pax(models.Model):
+    label = models.CharField(max_length=100) # e.g., "Small Group"
+    number = models.CharField(max_length=100) # e.g., "10-20"
+    
+    def __str__(self):
+        return f"{self.label} ({self.number})"
+
+class PaxPrivate(models.Model):
+    label = models.CharField(max_length=100)
+    number = models.CharField(max_length=100)
+    
+    def __str__(self):
+        return f"{self.label} ({self.number})"
 
 
 # ========== USER-SIDE MODEL (Catering Planning Form) ==========

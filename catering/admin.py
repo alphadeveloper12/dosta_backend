@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
-    EventType, ProviderType, ServiceStyle, Cuisine,
-    Course, Location, BudgetOption, CateringPlan
+    EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, Cuisine,
+    Course, Location, BudgetOption, BudgetOptionPrivate, Pax, PaxPrivate, CateringPlan
 )
 
 
@@ -31,6 +31,12 @@ class EventTypeAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 
+@admin.register(EventName)
+class EventNameAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+
 @admin.register(ProviderType)
 class ProviderTypeAdmin(admin.ModelAdmin):
     list_display = ('name',)
@@ -39,6 +45,12 @@ class ProviderTypeAdmin(admin.ModelAdmin):
 
 @admin.register(ServiceStyle)
 class ServiceStyleAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+
+@admin.register(ServiceStylePrivate)
+class ServiceStylePrivateAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
 
@@ -65,6 +77,24 @@ class LocationAdmin(admin.ModelAdmin):
 class BudgetOptionAdmin(admin.ModelAdmin):
     list_display = ('label', 'price_range')
     search_fields = ('label', 'price_range')
+
+
+@admin.register(BudgetOptionPrivate)
+class BudgetOptionPrivateAdmin(admin.ModelAdmin):
+    list_display = ('label', 'price_range')
+    search_fields = ('label', 'price_range')
+
+
+@admin.register(Pax)
+class PaxAdmin(admin.ModelAdmin):
+    list_display = ('label', 'number')
+    search_fields = ('label', 'number')
+
+
+@admin.register(PaxPrivate)
+class PaxPrivateAdmin(admin.ModelAdmin):
+    list_display = ('label', 'number')
+    search_fields = ('label', 'number')
 
 
 # ========== MAIN USER SUBMISSION ADMIN ==========

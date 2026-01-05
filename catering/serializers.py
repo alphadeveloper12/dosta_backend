@@ -16,6 +16,11 @@ class EventTypeSerializer(serializers.ModelSerializer):
             return obj.image.url
         return None
 
+class EventNameSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = EventName
+        fields = ['id', 'name']
+
 class ProviderTypeSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
 
@@ -36,6 +41,10 @@ class ServiceStyleSerializer(serializers.ModelSerializer):
         model = ServiceStyle
         fields = ['id', 'name']
         
+class ServiceStylePrivateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceStylePrivate
+        fields = ['id', 'name']
 
 class CuisineSerializer(serializers.ModelSerializer):
     # Use SerializerMethodField to create the dynamic image URL
@@ -77,3 +86,18 @@ class BudgetOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = BudgetOption
         fields = ['id', 'label', 'price_range']
+
+class BudgetOptionPrivateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BudgetOptionPrivate
+        fields = ['id', 'label', 'price_range']
+
+class PaxSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pax
+        fields = ['id', 'label', 'number']
+
+class PaxPrivateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaxPrivate
+        fields = ['id', 'label', 'number']

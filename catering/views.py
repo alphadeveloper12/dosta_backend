@@ -21,12 +21,28 @@ class ProviderTypeListView(APIView):
         serializer = ProviderTypeSerializer(providers, many=True, context={'request': request})
         return Response(serializer.data)
     
+class EventNameListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        event_names = EventName.objects.all()
+        serializer = EventNameSerializer(event_names, many=True)
+        return Response(serializer.data)
+    
 class ServiceStyleListView(APIView):
     permission_classes = [IsAuthenticated]  # ✅ Only authenticated users can access
 
     def get(self, request):
         service_styles = ServiceStyle.objects.all()
         serializer = ServiceStyleSerializer(service_styles, many=True)
+        return Response(serializer.data)
+    
+class ServiceStylePrivateListView(APIView):
+    permission_classes = [IsAuthenticated]  # ✅ Only authenticated users can access
+
+    def get(self, request):
+        service_styles = ServiceStylePrivate.objects.all()
+        serializer = ServiceStylePrivateSerializer(service_styles, many=True)
         return Response(serializer.data)
     
 class CuisineListView(APIView):
@@ -51,6 +67,30 @@ class LocationListView(APIView):
     def get(self, request):
         locations = Location.objects.all()  # Get all locations
         serializer = LocationSerializer(locations, many=True)
+        return Response(serializer.data)
+
+class BudgetOptionPrivateListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        budget_options = BudgetOptionPrivate.objects.all()
+        serializer = BudgetOptionPrivateSerializer(budget_options, many=True)
+        return Response(serializer.data)
+
+class PaxListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        pax_options = Pax.objects.all()
+        serializer = PaxSerializer(pax_options, many=True)
+        return Response(serializer.data)
+
+class PaxPrivateListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        pax_options = PaxPrivate.objects.all()
+        serializer = PaxPrivateSerializer(pax_options, many=True)
         return Response(serializer.data)
     
 class BudgetOptionListView(APIView):
