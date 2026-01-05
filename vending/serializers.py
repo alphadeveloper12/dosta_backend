@@ -24,7 +24,7 @@ class VendingLocationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = VendingLocation
-        fields = ['id', 'name', 'info', 'hours', 'position', 'is_active']
+        fields = ['id', 'name', 'info', 'hours', 'position', 'is_active', 'serial_number']
 
     def get_position(self, obj):
         return {"lat": float(obj.latitude), "lng": float(obj.longitude)}

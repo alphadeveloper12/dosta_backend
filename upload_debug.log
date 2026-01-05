@@ -1,0 +1,129 @@
+DEBUG: Found header at row 1: ['location logo', 'location name', 'machine size', 'location', 'status', 'rent', 'contract', 'machine serial no.', 'nayax serial no.', 'etisalat router serial no.', 'internet situation', 'google maps link']
+DEBUG: Columns discovered: ['Location Logo', 'Location Name', 'Machine Size', 'Location', 'Status', 'Rent', 'Contract', 'Machine Serial No.', 'Nayax Serial No.', 'Etisalat Router Serial No.', 'Internet Situation', 'Google maps link']
+DEBUG: Row 0 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 0 - Name: Etisalat, Info: Al kifaf Building, Serial: 140816
+DEBUG: Row 0 - Found coords from URL: 25.2310608, 55.2814434
+DEBUG: Row 0 - SAVING/UPDATING
+DEBUG: Row 1 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 1 - Name: Etisalat, Info: Deira Building, Serial: 140859
+DEBUG: Row 1 - Found coords from URL: 25.2626575, 55.3012041
+DEBUG: Row 1 - SAVING/UPDATING
+DEBUG: Row 2 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 2 - Name: Sharja Police HQ, Info: Al Rahmania Suburb - Mezairah - Sharjah, Serial: 140856
+DEBUG: Row 2 - Found coords from URL: 25.2675335, 55.2464402
+DEBUG: Row 2 - SAVING/UPDATING
+DEBUG: Row 3 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 3 - Name: Etisalat, Info: CCC Building / 
+Al Hamidiya 1, Serial: 140811
+DEBUG: Row 3 - Found coords from URL: 25.4068301, 55.5075827
+DEBUG: Row 3 - SAVING/UPDATING
+DEBUG: Row 4 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 4 - Name: Etisalat, Info: Khalifah Building / Manakh - Qasimiah, Serial: 140808
+DEBUG: Row 4 - Found coords from URL: 25.3547465, 55.3977114
+DEBUG: Row 4 - SAVING/UPDATING
+DEBUG: Row 5 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 5 - Name: Etisalat, Info: Al Manakh Building / Manakh - Qasimiah, Serial: 140857
+DEBUG: Row 5 - Found coords from URL: 25.3547465, 55.3977114
+DEBUG: Row 5 - SAVING/UPDATING
+DEBUG: Row 6 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 6 - Name: Control Tower, Info: Motor City, Serial: 140826
+DEBUG: Row 6 - Found coords from URL: 25.046921, 55.2277357
+DEBUG: Row 6 - SAVING/UPDATING
+DEBUG: Row 7 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 7 - Name: Conorad Office Tower, Info: Sh. Zayed Road, Serial: 140810
+DEBUG: Row 7 - Found coords from URL: 25.225889, 55.2811777
+DEBUG: Row 7 - SAVING/UPDATING
+DEBUG: Row 8 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 8 - Name: RTA, Info: HQ / Umm Rammoul, Serial: 140815
+DEBUG: Row 8 - Found coords from URL: 25.2341276, 55.3538413
+DEBUG: Row 8 - SAVING/UPDATING
+DEBUG: Row 9 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 9 - Name: RTA, Info: HQ / Umm Rammoul, Serial: 140858
+DEBUG: Row 9 - Found coords from URL: 25.2341276, 55.3538413
+DEBUG: Row 9 - SAVING/UPDATING
+DEBUG: Row 10 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 10 - Name: mohamed bin zayed university for humanities, Info: Ajman, Serial: 140865
+DEBUG: Row 10 - Found coords from URL: 25.3861579, 55.5510552
+DEBUG: Row 10 - SAVING/UPDATING
+DEBUG: Row 11 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 11 - Name: DEWA 1, Info: Warsan HQ, Serial: 140809
+DEBUG: Row 11 - Found coords from URL: 25.1467803, 55.4300831
+DEBUG: Row 11 - SAVING/UPDATING
+DEBUG: Row 12 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 12 - Name: RTA, Info: Al qouz Police , Serial: 140860
+DEBUG: Row 12 - Found coords from URL: 25.1344176, 55.1920513
+DEBUG: Row 12 - SAVING/UPDATING
+DEBUG: Row 13 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 13 - Name: DEWA 2, Info: Warsan HQ, Serial: 140814
+DEBUG: Row 13 - Found coords from URL: 25.1467803, 55.4300831
+DEBUG: Row 13 - SAVING/UPDATING
+DEBUG: Row 14 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 14 - Name: RTA, Info: EC 3 , Serial: 140821
+DEBUG: Row 14 - No regex match in URL: google.com/maps?sca_esv=50ea77102f6ce127&output=search&q=rta+ec3&source=lnms&fbs=AIIjpHxU7SXXniUZfeShr2fp4giZ1Y6MJ25_tmWITc7uy4KIeioyp3OhN11EY0n5qfq-zENyQuF3_WaPI4Qgb6AZzy-ebdjwK64ve1Kshb3E-bktLpmi13FXPYV_wpTcSLFVUOcOHcXl30xhxJv5c5HB5THLXFyK945KPi_d1G9oe7OiE0tAa4j2Me6pei592w_HAWdwRJdTm1ivydt14kIee0oDWCe_dQ&entry=mc&ved=1t:200715&ictx=111
+DEBUG: Row 14 - Skipping due to missing coords. Lat: None, Long: None
+DEBUG: Row 15 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 15 - Name: RTA, Info: Al Tawar, Serial: 140863
+DEBUG: Row 15 - Found coords from URL: 25.2716794, 55.3166664
+DEBUG: Row 15 - SAVING/UPDATING
+DEBUG: Row 16 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 16 - Name: GDRFA , Info: Al Jafiliya , Serial: 140807
+DEBUG: Row 16 - Found coords from URL: 25.234743, 55.2885823
+DEBUG: Row 16 - SAVING/UPDATING
+DEBUG: Row 17 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 17 - Name: RTA, Info: Al Jafiliya  / Kifaf, Serial: 140862
+DEBUG: Row 17 - Found coords from URL: 25.2353496, 55.2909546
+DEBUG: Row 17 - SAVING/UPDATING
+DEBUG: Row 18 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 18 - Name: DAFZ, Info: DAFZ W8, Serial: 140823
+DEBUG: Row 18 - Found coords from URL: 25.2599159, 55.3707448
+DEBUG: Row 18 - SAVING/UPDATING
+DEBUG: Row 19 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 19 - Name: ARADA, Info: Female Student Dormitory / JADA, Serial: 140817
+DEBUG: Row 19 - Found coords from URL: 25.3199359, 55.4737693
+DEBUG: Row 19 - SAVING/UPDATING
+DEBUG: Row 20 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 20 - Name: ARADA, Info: Male Student Dormitory / JADA, Serial: 140818
+DEBUG: Row 20 - Found coords from URL: 25.3206874, 55.4773166
+DEBUG: Row 20 - SAVING/UPDATING
+DEBUG: Row 21 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 21 - Name: Azizi Riviera, Info: Inside Super market in Maydan, Serial: 140861
+DEBUG: Row 21 - Found coords from URL: 25.114081, 55.1648682
+DEBUG: Row 21 - SAVING/UPDATING
+DEBUG: Row 22 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 22 - Name: RTA, Info: G2 Building Umm Rammul, Serial: 140864
+DEBUG: Row 22 - Found coords from URL: 25.2378961, 55.3620316
+DEBUG: Row 22 - SAVING/UPDATING
+DEBUG: Row 23 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 23 - Name: Al Mizhar Cultural Islamic Center, Info: Al Mizhar , Serial: 140824
+DEBUG: Row 23 - No regex match in URL: google.com/maps?sca_esv=50ea77102f6ce127&output=search&q=al+mizhar+cultural+islamic+center&source=lnms&fbs=AIIjpHxU7SXXniUZfeShr2fp4giZMLQ4RPdPjLPmOakFCN7X8EE7njRrb2FMGWExx-5ARS2ePkf3FsHWrPuNuW8Cq2QqtEi-S3UAAE4rwi1cMD7l2vGmSNd51yxY3Q7AazeU7576xKI3BH4cHek3cCbYk3nTYGQX-pj9YFmit5y19U69rT6QH5B28Zpf_3NU5EqxKI0NgcxPd3SLZlPfghS2zkmJwgnYNg&entry=mc&ved=1t:200715&ictx=111
+DEBUG: Row 23 - Skipping due to missing coords. Lat: None, Long: None
+DEBUG: Row 24 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 24 - Name: Public Prosecution Dubai, Info:  Umm Hurair Second, Serial: 140819
+DEBUG: Row 24 - Found coords from URL: 25.2471123, 55.3196168
+DEBUG: Row 24 - SAVING/UPDATING
+DEBUG: Row 25 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 25 - Name: City University Ajman, Info: Sheikh Ammar Road - Al Tallah 2 - Ajman, Serial: 140820
+DEBUG: Row 25 - Found coords from URL: 25.3647327, 55.5088607
+DEBUG: Row 25 - SAVING/UPDATING
+DEBUG: Row 26 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 26 - Name: Al Shiba 1, Info: Barsha Hights (TECOM), Serial: Uknown yet
+DEBUG: Row 26 - No regex match in URL: https://www.google.com/maps?sca_esv=50ea77102f6ce127&output=search&q=al+shiba+tower+tecom&source=lnms&fbs=AIIjpHxU7SXXniUZfeShr2fp4giZMLQ4RPdPjLPmOakFCN7X8CAEObRY5nUC_4-eAKPRM9fHPwQwxcUrdW93gXGpP3JFOxNJ-im2ddqPVRhRt7uY833_yxbAmEfSyIwXzhxS4e2BeTvqJSL44nj7hJYJDftTa73eOF3P2z981vN8wqG0qF6Vq00BLZAj5TrxtfRgcXJMhgoMa_yrtkEmP9fva4MtqBSPgQ&entry=mc&ved=1t:200715&ictx=111
+DEBUG: Row 26 - Skipping due to missing coords. Lat: None, Long: None
+DEBUG: Row 27 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 27 - Name: Al Shiba 2, Info: Barsha Hights (TECOM), Serial: 140812
+DEBUG: Row 27 - No regex match in URL: https://www.google.com/maps?sca_esv=50ea77102f6ce127&output=search&q=al+shiba+tower+tecom&source=lnms&fbs=AIIjpHxU7SXXniUZfeShr2fp4giZMLQ4RPdPjLPmOakFCN7X8CAEObRY5nUC_4-eAKPRM9fHPwQwxcUrdW93gXGpP3JFOxNJ-im2ddqPVRhRt7uY833_yxbAmEfSyIwXzhxS4e2BeTvqJSL44nj7hJYJDftTa73eOF3P2z981vN8wqG0qF6Vq00BLZAj5TrxtfRgcXJMhgoMa_yrtkEmP9fva4MtqBSPgQ&entry=mc&ved=1t:200715&ictx=111
+DEBUG: Row 27 - Skipping due to missing coords. Lat: None, Long: None
+DEBUG: Row 28 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 28 - Name: Parkway, Info: Al qouz 4, Serial: 140813
+DEBUG: Row 28 - No regex match in URL: https://www.google.com/maps?sca_esv=50ea77102f6ce127&output=search&q=parkway+international+contracting&source=lnms&fbs=AIIjpHxU7SXXniUZfeShr2fp4giZ1Y6MJ25_tmWITc7uy4KIetxLMeWi1u_d0OMRvkClUba76WL62NDKV-tuv6_wPYBCwn1PrrOfPs6OFYogAUA80FYHcjgwjxnZp9Em-qnZn8N88c_ebmPbIi63FSDmv95Pcf_otdXo9FeYCGsvCNv2WI4CnnNZPbkgsxmielkQhjj8RWID-Gg_V2mrX9CBwas9No3GlQ&entry=mc&ved=1t:200715&ictx=111
+DEBUG: Row 28 - Skipping due to missing coords. Lat: None, Long: None
+DEBUG: Row 29 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 29 - Name: , Info: , Serial: 
+DEBUG: Row 29 - Skipping due to missing coords. Lat: None, Long: None
+DEBUG: Row 30 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 30 - Name: , Info: , Serial: 
+DEBUG: Row 30 - Skipping due to missing coords. Lat: None, Long: None
+DEBUG: Row 31 - Name Col: Location Name, Info Col: Location, Serial Col: Machine Serial No.
+DEBUG: Row 31 - Name: , Info: Ajman, Serial: 
+DEBUG: Row 31 - Skipping due to missing coords. Lat: None, Long: None
+DEBUG: Total processed: 24

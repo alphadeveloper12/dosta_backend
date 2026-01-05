@@ -12,6 +12,7 @@ from .views import (
     OrderProgressView,
     CartView,
     UserOrdersView,
+    data_upload_view
 )
 
 # -----------------------------------------------------------
@@ -26,6 +27,9 @@ router.register(r'locations', VendingLocationViewSet, basename='locations')
 urlpatterns = [
     # router endpoints
     path('', include(router.urls)),
+
+    # Data Upload Page (HTML)
+    path('upload-locations/', data_upload_view, name='upload-locations'),
 
     # step-based workflow endpoints
     path('plan-types/', PlanTypeOptionsView.as_view(), name='plan-types'),

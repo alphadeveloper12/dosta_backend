@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Upload Vending Locations</title>
+  <style>
+   body {
+    font-family: sans-serif;
+    max-width: 800px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+   }
+   .container {
+    border: 1px solid #ccc;
+    padding: 2rem;
+    border-radius: 8px;
+    background: #f9f9f9;
+   }
+   h1 {
+    color: #333;
+   }
+   .form-group {
+    margin-bottom: 1rem;
+   }
+   label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+   }
+   button {
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+   }
+   button:hover {
+    background: #0056b3;
+   }
+   .alert {
+    padding: 1rem;
+    margin-bottom: 1rem;
+    border-radius: 4px;
+   }
+   .alert-success {
+    background: #d4edda;
+    color: #155724;
+   }
+   .alert-error {
+    background: #f8d7da;
+    color: #721c24;
+   }
+   .instructions {
+    background: #e9ecef;
+    padding: 1rem;
+    border-radius: 4px;
+    margin-bottom: 2rem;
+   }
+  </style>
+ </head>
+ <body>
+  <div class="container">
+   <h1>Upload Vending Locations</h1>
+
+   {% if messages %} {% for message in messages %}
+   <div
+    class="alert {% if message.tags == 'success' %}alert-success{% else %}alert-error{% endif %}">
+    {{ message }}
+   </div>
+   {% endfor %} {% endif %}
+
+   <div class="instructions">
+    <h3>Instructions</h3>
+    <p>Upload an Excel (.xlsx) file with the following columns:</p>
+    <ul>
+     <li>
+      <strong>Location Name</strong>: Name of the location (e.g., "Etisalat
+      Building")
+     </li>
+     <li><strong>Location</strong>: Short description or address info</li>
+     <li><strong>Map URL</strong>: Google Maps Link (must contain @lat,lng)</li>
+     <li><strong>Machine Serial No.</strong>: Unique serial number</li>
+    </ul>
+   </div>
+
+   <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+    <div class="form-group">
+     <label for="file">Select Excel File:</label>
+     <input type="file" name="file" id="file" required accept=".xlsx, .xls" />
+    </div>
+    <button type="submit">Upload Locations</button>
+   </form>
+  </div>
+ </body>
+</html>

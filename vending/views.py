@@ -1,7 +1,9 @@
 from rest_framework import viewsets, permissions, filters, status
+from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db.models import Q
+from django.db.models import Q, ProtectedError
+from django.db import transaction
 from django.utils import timezone
 
 from .models import (
@@ -57,6 +59,229 @@ class VendingLocationViewSet(viewsets.ReadOnlyModelViewSet):
 
         return qs.order_by("name")
 
+    @action(detail=False, methods=['post'])
+    def upload(self, request):
+        """
+        Uploads an Excel file containing vending machine locations.
+        Expected columns: Location Name, Location, Map URL, Machine Serial No.
+        Extracts lat/lng from Google Maps URL.
+        """
+        file = request.FILES.get('file')
+        if not file:
+            return Response({"error": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            import pandas as pd
+            import re
+            
+            # Atomic transaction: If anything fails, rollback.
+            with transaction.atomic():
+                # 1. Clear existing data
+                try:
+                    VendingLocation.objects.all().delete()
+                except ProtectedError as e:
+                    return Response(
+                        {"error": f"Cannot replace locations because they are linked to existing orders. Please archive or delete related orders first. Details: {str(e)}"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # 1. Find Header Row (Dynamic)
+                header_row_index = 0
+                original_df = pd.read_excel(file, header=None)
+                for i in range(min(10, len(original_df))):
+                    row_values = [str(val).lower() for val in original_df.iloc[i].values]
+                    if any("location" in val for val in row_values) and \
+                       (any("serial" in val for val in row_values) or any("map" in val for val in row_values)):
+                        header_row_index = i
+                        break
+                
+                file.seek(0)
+                df = pd.read_excel(file, header=header_row_index)
+
+                def get_val(row, col_name):
+                    val = row.get(col_name)
+                    return str(val) if not pd.isna(val) else ""
+    
+                count = 0
+                for index, row in df.iterrows():
+                    cols = df.columns
+                    
+                    # Flexible Column Matching
+                    name_col = next((c for c in cols if "name" in c.lower() and "location" in c.lower()), None)
+                    
+                    info_col = None
+                    if "Location" in cols:
+                         info_col = "Location"
+                    else:
+                         info_col = next((c for c in cols if "address" in c.lower() or "info" in c.lower()), None)
+                    
+                    if not name_col:
+                         name_col = next((c for c in cols if c.strip().lower() == "location"), None)
+    
+                    url_col = next((c for c in cols if "map" in c.lower() or "link" in c.lower()), None)
+                    serial_col = next((c for c in cols if "serial" in c.lower() and "machine" in c.lower()), None)
+                    if not serial_col:
+                         serial_col = next((c for c in cols if "serial" in c.lower()), None)
+                    
+                    if not name_col:
+                        continue 
+    
+                    name = get_val(row, name_col)
+                    info = get_val(row, info_col) if info_col else ""
+                    url = get_val(row, url_col) if url_col else ""
+                    
+                    raw_serial = get_val(row, serial_col) if serial_col else f"UNKNOWN-{index}"
+                    serial_number = str(raw_serial).replace("SX2024", "").replace("sx2024", "")
+                    
+                    latitude = None
+                    longitude = None
+    
+                    if url:
+                        match = re.search(r'@([-.\d]+),([-.\d]+)', url)
+                        if match:
+                            latitude = match.group(1)
+                            longitude = match.group(2)
+                    
+                    if not latitude:
+                         lat_col_explicit = next((c for c in cols if "latitude" in c.lower()), None)
+                         if lat_col_explicit: cursor_lat = get_val(row, lat_col_explicit)
+                         if lat_col_explicit and cursor_lat: latitude = cursor_lat
+                    
+                    if not longitude:
+                         long_col_explicit = next((c for c in cols if "longitude" in c.lower()), None)
+                         if long_col_explicit: cursor_long = get_val(row, long_col_explicit)
+                         if long_col_explicit and cursor_long: longitude = cursor_long
+    
+                    if name and latitude and longitude:
+                        VendingLocation.objects.create(
+                            serial_number=serial_number,
+                            name=name,
+                            info=info,
+                            latitude=latitude,
+                            longitude=longitude,
+                            is_active=True
+                        )
+                        count += 1
+            
+            return Response({"message": f"Successfully replaced all data. Processed {count} new locations."}, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# -----------------------------------------------------------
+# BACKEND PAGE: UPLOAD LOCATIONS
+# -----------------------------------------------------------
+from django.shortcuts import render
+from django.contrib import messages
+
+def data_upload_view(request):
+    """
+    Backend view to upload vending locations via HTML form.
+    """
+    if request.method == 'POST' and request.FILES.get('file'):
+        file = request.FILES['file']
+        try:
+            import pandas as pd
+            import re
+            
+            # Atomic transaction for file upload
+            with transaction.atomic():
+                # 1. Clear existing data
+                try:
+                    VendingLocation.objects.all().delete()
+                except ProtectedError as e:
+                    messages.error(request, f"Replace failed: Locations are linked to existing orders. {str(e)}")
+                    return render(request, 'vending/upload_locations.html')
+
+                # 2. Find Header Row
+                original_df = pd.read_excel(file, header=None)
+                header_row_index = 0
+                
+                for i in range(min(10, len(original_df))):
+                    row_values = [str(val).lower() for val in original_df.iloc[i].values]
+                    if any("location" in val for val in row_values) and \
+                       (any("serial" in val for val in row_values) or any("map" in val for val in row_values)):
+                        header_row_index = i
+                        break
+                
+                file.seek(0)
+                df = pd.read_excel(file, header=header_row_index)
+                
+                def get_val(row, col_name):
+                    val = row.get(col_name)
+                    return str(val) if not pd.isna(val) else ""
+
+                count = 0
+                for index, row in df.iterrows():
+                    cols = df.columns
+                    
+                    # Flexible Column Matching
+                    name_col = next((c for c in cols if "name" in c.lower() and "location" in c.lower()), None)
+                    
+                    info_col = None
+                    if "Location" in cols:
+                         info_col = "Location"
+                    else:
+                         info_col = next((c for c in cols if "address" in c.lower() or "info" in c.lower()), None)
+                    
+                    if not name_col:
+                         name_col = next((c for c in cols if c.strip().lower() == "location"), None)
+
+                    url_col = next((c for c in cols if "map" in c.lower() or "link" in c.lower()), None)
+                    serial_col = next((c for c in cols if "serial" in c.lower() and "machine" in c.lower()), None)
+                    if not serial_col:
+                        serial_col = next((c for c in cols if "serial" in c.lower()), None)
+                    
+                    if not name_col:
+                        print(f"Skipping Row {index}: Name Column not found.")
+                        continue
+
+                    name = get_val(row, name_col)
+                    info = get_val(row, info_col) if info_col else ""
+                    url = get_val(row, url_col) if url_col else ""
+                    
+                    raw_serial = get_val(row, serial_col) if serial_col else f"UNKNOWN-{index}"
+                    serial_number = str(raw_serial).replace("SX2024", "").replace("sx2024", "")
+
+                    latitude = None
+                    longitude = None
+
+                    if url:
+                        match = re.search(r'@([-.\d]+),([-.\d]+)', url)
+                        if match:
+                            latitude = match.group(1)
+                            longitude = match.group(2)
+                    
+                    if not latitude:
+                        lat_col_explicit = next((c for c in cols if "latitude" in c.lower()), None)
+                        if lat_col_explicit: cursor_lat = get_val(row, lat_col_explicit)
+                        if lat_col_explicit and cursor_lat: latitude = cursor_lat
+                    
+                    if not longitude:
+                        long_col_explicit = next((c for c in cols if "longitude" in c.lower()), None)
+                        if long_col_explicit: cursor_long = get_val(row, long_col_explicit)
+                        if long_col_explicit and cursor_long: longitude = cursor_long
+                    
+                    if name and latitude and longitude:
+                        # Create new record (no need for update_or_create as we deleted all)
+                        VendingLocation.objects.create(
+                            serial_number=serial_number,
+                            name=name,
+                            info=info,
+                            latitude=latitude,
+                            longitude=longitude,
+                            is_active=True
+                        )
+                        count += 1
+            
+            messages.success(request, f"Successfully replaced all data. Processed {count} new locations. (Rows with invalid Map URLs were skipped)")
+            
+        except Exception as e:
+            messages.error(request, f"Error processing file: {str(e)}")
+            
+    return render(request, 'vending/upload_locations.html')
+
 
 # -----------------------------------------------------------
 # STEP 1: PLAN TYPE OPTIONS
@@ -91,7 +316,11 @@ class PickupOptionsView(APIView):
         if not location_id:
             return Response({"error": "location_id is required"}, status=400)
 
-        slots = PickupTimeSlot.objects.filter(location_id=location_id, is_active=True)
+        # Fetch slots for specific location OR global slots (location is null)
+        slots = PickupTimeSlot.objects.filter(
+            Q(location_id=location_id) | Q(location__isnull=True), 
+            is_active=True
+        ).order_by('start_time')
         serializer = PickupTimeSlotSerializer(slots, many=True)
 
         return Response({
