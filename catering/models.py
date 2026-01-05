@@ -54,9 +54,14 @@ class Cuisine(models.Model):
 class Course(models.Model):
     name = models.CharField(max_length=100)
     image = models.FileField(upload_to='courses/')
+    cuisines = models.ManyToManyField(Cuisine, related_name='courses', blank=True)
     
     def __str__(self):
-        return self.name
+        return self.name 
+
+
+
+
 
 
 class Location(models.Model):
@@ -116,5 +121,30 @@ class CateringPlan(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
 
+
     def __str__(self):
         return f"{self.user.username} - {self.event_type.name if self.event_type else 'No Event'}"
+
+
+class MenuItem(models.Model):
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    image = models.FileField(upload_to='menu_items/', blank=True, null=True)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='menu_items')
+    cuisine = models.ForeignKey(Cuisine, on_delete=models.CASCADE, related_name='menu_items')
+
+    def __str__(self):
+        return f"{self.name} ({self.cuisine.name} - {self.course.name})"
+
+
+class MenuItemVariant(models.Model):
+    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, related_name='variants')
+    # Standard Budget Option
+    budget_option = models.ForeignKey(BudgetOption, on_delete=models.SET_NULL, null=True, blank=True)
+    # Private Budget Option
+    budget_option_private = models.ForeignKey(BudgetOptionPrivate, on_delete=models.SET_NULL, null=True, blank=True)
+    
+    price = models.DecimalField(max_digits=10, decimal_places=2)  # Price for this specific budget tier
+
+    def __str__(self):
+        return f"{self.menu_item.name} - ${self.price}"

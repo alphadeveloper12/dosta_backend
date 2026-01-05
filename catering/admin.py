@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, Cuisine,
-    Course, Location, BudgetOption, BudgetOptionPrivate, Pax, PaxPrivate, CateringPlan
+    Course, MenuItem, MenuItemVariant, Location, BudgetOption, BudgetOptionPrivate, Pax, PaxPrivate, CateringPlan
 )
 
 
@@ -65,6 +65,20 @@ class CuisineAdmin(admin.ModelAdmin):
 class CourseAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
+    filter_horizontal = ('cuisines',)  # ✅ Easy selection of cuisines in Admin
+
+
+class MenuItemVariantInline(admin.TabularInline):
+    model = MenuItemVariant
+    extra = 1
+
+
+@admin.register(MenuItem)
+class MenuItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'cuisine', 'course')
+    list_filter = ('cuisine', 'course')
+    search_fields = ('name',)
+    inlines = [MenuItemVariantInline]
 
 
 @admin.register(Location)

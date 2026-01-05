@@ -9,6 +9,7 @@ urlpatterns = [
     path('service-styles-private/', ServiceStylePrivateListView.as_view(), name='service-style-private-list'),
     path('cuisines/', CuisineListView.as_view(), name='cuisine-list'),
     path('courses/', CourseListView.as_view(), name='course-list'),
+    path('menu-items/', MenuItemListView.as_view(), name='menu-item-list'),
     path('locations/', LocationListView.as_view(), name='location-list'),
     path('budget-options/', BudgetOptionListView.as_view(), name='budget-option-list'),
     path('budget-options-private/', BudgetOptionPrivateListView.as_view(), name='budget-option-private-list'),
