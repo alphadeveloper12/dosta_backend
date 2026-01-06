@@ -133,18 +133,10 @@ class MenuItem(models.Model):
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='menu_items')
     cuisine = models.ForeignKey(Cuisine, on_delete=models.CASCADE, related_name='menu_items')
 
+    # New M2M fields for budget filtering
+    budget_options = models.ManyToManyField(BudgetOption, blank=True, related_name='menu_items')
+    budget_options_private = models.ManyToManyField(BudgetOptionPrivate, blank=True, related_name='menu_items')
+
     def __str__(self):
         return f"{self.name} ({self.cuisine.name} - {self.course.name})"
 
-
-class MenuItemVariant(models.Model):
-    menu_item = models.ForeignKey(MenuItem, on_delete=models.CASCADE, related_name='variants')
-    # Standard Budget Option
-    budget_option = models.ForeignKey(BudgetOption, on_delete=models.SET_NULL, null=True, blank=True)
-    # Private Budget Option
-    budget_option_private = models.ForeignKey(BudgetOptionPrivate, on_delete=models.SET_NULL, null=True, blank=True)
-    
-    price = models.DecimalField(max_digits=10, decimal_places=2)  # Price for this specific budget tier
-
-    def __str__(self):
-        return f"{self.menu_item.name} - ${self.price}"

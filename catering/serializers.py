@@ -101,18 +101,13 @@ class PaxPrivateSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaxPrivate
 
-class MenuItemVariantSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MenuItemVariant
-        fields = ['id', 'budget_option', 'budget_option_private', 'price']
-
 class MenuItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
-    variants = MenuItemVariantSerializer(many=True, read_only=True)
+    # variants field removed
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'name', 'description', 'image_url', 'course', 'cuisine', 'variants']
+        fields = ['id', 'name', 'description', 'image_url', 'course', 'cuisine']
 
     def get_image_url(self, obj):
         request = self.context.get('request')

@@ -95,47 +95,25 @@ class MenuItemListView(APIView):
             except ValueError:
                 pass
 
-        # 3. Filter/Prefetch Variants by Budget
-        # We need to return the item, but specifically with the PRICE for the selected budget.
-        # This is slightly complex because an item might have multiple variants.
-        # We want to attach the correct price to the serialized output.
+        # 3. Filter by Budget
+        # We now filter using the M2M fields directly.
         
         budget_id = request.query_params.get('budget_id')
         is_private = request.query_params.get('is_private', 'false').lower() == 'true'
 
-        results = []
-        for item in menu_items:
-            # Find the matching variant
-            matched_variant = None
-            if budget_id:
-                try:
-                    if is_private:
-                        matched_variant = item.variants.filter(budget_option_private_id=budget_id).first()
-                    else:
-                        matched_variant = item.variants.filter(budget_option_id=budget_id).first()
-                except ValueError:
-                    pass
+        if budget_id:
+            try:
+                budget_id = int(budget_id)
+                if is_private:
+                   menu_items = menu_items.filter(budget_options_private__id=budget_id)
+                else:
+                   menu_items = menu_items.filter(budget_options__id=budget_id)
+            except ValueError:
+                pass
 
-            # If we found a variant, or if we just want to list items (maybe show base price? Logic TBD)
-            # For now, let's include the item if it has a variant for this budget, OR if no budget filtered.
-            # But the user asked for "variants according to prices".
-            
-            # Optimization: If budget is selected, only show items available for that budget?
-            # Or show all, but null price? Let's assume we want valid items.
-            
-            if budget_id and not matched_variant:
-                 continue # Skip items not available in this budget (optional, but good for "menu per budget")
-
-            serializer = MenuItemSerializer(item, context={'request': request})
-            data = serializer.data
-            
-            # Manually inject the active price if a budget was selected
-            if matched_variant:
-                data['active_price'] = matched_variant.price
-            
-            results.append(data)
-            
-        return Response(results)
+        # Serialize and return
+        serializer = MenuItemSerializer(menu_items, many=True, context={'request': request})
+        return Response(serializer.data)
 
 class LocationListView(APIView):
     permission_classes = [IsAuthenticated]  # Ensure only authenticated users can access the API
