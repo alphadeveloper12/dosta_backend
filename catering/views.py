@@ -85,6 +85,8 @@ class MenuItemListView(APIView):
                 menu_items = menu_items.filter(cuisine__id__in=ids)
             except ValueError:
                 pass
+        
+        print(f"DEBUG: Items after Cuisine Filter: {menu_items.count()}")
 
         # 2. Filter by Courses
         course_ids = request.query_params.get('course_ids')
@@ -94,6 +96,8 @@ class MenuItemListView(APIView):
                 menu_items = menu_items.filter(course__id__in=ids)
             except ValueError:
                 pass
+        
+        print(f"DEBUG: Items after Course Filter: {menu_items.count()}")
 
         # 3. Filter by Budget
         # We now filter using the M2M fields directly.

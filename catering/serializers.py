@@ -85,12 +85,12 @@ class LocationSerializer(serializers.ModelSerializer):
 class BudgetOptionSerializer(serializers.ModelSerializer):
     class Meta:
         model = BudgetOption
-        fields = ['id', 'label', 'price_range']
+        fields = ['id', 'label', 'price_range', 'max_price']
 
 class BudgetOptionPrivateSerializer(serializers.ModelSerializer):
     class Meta:
         model = BudgetOptionPrivate
-        fields = ['id', 'label', 'price_range']
+        fields = ['id', 'label', 'price_range', 'max_price']
 
 class PaxSerializer(serializers.ModelSerializer):
     class Meta:
@@ -103,7 +103,6 @@ class PaxPrivateSerializer(serializers.ModelSerializer):
 
 class MenuItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
-    # variants field removed
 
     class Meta:
         model = MenuItem

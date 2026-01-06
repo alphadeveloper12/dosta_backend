@@ -4,6 +4,18 @@ from .models import (
     Course, MenuItem, Location, BudgetOption, BudgetOptionPrivate, Pax, PaxPrivate, CateringPlan
 )
 
+# ...
+
+
+
+
+@admin.register(MenuItem)
+class MenuItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'cuisine', 'course')
+    list_filter = ('cuisine', 'course')
+    search_fields = ('name',)
+    filter_horizontal = ('budget_options', 'budget_options_private')
+
 
 # ========== INLINE CONFIGS (Optional) ==========
 # If you want to show many-to-many fields inline in CateringPlan admin,
@@ -68,12 +80,7 @@ class CourseAdmin(admin.ModelAdmin):
     filter_horizontal = ('cuisines',)  # ✅ Easy selection of cuisines in Admin
 
 
-@admin.register(MenuItem)
-class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'cuisine', 'course')
-    list_filter = ('cuisine', 'course')
-    search_fields = ('name',)
-    filter_horizontal = ('budget_options', 'budget_options_private')
+
 
 
 @admin.register(Location)
@@ -84,13 +91,13 @@ class LocationAdmin(admin.ModelAdmin):
 
 @admin.register(BudgetOption)
 class BudgetOptionAdmin(admin.ModelAdmin):
-    list_display = ('label', 'price_range')
+    list_display = ('label', 'price_range', 'max_price')
     search_fields = ('label', 'price_range')
 
 
 @admin.register(BudgetOptionPrivate)
 class BudgetOptionPrivateAdmin(admin.ModelAdmin):
-    list_display = ('label', 'price_range')
+    list_display = ('label', 'price_range', 'max_price')
     search_fields = ('label', 'price_range')
 
 

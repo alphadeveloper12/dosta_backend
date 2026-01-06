@@ -74,7 +74,8 @@ class Location(models.Model):
 class BudgetOption(models.Model):
     label = models.CharField(max_length=100)  # e.g., "Economy", "Premium", etc.
     price_range = models.CharField(max_length=100)  # e.g., "$500–$1000"
-    
+    max_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+
     def __str__(self):
         return f"{self.label} ({self.price_range})"
 
@@ -82,6 +83,7 @@ class BudgetOption(models.Model):
 class BudgetOptionPrivate(models.Model):
     label = models.CharField(max_length=100)  # e.g., "Economy", "Premium", etc.
     price_range = models.CharField(max_length=100)  # e.g., "$500–$1000"
+    max_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
     def __str__(self):
         return f"{self.label} ({self.price_range})"
@@ -130,13 +132,14 @@ class MenuItem(models.Model):
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     image = models.FileField(upload_to='menu_items/', blank=True, null=True)
+    # price removed, using MenuItemPrice model
     course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='menu_items')
     cuisine = models.ForeignKey(Cuisine, on_delete=models.CASCADE, related_name='menu_items')
-
-    # New M2M fields for budget filtering
     budget_options = models.ManyToManyField(BudgetOption, blank=True, related_name='menu_items')
     budget_options_private = models.ManyToManyField(BudgetOptionPrivate, blank=True, related_name='menu_items')
 
     def __str__(self):
-        return f"{self.name} ({self.cuisine.name} - {self.course.name})"
+        return self.name
+
+
 
