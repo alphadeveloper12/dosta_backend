@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, Cuisine,
-    Course, MenuItem, Location, BudgetOption, BudgetOptionPrivate, Pax, PaxPrivate, CateringPlan
+    Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
+    CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem
 )
 
 # ...
@@ -14,7 +15,7 @@ class MenuItemAdmin(admin.ModelAdmin):
     list_display = ('name', 'cuisine', 'course')
     list_filter = ('cuisine', 'course')
     search_fields = ('name',)
-    filter_horizontal = ('budget_options', 'budget_options_private')
+    filter_horizontal = ('budget_options',)
 
 
 # ========== INLINE CONFIGS (Optional) ==========
@@ -95,22 +96,12 @@ class BudgetOptionAdmin(admin.ModelAdmin):
     search_fields = ('label', 'price_range')
 
 
-@admin.register(BudgetOptionPrivate)
-class BudgetOptionPrivateAdmin(admin.ModelAdmin):
-    list_display = ('label', 'price_range', 'max_price')
-    search_fields = ('label', 'price_range')
-
-
 @admin.register(Pax)
 class PaxAdmin(admin.ModelAdmin):
     list_display = ('label', 'number')
     search_fields = ('label', 'number')
-
-
-@admin.register(PaxPrivate)
-class PaxPrivateAdmin(admin.ModelAdmin):
-    list_display = ('label', 'number')
-    search_fields = ('label', 'number')
+    filter_horizontal = ('service_styles',)
+    list_filter = ('service_styles',)
 
 
 # ========== MAIN USER SUBMISSION ADMIN ==========
@@ -144,3 +135,34 @@ class CateringPlanAdmin(admin.ModelAdmin):
             'fields': ('created_at',)
         }),
     )
+
+class CoffeeBreakItemInline(admin.TabularInline):
+    model = CoffeeBreakItem
+    extra = 1
+
+@admin.register(CoffeeBreakRotation)
+class CoffeeBreakRotationAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    inlines = [CoffeeBreakItemInline]
+
+@admin.register(CoffeeBreakItem)
+class CoffeeBreakItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'rotation')
+    list_filter = ('rotation', 'category')
+    search_fields = ('name',)
+
+@admin.register(PlatterItem)
+class PlatterItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description')
+    search_fields = ('name',)
+
+@admin.register(BoxedMealItem)
+class BoxedMealItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category')
+    list_filter = ('category',)
+    search_fields = ('name',)
+
+@admin.register(LiveStationItem)
+class LiveStationItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'price')
+    search_fields = ('name',)

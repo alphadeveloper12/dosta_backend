@@ -50,6 +50,21 @@ class CuisineListView(APIView):
 
     def get(self, request):
         cuisines = Cuisine.objects.all()
+        
+        service_style_id = request.query_params.get('service_style_id')
+        event_type = request.query_params.get('event_type_name', '').lower()
+
+        if service_style_id:
+            try:
+                service_style_id = int(service_style_id)
+                # Check if it's a corporate event or private event to decide which model to filter
+                if 'corporate' in event_type:
+                    cuisines = cuisines.filter(service_styles__id=service_style_id)
+                else: 
+                     cuisines = cuisines.filter(service_styles_private__id=service_style_id)
+            except ValueError:
+                pass
+        
         serializer = CuisineSerializer(cuisines, many=True, context={'request': request})
         return Response(serializer.data)
     
@@ -108,10 +123,7 @@ class MenuItemListView(APIView):
         if budget_id:
             try:
                 budget_id = int(budget_id)
-                if is_private:
-                   menu_items = menu_items.filter(budget_options_private__id=budget_id)
-                else:
-                   menu_items = menu_items.filter(budget_options__id=budget_id)
+                menu_items = menu_items.filter(budget_options__id=budget_id)
             except ValueError:
                 pass
 
@@ -127,28 +139,21 @@ class LocationListView(APIView):
         serializer = LocationSerializer(locations, many=True)
         return Response(serializer.data)
 
-class BudgetOptionPrivateListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        budget_options = BudgetOptionPrivate.objects.all()
-        serializer = BudgetOptionPrivateSerializer(budget_options, many=True)
-        return Response(serializer.data)
-
 class PaxListView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         pax_options = Pax.objects.all()
+        service_style_id = request.query_params.get('service_style_id')
+        
+        if service_style_id:
+            try:
+                service_style_id = int(service_style_id)
+                pax_options = pax_options.filter(service_styles__id=service_style_id)
+            except ValueError:
+                pass
+        
         serializer = PaxSerializer(pax_options, many=True)
-        return Response(serializer.data)
-
-class PaxPrivateListView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        pax_options = PaxPrivate.objects.all()
-        serializer = PaxPrivateSerializer(pax_options, many=True)
         return Response(serializer.data)
     
 class BudgetOptionListView(APIView):
@@ -156,5 +161,50 @@ class BudgetOptionListView(APIView):
 
     def get(self, request):
         budget_options = BudgetOption.objects.all()  # Get all BudgetOption objects
+        
+        service_style_id = request.query_params.get('service_style_id')
+        is_private = request.query_params.get('is_private', 'false').lower() == 'true'
+
+        if service_style_id:
+            try:
+                if is_private:
+                    budget_options = budget_options.filter(service_styles_private__id=service_style_id)
+                else:
+                    budget_options = budget_options.filter(service_styles__id=service_style_id)
+            except ValueError:
+                pass
+                
         serializer = BudgetOptionSerializer(budget_options, many=True)
+        return Response(serializer.data)
+
+class CoffeeBreakRotationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        rotations = CoffeeBreakRotation.objects.all().prefetch_related('items')
+        serializer = CoffeeBreakRotationSerializer(rotations, many=True, context={'request': request})
+        return Response(serializer.data)
+
+class PlatterItemListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        platters = PlatterItem.objects.all()
+        serializer = PlatterItemSerializer(platters, many=True, context={'request': request})
+        return Response(serializer.data)
+
+class BoxedMealItemListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        items = BoxedMealItem.objects.all()
+        serializer = BoxedMealItemSerializer(items, many=True, context={'request': request})
+        return Response(serializer.data)
+
+class LiveStationItemListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        items = LiveStationItem.objects.all()
+        serializer = LiveStationItemSerializer(items, many=True, context={'request': request})
         return Response(serializer.data)

@@ -12,9 +12,11 @@ urlpatterns = [
     path('menu-items/', MenuItemListView.as_view(), name='menu-item-list'),
     path('locations/', LocationListView.as_view(), name='location-list'),
     path('budget-options/', BudgetOptionListView.as_view(), name='budget-option-list'),
-    path('budget-options-private/', BudgetOptionPrivateListView.as_view(), name='budget-option-private-list'),
     path('pax/', PaxListView.as_view(), name='pax-list'),
-    path('pax-private/', PaxPrivateListView.as_view(), name='pax-private-list'),
+    path('coffee-break-rotations/', CoffeeBreakRotationListView.as_view(), name='coffee-break-rotation-list'),
+    path('platter-items/', PlatterItemListView.as_view(), name='platter-item-list'),
+    path('boxed-meal-items/', BoxedMealItemListView.as_view(), name='boxed-meal-item-list'),
+    path('live-station-items/', LiveStationItemListView.as_view(), name='live-station-item-list'),
 
     
 ]

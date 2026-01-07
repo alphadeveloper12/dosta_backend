@@ -87,19 +87,10 @@ class BudgetOptionSerializer(serializers.ModelSerializer):
         model = BudgetOption
         fields = ['id', 'label', 'price_range', 'max_price']
 
-class BudgetOptionPrivateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = BudgetOptionPrivate
-        fields = ['id', 'label', 'price_range', 'max_price']
-
 class PaxSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pax
         fields = ['id', 'label', 'number']
-
-class PaxPrivateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = PaxPrivate
 
 class MenuItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
@@ -113,3 +104,64 @@ class MenuItemSerializer(serializers.ModelSerializer):
         if obj.image and request:
             return request.build_absolute_uri(obj.image.url)
         return None
+
+class CoffeeBreakItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CoffeeBreakItem
+        fields = ['id', 'name', 'category', 'image_url']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+class CoffeeBreakRotationSerializer(serializers.ModelSerializer):
+    items = CoffeeBreakItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = CoffeeBreakRotation
+        fields = ['id', 'name', 'items']
+
+class PlatterItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PlatterItem
+        fields = ['id', 'name', 'description', 'image_url']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+class BoxedMealItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BoxedMealItem
+        fields = ['id', 'name', 'category', 'image_url']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+
+class LiveStationItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LiveStationItem
+        fields = ['id', 'name', 'price', 'setup', 'ingredients', 'image_url']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
