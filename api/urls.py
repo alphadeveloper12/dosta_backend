@@ -8,6 +8,7 @@ from .views import (
     AddressDetailView,
     PaymentMethodListCreateView,
     PaymentMethodDetailView,
+    GoogleLogin,
 )
 
 urlpatterns = [
@@ -15,6 +16,7 @@ urlpatterns = [
     path('signup/', SignupView.as_view(), name='signup'),
     path('login/', LoginView.as_view(), name='login'),
     path('verify-otp/', VerifyOTPView.as_view(), name='verify-otp'),
+    path('google/', GoogleLogin.as_view(), name='google_login'),
 
     # Profile
     path('profile/', ProfileView.as_view(), name='user-profile'),
