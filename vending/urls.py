@@ -12,7 +12,10 @@ from .views import (
     OrderProgressView,
     CartView,
     UserOrdersView,
-    data_upload_view
+    data_upload_view,
+    ExternalCheckUserView,
+    ExternalMachineGoodsView,
+    ExternalProductionPickView
 )
 
 # -----------------------------------------------------------
@@ -42,4 +45,9 @@ urlpatterns = [
     path('order/progress/', OrderProgressView.as_view(), name='order-progress'),
     path('orders/', UserOrdersView.as_view(), name='user-orders'),
     path('cart/', CartView.as_view(), name='cart'),
+
+    # External Vending API Proxies
+    path('external/check-user/', ExternalCheckUserView.as_view(), name='external-check-user'),
+    path('external/machine-goods/', ExternalMachineGoodsView.as_view(), name='external-machine-goods'),
+    path('external/production-pick/', ExternalProductionPickView.as_view(), name='external-production-pick'),
 ]

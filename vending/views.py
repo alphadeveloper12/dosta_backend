@@ -2,6 +2,7 @@ from rest_framework import viewsets, permissions, filters, status
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
+import requests
 from django.db.models import Q, ProtectedError
 from django.db import transaction
 from django.utils import timezone
@@ -616,3 +617,113 @@ class CartView(APIView):
         except Exception as e:
             print(f"Cart Sync Error: {e}") # Log to terminal
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+# -----------------------------------------------------------
+# EXTERNAL VENDING API PROXIES
+# -----------------------------------------------------------
+
+class ExternalCheckUserView(APIView):
+    """
+    Proxies request to:
+    http://www.hnzczy.cn:8087/apiusers/checkusername
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
+        params = {
+            "userName": "C202405128888",
+            "password": "8888"
+        }
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            return Response(response.json(), status=response.status_code)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ExternalMachineGoodsView(APIView):
+    """
+    Proxies request to:
+    http://www.hnzczy.cn:8087/customgoods/querymachinegoods
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        # 1. Fetch Token from External API
+        token_url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
+        token_params = {
+            "userName": "C202405128888",
+            "password": "8888"
+        }
+        
+        print(f"DEBUG: Fetching token for MachineGoods from {token_url}")
+        try:
+            token_response = requests.get(token_url, params=token_params, timeout=10)
+            print(f"DEBUG: Token response status: {token_response.status_code}")
+            token_data = token_response.json()
+            print(f"DEBUG: Token response data: {token_data}")
+            token = token_data.get("data") or token_data.get("token")
+            print(f"DEBUG: Extracted token: {token}")
+            
+            if not token:
+                return Response({"error": "Could not fetch external vending token", "details": token_data}, status=status.HTTP_502_BAD_GATEWAY)
+
+            # 2. Fetch Machine Goods using the token
+            params = request.query_params.dict()
+            goods_url = "http://www.hnzczy.cn:8087/customgoods/querymachinegoods"
+            headers = {"Authorization": token}
+            print(f"DEBUG: Fetching goods from {goods_url} with params {params} and headers {headers}")
+            
+            response = requests.get(goods_url, params=params, headers=headers, timeout=10)
+            print(f"DEBUG: Goods response status: {response.status_code}")
+            print(f"DEBUG: Goods response data: {response.json()}")
+            return Response(response.json(), status=response.status_code)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in ExternalMachineGoodsView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ExternalProductionPickView(APIView):
+    """
+    Proxies request to:
+    http://www.hnzczy.cn:8087/commpick/productionpick
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def post(self, request):
+        # 1. Fetch Token from External API
+        token_url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
+        token_params = {
+            "userName": "C202405128888",
+            "password": "8888"
+        }
+        
+        print(f"DEBUG: Fetching token for ProductionPick from {token_url}")
+        try:
+            token_response = requests.get(token_url, params=token_params, timeout=10)
+            print(f"DEBUG: Token response status: {token_response.status_code}")
+            token_data = token_response.json()
+            print(f"DEBUG: Token response data: {token_data}")
+            token = token_data.get("data") or token_data.get("token")
+            print(f"DEBUG: Extracted token: {token}")
+            
+            if not token:
+                return Response({"error": "Could not fetch external vending token", "details": token_data}, status=status.HTTP_502_BAD_GATEWAY)
+
+            # 2. Production Pick Request using the token
+            url = "http://www.hnzczy.cn:8087/commpick/productionpick"
+            headers = {"Authorization": token}
+            print(f"DEBUG: Posting pick to {url} with body {request.data} and headers {headers}")
+            
+            # Forward the JSON body
+            response = requests.post(url, json=request.data, headers=headers, timeout=10)
+            print(f"DEBUG: Pick response status: {response.status_code}")
+            print(f"DEBUG: Pick response data: {response.json()}")
+            return Response(response.json(), status=response.status_code)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in ExternalProductionPickView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
