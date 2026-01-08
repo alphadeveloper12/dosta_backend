@@ -70,7 +70,7 @@ class ServiceStylePrivateAdmin(admin.ModelAdmin):
 
 @admin.register(Cuisine)
 class CuisineAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ('name', 'min_price', 'max_price')
     search_fields = ('name',)
 
 
@@ -92,7 +92,7 @@ class LocationAdmin(admin.ModelAdmin):
 
 @admin.register(BudgetOption)
 class BudgetOptionAdmin(admin.ModelAdmin):
-    list_display = ('label', 'price_range', 'max_price')
+    list_display = ('label', 'price_range', 'min_price', 'max_price')
     search_fields = ('label', 'price_range')
 
 

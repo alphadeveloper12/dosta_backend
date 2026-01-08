@@ -50,6 +50,9 @@ class ServiceStylePrivate(models.Model):
 class Cuisine(models.Model):
     name = models.CharField(max_length=100)
     image = models.FileField(upload_to='cuisines/')
+    budget_options = models.ManyToManyField('BudgetOption', blank=True, related_name='cuisines')
+    min_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    max_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
     def __str__(self):
         return self.name
@@ -78,6 +81,7 @@ class Location(models.Model):
 class BudgetOption(models.Model):
     label = models.CharField(max_length=100)  # e.g., "Economy", "Premium", etc.
     price_range = models.CharField(max_length=100)  # e.g., "$500–$1000"
+    min_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     max_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
 
     def __str__(self):

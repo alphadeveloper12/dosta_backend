@@ -64,6 +64,17 @@ class CuisineListView(APIView):
                      cuisines = cuisines.filter(service_styles_private__id=service_style_id)
             except ValueError:
                 pass
+
+        budget_id = request.query_params.get('budget_id')
+        if budget_id:
+            try:
+                budget_id = int(budget_id)
+                selected_budget = BudgetOption.objects.get(id=budget_id)
+                # Filter cuisines where model's max_price >= selected_budget.min_price
+                # This assumes we have migrated data to the Cuisine model
+                cuisines = cuisines.filter(max_price__gte=selected_budget.min_price).distinct()
+            except (ValueError, BudgetOption.DoesNotExist):
+                pass
         
         serializer = CuisineSerializer(cuisines, many=True, context={'request': request})
         return Response(serializer.data)

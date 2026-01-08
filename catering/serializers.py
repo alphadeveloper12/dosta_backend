@@ -52,7 +52,7 @@ class CuisineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Cuisine
-        fields = ['id', 'name', 'image_url']
+        fields = ['id', 'name', 'image_url', 'budget_options']
 
     def get_image_url(self, obj):
         request = self.context.get('request')  # Get the request context
