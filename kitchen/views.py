@@ -253,11 +253,36 @@ def process_menu_data(data_iter):
 
 def get_active_orders_api(request):
     """
-    Returns a list of active order IDs and their latest status.
-    Used for polling by the dashboard to detect new orders.
+    Returns a list of active orders with full details.
+    Used for polling by the dashboard to detect and render new orders.
     """
+    from django.utils.timesince import timesince
+    from django.urls import reverse
+    
     orders = Order.objects.filter(
         status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY]
-    ).values('id', 'status', 'created_at')
+    ).prefetch_related('items__menu_item').order_by('-created_at')
     
-    return JsonResponse({'orders': list(orders)})
+    orders_data = []
+    for order in orders:
+        items_data = []
+        for item in order.items.all()[:3]:  # First 3 items like in template
+            items_data.append({
+                'name': item.menu_item.name,
+                'quantity': item.quantity
+            })
+        
+        orders_data.append({
+            'id': order.id,
+            'status': order.status,
+            'status_display': order.get_status_display(),
+            'created_at': order.created_at.isoformat(),
+            'timesince': timesince(order.created_at),
+            'pickup_date': str(order.pickup_date) if order.pickup_date else 'Today',
+            'pickup_slot': order.pickup_slot.label if order.pickup_slot else None,
+            'items_count': order.items.count(),
+            'items': items_data,
+            'detail_url': reverse('kitchen:order_detail', args=[order.id])
+        })
+    
+    return JsonResponse({'orders': orders_data})
