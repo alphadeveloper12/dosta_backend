@@ -126,17 +126,9 @@ class MenuItemListView(APIView):
         print(f"DEBUG: Items after Course Filter: {menu_items.count()}")
 
         # 3. Filter by Budget
-        # We now filter using the M2M fields directly.
-        
-        budget_id = request.query_params.get('budget_id')
-        is_private = request.query_params.get('is_private', 'false').lower() == 'true'
-
-        if budget_id:
-            try:
-                budget_id = int(budget_id)
-                menu_items = menu_items.filter(budget_options__id=budget_id)
-            except ValueError:
-                pass
+        # Filtering disabled as per user request to show all items regardless of price
+        # budget_id = request.query_params.get('budget_id')
+        # ... logic removed ...
 
         # Serialize and return
         serializer = MenuItemSerializer(menu_items, many=True, context={'request': request})
@@ -156,11 +148,17 @@ class PaxListView(APIView):
     def get(self, request):
         pax_options = Pax.objects.all()
         service_style_id = request.query_params.get('service_style_id')
+        is_private = request.query_params.get('is_private', 'false').lower() == 'true'
         
         if service_style_id:
             try:
                 service_style_id = int(service_style_id)
-                pax_options = pax_options.filter(service_styles__id=service_style_id)
+                if is_private:
+                     # Filter by private service style M2M
+                     pax_options = pax_options.filter(service_styles_private__id=service_style_id)
+                else:
+                     # Filter by corporate service style M2M
+                     pax_options = pax_options.filter(service_styles__id=service_style_id)
             except ValueError:
                 pass
         

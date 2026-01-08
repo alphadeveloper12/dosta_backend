@@ -92,6 +92,7 @@ class Pax(models.Model):
     label = models.CharField(max_length=100) # e.g., "Small Group"
     number = models.CharField(max_length=100) # e.g., "10-20"
     service_styles = models.ManyToManyField(ServiceStyle, blank=True, related_name='pax_options')
+    service_styles_private = models.ManyToManyField('ServiceStylePrivate', blank=True, related_name='pax_options')
     
     def __str__(self):
         return f"{self.label} ({self.number})"

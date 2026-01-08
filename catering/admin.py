@@ -100,7 +100,7 @@ class BudgetOptionAdmin(admin.ModelAdmin):
 class PaxAdmin(admin.ModelAdmin):
     list_display = ('label', 'number')
     search_fields = ('label', 'number')
-    filter_horizontal = ('service_styles',)
+    filter_horizontal = ('service_styles', 'service_styles_private')
     list_filter = ('service_styles',)
 
 
