@@ -177,6 +177,7 @@ class OrderItem(models.Model):
     quantity = models.PositiveIntegerField(default=1)
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -233,6 +234,7 @@ class CartItem(models.Model):
     # Item context (for weekly/monthly plans)
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
+    vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
     
     added_at = models.DateTimeField(auto_now_add=True)
 

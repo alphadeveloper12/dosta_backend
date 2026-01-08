@@ -101,7 +101,7 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'menu_item', 'quantity', 'day_of_week', 'week_number']
+        fields = ['id', 'menu_item', 'quantity', 'day_of_week', 'week_number', 'vending_good_uuid']
 
 
 class OrderSerializer(serializers.ModelSerializer):
@@ -138,7 +138,7 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CartItem
-        fields = ['id', 'menu_item', 'quantity', 'day_of_week', 'week_number', 'subtotal']
+        fields = ['id', 'menu_item', 'quantity', 'day_of_week', 'week_number', 'subtotal', 'vending_good_uuid']
 
     def get_subtotal(self, obj):
         return obj.subtotal

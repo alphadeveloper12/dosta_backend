@@ -469,7 +469,8 @@ class ConfirmOrderView(APIView):
                 menu_item_id=item["menu_item_id"],
                 quantity=item.get("quantity", 1),
                 day_of_week=item.get("day_of_week"),
-                week_number=item.get("week_number")
+                week_number=item.get("week_number"),
+                vending_good_uuid=item.get("vending_good_uuid")
             )
 
         order.update_total()
@@ -604,7 +605,8 @@ class CartView(APIView):
                     menu_item_id=item["menu_item_id"],
                     quantity=item.get("quantity", 1),
                     day_of_week=item.get("day_of_week"),
-                    week_number=item.get("week_number")
+                    week_number=item.get("week_number"),
+                    vending_good_uuid=item.get("vending_good_uuid")
                 )
 
             cart.update_total()
