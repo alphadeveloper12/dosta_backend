@@ -1,8 +1,21 @@
 from django.contrib import admin
 from .models import (
-    EventType, ProviderType, ServiceStyle, Cuisine,
-    Course, Location, BudgetOption, CateringPlan
+    EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, Cuisine,
+    Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
+    CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem
 )
+
+# ...
+
+
+
+
+@admin.register(MenuItem)
+class MenuItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'cuisine', 'course')
+    list_filter = ('cuisine', 'course')
+    search_fields = ('name',)
+    filter_horizontal = ('budget_options',)
 
 
 # ========== INLINE CONFIGS (Optional) ==========
@@ -31,6 +44,12 @@ class EventTypeAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 
+@admin.register(EventName)
+class EventNameAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+
 @admin.register(ProviderType)
 class ProviderTypeAdmin(admin.ModelAdmin):
     list_display = ('name',)
@@ -43,9 +62,15 @@ class ServiceStyleAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 
+@admin.register(ServiceStylePrivate)
+class ServiceStylePrivateAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+
+
 @admin.register(Cuisine)
 class CuisineAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ('name', 'min_price', 'max_price')
     search_fields = ('name',)
 
 
@@ -53,6 +78,10 @@ class CuisineAdmin(admin.ModelAdmin):
 class CourseAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
+    filter_horizontal = ('cuisines',)  # ✅ Easy selection of cuisines in Admin
+
+
+
 
 
 @admin.register(Location)
@@ -63,8 +92,16 @@ class LocationAdmin(admin.ModelAdmin):
 
 @admin.register(BudgetOption)
 class BudgetOptionAdmin(admin.ModelAdmin):
-    list_display = ('label', 'price_range')
+    list_display = ('label', 'price_range', 'min_price', 'max_price')
     search_fields = ('label', 'price_range')
+
+
+@admin.register(Pax)
+class PaxAdmin(admin.ModelAdmin):
+    list_display = ('label', 'number')
+    search_fields = ('label', 'number')
+    filter_horizontal = ('service_styles', 'service_styles_private')
+    list_filter = ('service_styles',)
 
 
 # ========== MAIN USER SUBMISSION ADMIN ==========
@@ -98,3 +135,34 @@ class CateringPlanAdmin(admin.ModelAdmin):
             'fields': ('created_at',)
         }),
     )
+
+class CoffeeBreakItemInline(admin.TabularInline):
+    model = CoffeeBreakItem
+    extra = 1
+
+@admin.register(CoffeeBreakRotation)
+class CoffeeBreakRotationAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    inlines = [CoffeeBreakItemInline]
+
+@admin.register(CoffeeBreakItem)
+class CoffeeBreakItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'rotation')
+    list_filter = ('rotation', 'category')
+    search_fields = ('name',)
+
+@admin.register(PlatterItem)
+class PlatterItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'description')
+    search_fields = ('name',)
+
+@admin.register(BoxedMealItem)
+class BoxedMealItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category')
+    list_filter = ('category',)
+    search_fields = ('name',)
+
+@admin.register(LiveStationItem)
+class LiveStationItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'price')
+    search_fields = ('name',)
