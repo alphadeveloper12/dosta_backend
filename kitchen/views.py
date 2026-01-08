@@ -20,7 +20,7 @@ class DashboardView(ListView):
                 OrderStatus.PREPARING,
                 OrderStatus.READY
             ]
-        ).order_by('created_at')
+        ).order_by('-created_at')
 
 class TrackingView(ListView):
     model = Order
