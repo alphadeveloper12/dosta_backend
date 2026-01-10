@@ -17,6 +17,9 @@ urlpatterns = [
     path('platter-items/', PlatterItemListView.as_view(), name='platter-item-list'),
     path('boxed-meal-items/', BoxedMealItemListView.as_view(), name='boxed-meal-item-list'),
     path('live-station-items/', LiveStationItemListView.as_view(), name='live-station-item-list'),
+    path('fixed-menus/', FixedCateringMenuListView.as_view(), name='fixed-menu-list'),
+    path('american-menus/', AmericanMenuListView.as_view(), name='american-menu-list'),
+    path('canape-items/', CanapeItemListView.as_view(), name='canape-item-list'),
 
     
 ]

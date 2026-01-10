@@ -31,6 +31,7 @@ class ProviderType(models.Model):
 
 class ServiceStyle(models.Model):
     name = models.CharField(max_length=100)
+    min_pax = models.PositiveIntegerField(default=0)
     cuisines = models.ManyToManyField('Cuisine', blank=True, related_name='service_styles')
     budget_options = models.ManyToManyField('BudgetOption', blank=True, related_name='service_styles')
     
@@ -40,6 +41,7 @@ class ServiceStyle(models.Model):
 
 class ServiceStylePrivate(models.Model):
     name = models.CharField(max_length=100)
+    min_pax = models.PositiveIntegerField(default=0)
     cuisines = models.ManyToManyField('Cuisine', blank=True, related_name='service_styles_private')
     budget_options = models.ManyToManyField('BudgetOption', blank=True, related_name='service_styles_private')
     
@@ -51,8 +53,6 @@ class Cuisine(models.Model):
     name = models.CharField(max_length=100)
     image = models.FileField(upload_to='cuisines/')
     budget_options = models.ManyToManyField('BudgetOption', blank=True, related_name='cuisines')
-    min_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
-    max_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
     def __str__(self):
         return self.name
@@ -62,6 +62,7 @@ class Course(models.Model):
     name = models.CharField(max_length=100)
     image = models.FileField(upload_to='courses/')
     cuisines = models.ManyToManyField(Cuisine, related_name='courses', blank=True)
+    budget_options = models.ManyToManyField('BudgetOption', related_name='courses', blank=True)
     
     def __str__(self):
         return self.name 
@@ -97,6 +98,17 @@ class Pax(models.Model):
     def __str__(self):
         return f"{self.label} ({self.number})"
 
+
+
+class FixedCateringMenu(models.Model):
+    name = models.CharField(max_length=200)
+    cuisine = models.ForeignKey(Cuisine, on_delete=models.CASCADE, related_name='fixed_menus')
+    budget_option = models.ForeignKey(BudgetOption, on_delete=models.CASCADE, related_name='fixed_menus')
+    courses = models.ManyToManyField(Course, related_name='fixed_menus', blank=True)
+    items = models.ManyToManyField('MenuItem', related_name='fixed_menus', blank=True)
+
+    def __str__(self):
+        return f"{self.name} - {self.cuisine.name} ({self.budget_option.label})"
 
 # ========== USER-SIDE MODEL (Catering Planning Form) ==========
 
@@ -181,5 +193,39 @@ class LiveStationItem(models.Model):
     ingredients = models.TextField()
     image = models.FileField(upload_to='live_stations/', blank=True)
     
+    def __str__(self):
+        return self.name
+
+class AmericanMenu(models.Model):
+    name = models.CharField(max_length=100) # e.g., "Buffet Menu 1: Southern Comfort"
+    
+    def __str__(self):
+        return self.name
+
+class AmericanMenuItem(models.Model):
+    menu = models.ForeignKey(AmericanMenu, related_name='items', on_delete=models.CASCADE)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=100) # Starters, Salads, Main Dishes, Sides, Desserts
+    image = models.FileField(upload_to='american_menus/', blank=True)
+    
+    def __str__(self):
+        return self.name
+
+class CanapeItem(models.Model):
+    CATEGORY_CHOICES = [
+        ('Cold', 'Cold Canapes'),
+        ('Hot', 'Hot Canapes'),
+        ('Arabic', 'Arabic Canapes'),
+        ('Sweet', 'Sweet Canapes'),
+        ('Vegetarian', 'Vegetarian Canapes'),
+        ('Cold Beverages', 'Cold Beverages'),
+        ('Hot Beverages', 'Hot Beverages'),
+    ]
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True)
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
+    image = models.FileField(upload_to='canapes/', blank=True)
+
     def __str__(self):
         return self.name

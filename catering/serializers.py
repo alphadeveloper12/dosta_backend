@@ -39,12 +39,12 @@ class ProviderTypeSerializer(serializers.ModelSerializer):
 class ServiceStyleSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceStyle
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'min_pax']
         
 class ServiceStylePrivateSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceStylePrivate
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'min_pax']
 
 class CuisineSerializer(serializers.ModelSerializer):
     # Use SerializerMethodField to create the dynamic image URL
@@ -158,6 +158,49 @@ class LiveStationItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = LiveStationItem
         fields = ['id', 'name', 'price', 'setup', 'ingredients', 'image_url']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+
+class FixedCateringMenuSerializer(serializers.ModelSerializer):
+    courses = CourseSerializer(many=True, read_only=True)
+    items = MenuItemSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = FixedCateringMenu
+        fields = ['id', 'name', 'cuisine', 'budget_option', 'courses', 'items']
+
+
+class AmericanMenuItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AmericanMenuItem
+        fields = ['id', 'name', 'description', 'category', 'image_url']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+class AmericanMenuSerializer(serializers.ModelSerializer):
+    items = AmericanMenuItemSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = AmericanMenu
+        fields = ['id', 'name', 'items']
+
+class CanapeItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CanapeItem
+        fields = ['id', 'name', 'description', 'category', 'image_url']
 
     def get_image_url(self, obj):
         request = self.context.get('request')

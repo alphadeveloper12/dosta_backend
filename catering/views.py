@@ -1,4 +1,5 @@
 from rest_framework.views import APIView
+from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from .models import *
@@ -65,16 +66,7 @@ class CuisineListView(APIView):
             except ValueError:
                 pass
 
-        budget_id = request.query_params.get('budget_id')
-        if budget_id:
-            try:
-                budget_id = int(budget_id)
-                selected_budget = BudgetOption.objects.get(id=budget_id)
-                # Filter cuisines where model's max_price >= selected_budget.min_price
-                # This assumes we have migrated data to the Cuisine model
-                cuisines = cuisines.filter(max_price__gte=selected_budget.min_price).distinct()
-            except (ValueError, BudgetOption.DoesNotExist):
-                pass
+
         
         serializer = CuisineSerializer(cuisines, many=True, context={'request': request})
         return Response(serializer.data)
@@ -93,6 +85,15 @@ class CourseListView(APIView):
                 courses = courses.filter(cuisines__id__in=ids).distinct()
             except ValueError:
                 pass # Ignore invalid inputs
+
+        # Filter by budget_id if provided (Fixed Menu Logic)
+        budget_id = request.query_params.get('budget_id')
+        if budget_id:
+            try:
+                budget_id = int(budget_id)
+                courses = courses.filter(budget_options__id=budget_id).distinct()
+            except ValueError:
+                pass
 
         serializer = CourseSerializer(courses, many=True, context={'request': request})
         return Response(serializer.data)
@@ -126,10 +127,15 @@ class MenuItemListView(APIView):
         print(f"DEBUG: Items after Course Filter: {menu_items.count()}")
 
         # 3. Filter by Budget
-        # Filtering disabled as per user request to show all items regardless of price
-        # budget_id = request.query_params.get('budget_id')
-        # ... logic removed ...
-
+        budget_id = request.query_params.get('budget_id')
+        if budget_id:
+            try:
+                budget_id = int(budget_id)
+                # Filter items that are linked to the selected budget via M2M
+                menu_items = menu_items.filter(budget_options__id=budget_id).distinct()
+            except ValueError:
+                pass
+        
         # Serialize and return
         serializer = MenuItemSerializer(menu_items, many=True, context={'request': request})
         return Response(serializer.data)
@@ -166,7 +172,7 @@ class PaxListView(APIView):
         return Response(serializer.data)
     
 class BudgetOptionListView(APIView):
-    permission_classes = [IsAuthenticated]  # Only authenticated users can access this API (optional)
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         budget_options = BudgetOption.objects.all()  # Get all BudgetOption objects
@@ -177,11 +183,34 @@ class BudgetOptionListView(APIView):
         if service_style_id:
             try:
                 if is_private:
+                    style = ServiceStylePrivate.objects.get(id=service_style_id)
                     budget_options = budget_options.filter(service_styles_private__id=service_style_id)
                 else:
+                    style = ServiceStyle.objects.get(id=service_style_id)
                     budget_options = budget_options.filter(service_styles__id=service_style_id)
+                
+                # STRICT CHECK: If Buffet or Set Menu, strict filtering by cuisine is expected.
+                # If cuisine_ids is not provided, return NONE (instead of all).
+                style_name = style.name.lower()
+                if 'buffet' in style_name or 'set menu' in style_name:
+                    cuisine_ids = request.query_params.get('cuisine_ids')
+                    if not cuisine_ids:
+                         budget_options = budget_options.none()
+
+            except (ValueError, ServiceStyle.DoesNotExist, ServiceStylePrivate.DoesNotExist):
+                # FAIL SAFE: If service style ID is invalid or lookup fails, return NONE instead of ALL.
+                budget_options = budget_options.none()
+        
+        # Filter by Cuisine (if provided)
+        cuisine_ids = request.query_params.get('cuisine_ids')
+        if cuisine_ids:
+            try:
+                ids = [int(id) for id in cuisine_ids.split(',')]
+                # Filter budgets that are associated with ANY of the selected cuisines
+                # Since relationship is 'cuisines' (related_name on BudgetOption from Cuisine model)
+                budget_options = budget_options.filter(cuisines__id__in=ids).distinct()
             except ValueError:
-                pass
+                budget_options = budget_options.none()
                 
         serializer = BudgetOptionSerializer(budget_options, many=True)
         return Response(serializer.data)
@@ -216,4 +245,43 @@ class LiveStationItemListView(APIView):
     def get(self, request):
         items = LiveStationItem.objects.all()
         serializer = LiveStationItemSerializer(items, many=True, context={'request': request})
+        return Response(serializer.data)
+
+class FixedCateringMenuListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        menus = FixedCateringMenu.objects.all()
+        
+        # Filter by Cuisine
+        cuisine_ids = request.query_params.get('cuisine_ids')
+        if cuisine_ids:
+            try:
+                ids = [int(id) for id in cuisine_ids.split(',')]
+                menus = menus.filter(cuisine__id__in=ids)
+            except ValueError:
+                pass
+                
+        # Filter by Budget
+        budget_id = request.query_params.get('budget_id')
+        if budget_id:
+            try:
+                menus = menus.filter(budget_option__id=int(budget_id))
+            except ValueError:
+                pass
+                
+        serializer = FixedCateringMenuSerializer(menus, many=True, context={'request': request})
+        return Response(serializer.data)
+
+class AmericanMenuListView(generics.ListAPIView):
+    serializer_class = AmericanMenuSerializer
+    permission_classes = [IsAuthenticated]
+    queryset = AmericanMenu.objects.all().prefetch_related('items')
+
+class CanapeItemListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        items = CanapeItem.objects.all()
+        serializer = CanapeItemSerializer(items, many=True, context={'request': request})
         return Response(serializer.data)

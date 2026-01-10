@@ -2,13 +2,32 @@ from django.contrib import admin
 from .models import (
     EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, Cuisine,
     Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
-    CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem
+    CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem,
+    FixedCateringMenu, AmericanMenu, AmericanMenuItem
 )
+
+# Helper to safely register/unregister
+def safe_register(model, admin_class):
+    if admin.site.is_registered(model):
+        admin.site.unregister(model)
+    admin.site.register(model, admin_class)
 
 # ...
 
+class AmericanMenuItemInline(admin.TabularInline):
+    model = AmericanMenuItem
+    extra = 1
 
+class AmericanMenuAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    inlines = [AmericanMenuItemInline]
+safe_register(AmericanMenu, AmericanMenuAdmin)
 
+class AmericanMenuItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'menu')
+    list_filter = ('menu', 'category')
+    search_fields = ('name',)
+safe_register(AmericanMenuItem, AmericanMenuItemAdmin)
 
 @admin.register(MenuItem)
 class MenuItemAdmin(admin.ModelAdmin):
@@ -17,84 +36,83 @@ class MenuItemAdmin(admin.ModelAdmin):
     search_fields = ('name',)
     filter_horizontal = ('budget_options',)
 
-
-# ========== INLINE CONFIGS (Optional) ==========
-# If you want to show many-to-many fields inline in CateringPlan admin,
-# we’ll use TabularInline (useful for quick overview)
 class CateringPlanServiceStyleInline(admin.TabularInline):
     model = CateringPlan.service_styles.through
     extra = 1
-
 
 class CateringPlanCuisineInline(admin.TabularInline):
     model = CateringPlan.cuisines.through
     extra = 1
 
-
 class CateringPlanCourseInline(admin.TabularInline):
     model = CateringPlan.courses.through
     extra = 1
 
-
-# ========== ADMIN MODELS FOR DYNAMIC ITEMS ==========
+@admin.register(FixedCateringMenu)
+class FixedCateringMenuAdmin(admin.ModelAdmin):
+    list_display = ('name', 'cuisine', 'budget_option')
+    list_filter = ('cuisine', 'budget_option')
+    filter_horizontal = ('courses', 'items')
 
 @admin.register(EventType)
 class EventTypeAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
 
-
 @admin.register(EventName)
 class EventNameAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
 
+# Helper to safely register/unregister
+def safe_register(model, admin_class):
+    if admin.site.is_registered(model):
+        admin.site.unregister(model)
+    admin.site.register(model, admin_class)
 
 @admin.register(ProviderType)
 class ProviderTypeAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
 
-
-@admin.register(ServiceStyle)
 class ServiceStyleAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ('name', 'min_pax')
     search_fields = ('name',)
+    filter_horizontal = ('cuisines', 'budget_options')
+safe_register(ServiceStyle, ServiceStyleAdmin)
 
-
-@admin.register(ServiceStylePrivate)
 class ServiceStylePrivateAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ('name', 'min_pax')
     search_fields = ('name',)
-
+    filter_horizontal = ('cuisines', 'budget_options')
+safe_register(ServiceStylePrivate, ServiceStylePrivateAdmin)
 
 @admin.register(Cuisine)
 class CuisineAdmin(admin.ModelAdmin):
-    list_display = ('name', 'min_price', 'max_price')
+    list_display = ('name',)
     search_fields = ('name',)
-
+    filter_horizontal = ('budget_options',)
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
-    filter_horizontal = ('cuisines',)  # ✅ Easy selection of cuisines in Admin
-
-
-
-
+    filter_horizontal = ('cuisines', 'budget_options')
 
 @admin.register(Location)
 class LocationAdmin(admin.ModelAdmin):
     list_display = ('name',)
     search_fields = ('name',)
 
+class CuisineInline(admin.TabularInline):
+    model = Cuisine.budget_options.through
+    extra = 1
 
 @admin.register(BudgetOption)
 class BudgetOptionAdmin(admin.ModelAdmin):
     list_display = ('label', 'price_range', 'min_price', 'max_price')
     search_fields = ('label', 'price_range')
-
+    inlines = [CuisineInline]
 
 @admin.register(Pax)
 class PaxAdmin(admin.ModelAdmin):
@@ -102,9 +120,6 @@ class PaxAdmin(admin.ModelAdmin):
     search_fields = ('label', 'number')
     filter_horizontal = ('service_styles', 'service_styles_private')
     list_filter = ('service_styles',)
-
-
-# ========== MAIN USER SUBMISSION ADMIN ==========
 
 @admin.register(CateringPlan)
 class CateringPlanAdmin(admin.ModelAdmin):
