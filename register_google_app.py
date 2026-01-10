@@ -2,6 +2,9 @@ import os
 import django
 from django.conf import settings
 
+from dotenv import load_dotenv
+
+load_dotenv()
 # Set up Django environment
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'dosta.settings')
 django.setup()
