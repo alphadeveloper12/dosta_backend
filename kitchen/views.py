@@ -13,14 +13,15 @@ class DashboardView(ListView):
     context_object_name = 'orders'
 
     def get_queryset(self):
-        # Show specific statuses for kitchen
+        # Show specific statuses for kitchen, but only if they have non-Order Now items
         return Order.objects.filter(
             status__in=[
                 OrderStatus.PENDING,
                 OrderStatus.PREPARING,
                 OrderStatus.READY
-            ]
-        ).order_by('-created_at')
+            ],
+            items__plan_type__in=['START_PLAN'] # Only show orders that have plan items
+        ).distinct().order_by('-created_at')
 
 class TrackingView(ListView):
     model = Order
@@ -260,13 +261,20 @@ def get_active_orders_api(request):
     from django.urls import reverse
     
     orders = Order.objects.filter(
-        status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY]
-    ).prefetch_related('items__menu_item').order_by('-created_at')
+        status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY],
+        items__plan_type__in=['START_PLAN']
+    ).prefetch_related('items__menu_item').distinct().order_by('-created_at')
     
     orders_data = []
     for order in orders:
+        # Filter items to only show those that need kitchen preparation
+        kitchen_items = order.items.filter(plan_type='START_PLAN')
+        
+        if not kitchen_items.exists():
+            continue
+
         items_data = []
-        for item in order.items.all()[:3]:  # First 3 items like in template
+        for item in kitchen_items[:3]:  # First 3 items like in template
             items_data.append({
                 'name': item.menu_item.name,
                 'quantity': item.quantity
@@ -280,7 +288,7 @@ def get_active_orders_api(request):
             'timesince': timesince(order.created_at),
             'pickup_date': str(order.pickup_date) if order.pickup_date else 'Today',
             'pickup_slot': order.pickup_slot.label if order.pickup_slot else None,
-            'items_count': order.items.count(),
+            'items_count': kitchen_items.count(),
             'items': items_data,
             'detail_url': reverse('kitchen:order_detail', args=[order.id])
         })
