@@ -316,3 +316,16 @@ class FavoriteMenuItem(models.Model):
 
     def __str__(self):
         return f"{self.user} ❤️ {self.menu_item.name}"
+
+# -----------------------------------------------------------
+# VENDING MACHINE STOCK
+# -----------------------------------------------------------
+
+class VendingMachineStock(models.Model):
+    vending_good_uuid = models.CharField(max_length=255, unique=True)
+    goods_name = models.CharField(max_length=255)
+    quantity = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.goods_name} ({self.quantity})"

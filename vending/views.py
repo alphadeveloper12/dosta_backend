@@ -21,7 +21,8 @@ from .models import (
     OrderStatus,
     Cart,
     CartItem,
-    PickupType
+    PickupType,
+    VendingMachineStock
 )
 from .serializers import (
     VendingLocationSerializer,
@@ -564,6 +565,18 @@ class UpdatePickupCodeView(APIView):
             # Generate QR code URL using a public API for simplicity
             order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
             order.save()
+
+            # NEW: Decrement stock for vending items
+            for item in order.items.all():
+                if item.vending_good_uuid:
+                    stock = VendingMachineStock.objects.filter(vending_good_uuid=item.vending_good_uuid).first()
+                    if stock:
+                        if stock.quantity >= item.quantity:
+                            stock.quantity -= item.quantity
+                        else:
+                            stock.quantity = 0
+                        stock.save()
+
             return Response({
                 "message": "Pickup code updated successfully",
                 "pickup_code": order.pickup_code,

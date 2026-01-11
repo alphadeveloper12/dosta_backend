@@ -60,7 +60,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 import csv
 import io
 import re
-from vending.models import Menu, MenuItem, DayOfWeek
+from vending.models import Menu, MenuItem, DayOfWeek, VendingMachineStock
 import requests
 from django.core.files.base import ContentFile
 from django.utils.text import slugify
@@ -407,3 +407,111 @@ def vending_prices_view(request):
         'not_found_items': not_found_items, 
         'updated_items': updated_items
     })
+
+# -----------------------------------------------------------
+# VENDING MACHINE ITEMS (STOCK)
+# -----------------------------------------------------------
+
+def vending_machine_items_view(request):
+    """
+    Fetches items from external vending API and merges with local stock data.
+    """
+    # 1. Fetch Token from External API
+    token_url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
+    token_params = {
+        "userName": "C202405128888",
+        "password": "8888"
+    }
+    
+    try:
+        token_response = requests.get(token_url, params=token_params, timeout=10)
+        token_data = token_response.json()
+        token = token_data.get("data") or token_data.get("token")
+        
+        if not token:
+            messages.error(request, "Could not fetch external vending token.")
+            return render(request, 'kitchen/vending_machine_items.html', {'items': []})
+
+        # 2. Fetch Machine Goods for all active locations
+        goods_url = "http://www.hnzczy.cn:8087/customgoods/querymachinegoods"
+        headers = {"Authorization": token}
+        
+        from vending.models import VendingLocation
+        # Get active serial numbers
+        serial_numbers = list(VendingLocation.objects.filter(is_active=True).exclude(serial_number__isnull=True).values_list('serial_number', flat=True))
+        
+        # Ensure we have some known working ones for testing if the list is empty
+        if not serial_numbers:
+            serial_numbers = ['140816', '140859', '155']
+        elif '140816' not in serial_numbers:
+            serial_numbers.insert(0, '140816')
+            
+        all_api_items = {} # Use dict to merge by UUID
+        
+        # Limit to first 10 machines to avoid extreme delays
+        for sn in serial_numbers[:10]:
+            try:
+                # Increased timeout to 10s
+                response = requests.get(goods_url, params={"machineUuid": sn}, headers=headers, timeout=10)
+                api_data = response.json()
+                
+                if api_data and api_data.get("result") == "200":
+                    for category in (api_data.get("data") or []):
+                        cat_name = category.get("commGoodsModel", {}).get("typeName")
+                        for goods in (category.get("goodsList") or []):
+                            uuid = str(goods.get("uuid"))
+                            if uuid not in all_api_items:
+                                all_api_items[uuid] = {
+                                    'uuid': uuid,
+                                    'name': goods.get("goodsName"),
+                                    'category': cat_name,
+                                    'price': goods.get("goodsPrice"),
+                                }
+            except Exception as e:
+                print(f"Error fetching for machine {sn}: {e}")
+
+        # 3. Process and Merge with Local Stock
+        merged_items = []
+        for uuid, item_data in all_api_items.items():
+            # Get or create local stock record
+            stock, created = VendingMachineStock.objects.get_or_create(
+                vending_good_uuid=uuid,
+                defaults={'goods_name': item_data['name'], 'quantity': 0}
+            )
+            
+            merged_items.append({
+                'uuid': uuid,
+                'name': item_data['name'],
+                'category': item_data['category'],
+                'price': item_data['price'],
+                'quantity': stock.quantity,
+                'is_sold_out': stock.quantity <= 0
+            })
+        
+        # Sort by name
+        merged_items.sort(key=lambda x: x['name'])
+        
+        return render(request, 'kitchen/vending_machine_items.html', {'items': merged_items})
+        
+    except Exception as e:
+        messages.error(request, f"Error fetching vending items: {str(e)}")
+        return render(request, 'kitchen/vending_machine_items.html', {'items': []})
+
+@require_POST
+def update_vending_stock(request):
+    """
+    Updates the quantity of a vending item.
+    """
+    uuid = request.POST.get('uuid')
+    quantity = request.POST.get('quantity')
+    
+    if uuid and quantity is not None:
+        try:
+            stock = VendingMachineStock.objects.get(vending_good_uuid=uuid)
+            stock.quantity = int(quantity)
+            stock.save()
+            messages.success(request, f"Updated stock for {stock.goods_name}")
+        except Exception as e:
+            messages.error(request, f"Error updating stock: {str(e)}")
+            
+    return redirect('kitchen:vending_machine_items')
