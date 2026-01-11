@@ -39,7 +39,7 @@ class ProviderTypeSerializer(serializers.ModelSerializer):
 class ServiceStyleSerializer(serializers.ModelSerializer):
     class Meta:
         model = ServiceStyle
-        fields = ['id', 'name', 'min_pax']
+        fields = ['id', 'name', 'description', 'min_pax']
         
 class ServiceStylePrivateSerializer(serializers.ModelSerializer):
     class Meta:
@@ -123,7 +123,38 @@ class CoffeeBreakRotationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CoffeeBreakRotation
-        fields = ['id', 'name', 'items']
+        fields = ['id', 'name', 'description', 'items']
+
+
+# ========== CATERING ORDER SERIALIZERS ==========
+
+class CateringOrderItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CateringOrderItem
+        fields = ['id', 'name', 'course', 'quantity', 'price', 'description']
+
+class CateringOrderSerializer(serializers.ModelSerializer):
+    items = CateringOrderItemSerializer(many=True)
+
+    class Meta:
+        model = CateringOrder
+        fields = [
+            'id', 'order_id', 'user', 'status', 
+            'event_type', 'guest_count', 'event_date', 'event_time',
+            'provider_type', 'service_style', 'location', 
+            'total_amount', 'created_at', 'items'
+        ]
+        read_only_fields = ['order_id', 'user', 'created_at', 'status']
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        user = self.context['request'].user
+        order = CateringOrder.objects.create(user=user, **validated_data)
+        
+        for item_data in items_data:
+            CateringOrderItem.objects.create(order=order, **item_data)
+            
+        return order
 
 class PlatterItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
@@ -157,7 +188,7 @@ class LiveStationItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = LiveStationItem
-        fields = ['id', 'name', 'price', 'setup', 'ingredients', 'image_url']
+        fields = ['id', 'name', 'description', 'price', 'setup', 'ingredients', 'image_url']
 
     def get_image_url(self, obj):
         request = self.context.get('request')
@@ -172,7 +203,7 @@ class FixedCateringMenuSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = FixedCateringMenu
-        fields = ['id', 'name', 'cuisine', 'budget_option', 'courses', 'items']
+        fields = ['id', 'name', 'description', 'cuisine', 'budget_option', 'courses', 'items']
 
 
 class AmericanMenuItemSerializer(serializers.ModelSerializer):
@@ -193,7 +224,7 @@ class AmericanMenuSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AmericanMenu
-        fields = ['id', 'name', 'items']
+        fields = ['id', 'name', 'description', 'items']
 
 class CanapeItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()

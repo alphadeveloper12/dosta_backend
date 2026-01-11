@@ -2,6 +2,7 @@ from rest_framework.views import APIView
 from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from rest_framework import status
 from .models import *
 from .serializers import *
 
@@ -285,3 +286,72 @@ class CanapeItemListView(APIView):
         items = CanapeItem.objects.all()
         serializer = CanapeItemSerializer(items, many=True, context={'request': request})
         return Response(serializer.data)
+
+# ========== CATERING ORDER VENDOR API ==========
+
+from django.views.generic import TemplateView
+
+class CreateCateringOrderView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = CateringOrderSerializer(data=request.data, context={'request': request})
+        if serializer.is_valid():
+            order = serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class CateringKitchenDashboardView(TemplateView):
+    template_name = 'catering/kitchen_dashboard.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Initial load can just be empty or basic context
+        # We'll use API polling for data
+        return context
+
+def get_active_catering_orders(request):
+    """
+    Returns JSON of active orders for the dashboard polling.
+    """
+    from django.http import JsonResponse
+    from django.utils.timesince import timesince
+    
+    orders = CateringOrder.objects.filter(
+        status__in=[
+            CateringOrderStatus.PENDING, 
+            CateringOrderStatus.CONFIRMED, 
+            CateringOrderStatus.PREPARING, 
+            CateringOrderStatus.READY
+        ]
+    ).order_by('-created_at')
+    
+    data = []
+    for order in orders:
+        items_data = []
+        for item in order.items.all():
+            items_data.append({
+                'name': item.name,
+                'course': item.course,
+                'quantity': item.quantity,
+                'description': item.description
+            })
+            
+        data.append({
+            'id': order.id,
+            'order_id': order.order_id,
+            'user': order.user.username,
+            'status': order.status,
+            'status_display': order.get_status_display(),
+            'event_type': order.event_type,
+            'guest_count': order.guest_count,
+            'event_date': str(order.event_date),
+            'event_time': str(order.event_time),
+            'location': order.location,
+            'total_amount': float(order.total_amount),
+            'created_at': order.created_at.isoformat(),
+            'timesince': timesince(order.created_at),
+            'items': items_data
+        })
+        
+    return JsonResponse({'orders': data})

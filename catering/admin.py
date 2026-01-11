@@ -19,7 +19,8 @@ class AmericanMenuItemInline(admin.TabularInline):
     extra = 1
 
 class AmericanMenuAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ('name', 'description')
+    search_fields = ('name', 'description')
     inlines = [AmericanMenuItemInline]
 safe_register(AmericanMenu, AmericanMenuAdmin)
 
@@ -50,9 +51,10 @@ class CateringPlanCourseInline(admin.TabularInline):
 
 @admin.register(FixedCateringMenu)
 class FixedCateringMenuAdmin(admin.ModelAdmin):
-    list_display = ('name', 'cuisine', 'budget_option')
+    list_display = ('name', 'cuisine', 'budget_option', 'description')
     list_filter = ('cuisine', 'budget_option')
     filter_horizontal = ('courses', 'items')
+    search_fields = ('name', 'description')
 
 @admin.register(EventType)
 class EventTypeAdmin(admin.ModelAdmin):
@@ -76,8 +78,8 @@ class ProviderTypeAdmin(admin.ModelAdmin):
     search_fields = ('name',)
 
 class ServiceStyleAdmin(admin.ModelAdmin):
-    list_display = ('name', 'min_pax')
-    search_fields = ('name',)
+    list_display = ('name', 'min_pax', 'description')
+    search_fields = ('name', 'description')
     filter_horizontal = ('cuisines', 'budget_options')
 safe_register(ServiceStyle, ServiceStyleAdmin)
 
@@ -157,7 +159,8 @@ class CoffeeBreakItemInline(admin.TabularInline):
 
 @admin.register(CoffeeBreakRotation)
 class CoffeeBreakRotationAdmin(admin.ModelAdmin):
-    list_display = ('name',)
+    list_display = ('name', 'description')
+    search_fields = ('name', 'description')
     inlines = [CoffeeBreakItemInline]
 
 @admin.register(CoffeeBreakItem)

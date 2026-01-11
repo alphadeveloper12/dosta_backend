@@ -294,3 +294,116 @@ def get_active_orders_api(request):
         })
     
     return JsonResponse({'orders': orders_data})
+
+# -----------------------------------------------------------
+# VENDING PRICES UPDATE
+# -----------------------------------------------------------
+
+# @login_required
+# @user_passes_test(is_kitchen_admin)
+def vending_prices_view(request):
+    not_found_items = []
+    updated_items = []
+    
+    if request.method == 'POST' and request.FILES.get('price_file'):
+        file = request.FILES['price_file']
+        
+        try:
+            data = []
+            if file.name.endswith('.csv'):
+                decoded_file = file.read().decode('utf-8-sig').splitlines()
+                reader = csv.DictReader(decoded_file)
+                data = list(reader)
+                
+            elif file.name.endswith(('.xls', '.xlsx')):
+                import openpyxl
+                wb = openpyxl.load_workbook(file)
+                sheet = wb.active
+                
+                rows = list(sheet.iter_rows(values_only=True))
+                if rows:
+                    headers = [str(h).strip() if h else f"col_{i}" for i, h in enumerate(rows[0])]
+                    for row in rows[1:]:
+                        row_dict = {}
+                        for i, val in enumerate(row):
+                            if i < len(headers):
+                                row_dict[headers[i]] = val
+                        data.append(row_dict)
+            else:
+                messages.error(request, "Unsupported file format. Please use CSV or Excel.")
+                return render(request, 'kitchen/vending_prices.html')
+
+            # Process Data
+            if not data:
+                with open('debug_log.txt', 'a') as f:
+                    f.write("DEBUG: No data found after parsing file.\n")
+
+            for i, row in enumerate(data):
+                # Normalize keys slightly to key access
+                row_lower = {str(k).lower().strip(): v for k, v in row.items() if k}
+                
+                if i < 3: # Log first 3 rows
+                     with open('debug_log.txt', 'a') as f:
+                        f.write(f"DEBUG ROW {i} KEYS: {list(row_lower.keys())}\n")
+                        f.write(f"DEBUG ROW {i} VALS: {row_lower}\n")
+
+                # Fetch Name and Price
+                # Try 'item', 'item name', 'name'
+                raw_name = row_lower.get('item') or row_lower.get('item name') or row_lower.get('name')
+                
+                # Try 'price', 'new price', 'cost'
+                raw_price = row_lower.get('price') or row_lower.get('new price') or row_lower.get('cost')
+                
+                if not raw_name:
+                    continue # Skip empty rows
+                
+                # Clean Name: Valid name, remove '*', ignore case
+                clean_name = str(raw_name).replace('*', '').strip()
+                
+                # Clean Price
+                try:
+                     price_val = parse_macros(raw_price) # Reuse parse_macros for float extraction
+                except:
+                     price_val = 0.0
+
+                if price_val <= 0:
+                     continue # Skip if no valid price found
+
+                # Find in DB
+                # Note: This is O(N) queries, ideally load all names to memory if list is huge, 
+                # but for typical menu size this is fine.
+                # We need case-insensitive exact match
+                
+                db_item = MenuItem.objects.filter(name__iexact=clean_name).first()
+                
+                if db_item:
+                    # Check Price
+                    current_price = float(db_item.price)
+                    if abs(current_price - price_val) > 0.01: # Check diff ignoring float weirdness
+                        db_item.price = price_val
+                        db_item.save()
+                        updated_items.append({
+                            'name': db_item.name,
+                            'old_price': current_price,
+                            'new_price': price_val
+                        })
+                else:
+                    not_found_items.append({
+                        'name': str(raw_name).strip(), # Show original name
+                        'price': price_val
+                    })
+            
+            if updated_items:
+                messages.success(request, f"Updated {len(updated_items)} items successfully.")
+            elif not_found_items:
+                 messages.warning(request, "Process complete. Some items were not found.")
+            else:
+                 messages.info(request, "Process complete. No changes needed.")
+
+        except Exception as e:
+            messages.error(request, f"Error processing file: {str(e)}")
+            
+    return render(request, 'kitchen/vending_prices.html', {
+        'not_found_items': not_found_items, 
+        'updated_items': updated_items
+    })

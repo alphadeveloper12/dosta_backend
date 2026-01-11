@@ -1,0 +1,175 @@
+{% extends 'kitchen/base.html' %} {% block content %}
+<div class="container mx-auto px-4 py-8">
+ <div class="flex justify-between items-center mb-8">
+  <h1 class="text-3xl font-bold text-gray-800">Catering Kitchen Dashboard</h1>
+  <div class="text-sm text-gray-500">Auto-refreshing every 30s</div>
+ </div>
+
+ <!-- Active Orders Grid -->
+ <div
+  id="orders-grid"
+  class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <!-- Orders will be injected here via JS -->
+ </div>
+
+ <!-- No Orders State -->
+ <div id="no-orders" class="hidden text-center py-20">
+  <svg
+   class="mx-auto h-12 w-12 text-gray-400"
+   fill="none"
+   viewBox="0 0 24 24"
+   stroke="currentColor">
+   <path
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="2"
+    d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+  </svg>
+  <h3 class="mt-2 text-sm font-medium text-gray-900">No active orders</h3>
+  <p class="mt-1 text-sm text-gray-500">
+   New orders will appear here automatically.
+  </p>
+ </div>
+</div>
+
+<script>
+ function fetchOrders() {
+  console.log("Fetching orders...");
+  // Fetch from absolute path: /api/catering/kitchen/active-orders/
+  fetch("/api/catering/kitchen/active-orders/")
+   .then((response) => response.json())
+   .then((data) => {
+    renderOrders(data.orders);
+   })
+   .catch((error) => console.error("Error fetching orders:", error));
+ }
+
+ function renderOrders(orders) {
+  const grid = document.getElementById("orders-grid");
+  const noOrders = document.getElementById("no-orders");
+
+  if (!orders || orders.length === 0) {
+   grid.innerHTML = "";
+   noOrders.classList.remove("hidden");
+   return;
+  }
+
+  noOrders.classList.add("hidden");
+
+  // Helper for status colors
+  const statusColors = {
+   PENDING: "bg-yellow-100 text-yellow-800",
+   CONFIRMED: "bg-blue-100 text-blue-800",
+   PREPARING: "bg-purple-100 text-purple-800",
+   READY: "bg-green-100 text-green-800",
+  };
+
+  const html = orders
+   .map(
+    (order) => `
+            <div class="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden hover:shadow-lg transition-shadow">
+                <!-- Header -->
+                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-start">
+                    <div>
+                        <h3 class="text-lg font-bold text-gray-900">Order #${
+                         order.order_id
+                        }</h3>
+                        <p class="text-sm text-gray-500">${
+                         order.timesince
+                        } ago</p>
+                    </div>
+                    <span class="px-3 py-1 rounded-full text-xs font-semibold ${
+                     statusColors[order.status] || "bg-gray-100 text-gray-800"
+                    }">
+                        ${order.status_display}
+                    </span>
+                </div>
+
+                <!-- Event Details -->
+                <div class="px-6 py-4 bg-blue-50/50 border-b border-blue-100/50">
+                     <div class="grid grid-cols-2 gap-2 text-sm">
+                        <div>
+                            <span class="text-gray-500">Event Type:</span>
+                            <span class="font-medium text-gray-900 block">${
+                             order.event_type
+                            }</span>
+                        </div>
+                         <div>
+                            <span class="text-gray-500">Guests:</span>
+                            <span class="font-medium text-gray-900 block">${
+                             order.guest_count
+                            }</span>
+                        </div>
+                         <div>
+                            <span class="text-gray-500">Date:</span>
+                            <span class="font-medium text-gray-900 block">${
+                             order.event_date
+                            }</span>
+                        </div>
+                         <div>
+                            <span class="text-gray-500">Time:</span>
+                            <span class="font-medium text-gray-900 block">${
+                             order.event_time
+                            }</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Items -->
+                <div class="px-6 py-4">
+                    <h4 class="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">Menu Items</h4>
+                    <ul class="space-y-3">
+                        ${order.items
+                         .map(
+                          (item) => `
+                            <li class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-baseline">
+                                        <span class="font-medium text-gray-900">${
+                                         item.name
+                                        }</span>
+                                        <span class="ml-2 text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded">${
+                                         item.course
+                                        }</span>
+                                    </div>
+                                    ${
+                                     item.description
+                                      ? `<p class="text-xs text-gray-500 mt-0.5 description-truncate">${item.description.substring(
+                                         0,
+                                         60
+                                        )}...</p>`
+                                      : ""
+                                    }
+                                </div>
+                                <span class="font-bold text-gray-700 ml-4">x${
+                                 item.quantity
+                                }</span>
+                            </li>
+                        `
+                         )
+                         .join("")}
+                    </ul>
+                </div>
+
+                <!-- Footer / Actions -->
+                <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+                    <span class="font-bold text-gray-900">Total: AED ${order.total_amount.toFixed(
+                     2
+                    )}</span>
+                     <!-- Update Status Button (Future) -->
+                </div>
+            </div>
+        `
+   )
+   .join("");
+
+  grid.innerHTML = html;
+ }
+
+ // Initial Fetch
+ fetchOrders();
+
+ // Poll every 30s
+ setInterval(fetchOrders, 30000);
+</script>
+{% endblock %}

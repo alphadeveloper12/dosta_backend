@@ -20,6 +20,8 @@ urlpatterns = [
     path('fixed-menus/', FixedCateringMenuListView.as_view(), name='fixed-menu-list'),
     path('american-menus/', AmericanMenuListView.as_view(), name='american-menu-list'),
     path('canape-items/', CanapeItemListView.as_view(), name='canape-item-list'),
-
-    
+    # Catering Orders
+    path('orders/create/', CreateCateringOrderView.as_view(), name='create-catering-order'),
+    # path('kitchen/dashboard/', CateringKitchenDashboardView.as_view(), name='catering-kitchen-dashboard'), # Moved to kitchen app
+    path('kitchen/active-orders/', get_active_catering_orders, name='active-catering-orders-api'),
 ]

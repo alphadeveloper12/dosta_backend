@@ -31,6 +31,7 @@ class ProviderType(models.Model):
 
 class ServiceStyle(models.Model):
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True, default="Dummy description") # Added description
     min_pax = models.PositiveIntegerField(default=0)
     cuisines = models.ManyToManyField('Cuisine', blank=True, related_name='service_styles')
     budget_options = models.ManyToManyField('BudgetOption', blank=True, related_name='service_styles')
@@ -102,6 +103,7 @@ class Pax(models.Model):
 
 class FixedCateringMenu(models.Model):
     name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True, default="Dummy description")
     cuisine = models.ForeignKey(Cuisine, on_delete=models.CASCADE, related_name='fixed_menus')
     budget_option = models.ForeignKey(BudgetOption, on_delete=models.CASCADE, related_name='fixed_menus')
     courses = models.ManyToManyField(Course, related_name='fixed_menus', blank=True)
@@ -151,6 +153,7 @@ class MenuItem(models.Model):
 
 class CoffeeBreakRotation(models.Model):
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True, default="Dummy description")
     
     def __str__(self):
         return self.name
@@ -188,6 +191,7 @@ class BoxedMealItem(models.Model):
 
 class LiveStationItem(models.Model):
     name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True, default="Dummy description")
     price = models.DecimalField(max_digits=10, decimal_places=2) # Per Person
     setup = models.TextField()
     ingredients = models.TextField()
@@ -198,6 +202,7 @@ class LiveStationItem(models.Model):
 
 class AmericanMenu(models.Model):
     name = models.CharField(max_length=100) # e.g., "Buffet Menu 1: Southern Comfort"
+    description = models.TextField(blank=True, null=True, default="Dummy description")
     
     def __str__(self):
         return self.name
@@ -229,3 +234,51 @@ class CanapeItem(models.Model):
 
     def __str__(self):
         return self.name
+
+# ========== ORDER SYSTEM ==========
+
+class CateringOrderStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    CONFIRMED = 'CONFIRMED', 'Confirmed'
+    PREPARING = 'PREPARING', 'Preparing'
+    READY = 'READY', 'Ready'
+    COMPLETED = 'COMPLETED', 'Completed'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+class CateringOrder(models.Model):
+    order_id = models.CharField(max_length=20, unique=True, editable=False)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='catering_orders')
+    status = models.CharField(max_length=20, choices=CateringOrderStatus.choices, default=CateringOrderStatus.PENDING)
+    
+    # Snapshot of Event Details
+    event_type = models.CharField(max_length=100)
+    guest_count = models.PositiveIntegerField()
+    event_date = models.DateField()
+    event_time = models.TimeField()
+    provider_type = models.CharField(max_length=100, blank=True, null=True)
+    service_style = models.CharField(max_length=100, blank=True, null=True)
+    location = models.CharField(max_length=200, blank=True, null=True)
+    
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.order_id:
+            import uuid
+            self.order_id = f"CAT-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.order_id} - {self.user.username}"
+
+class CateringOrderItem(models.Model):
+    order = models.ForeignKey(CateringOrder, related_name='items', on_delete=models.CASCADE)
+    name = models.CharField(max_length=200)
+    course = models.CharField(max_length=100) # e.g. "Main Course", "Starter", "Live Station"
+    quantity = models.PositiveIntegerField(default=1)
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    description = models.TextField(blank=True, null=True)
+    
+    def __str__(self):
+        return f"{self.name} x {self.quantity} ({self.order.order_id})"
