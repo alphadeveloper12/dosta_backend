@@ -13,6 +13,8 @@ urlpatterns = [
     path('api/active-orders/', views.get_active_orders_api, name='active_orders_api'),
     path('menu-upload/', views.menu_upload_view, name='menu_upload'),
     path('vending-prices/', views.vending_prices_view, name='vending_prices'),
+    path('vending-machine-items/', views.vending_machine_items_view, name='vending_machine_items'),
+    path('update-vending-stock/', views.update_vending_stock, name='update_vending_stock'),
     
     # Catering Dashboard
     path('catering/', CateringKitchenDashboardView.as_view(), name='catering_dashboard'),
