@@ -148,6 +148,8 @@ class Order(models.Model):
     status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.DRAFT)
     current_step = models.PositiveSmallIntegerField(default=1)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    pickup_code = models.CharField(max_length=50, blank=True, null=True)
+    qr_code_url = models.URLField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -178,6 +180,14 @@ class OrderItem(models.Model):
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
+    
+    # Plan Context (Moved to Item level for mixed carts)
+    plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)
+    plan_subtype = models.CharField(max_length=20, choices=PlanSubType.choices, default=PlanSubType.NONE)
+    pickup_type = models.CharField(max_length=20, choices=PickupType.choices, null=True, blank=True)
+    pickup_date = models.DateField(null=True, blank=True)
+    pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -236,10 +246,17 @@ class CartItem(models.Model):
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
     
+    # Plan Context (Moved to Item level for mixed carts)
+    plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)
+    plan_subtype = models.CharField(max_length=20, choices=PlanSubType.choices, default=PlanSubType.NONE)
+    pickup_type = models.CharField(max_length=20, choices=PickupType.choices, null=True, blank=True)
+    pickup_date = models.DateField(null=True, blank=True)
+    pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="cart_items_context", on_delete=models.SET_NULL, null=True, blank=True)
+
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("cart", "menu_item")
+        unique_together = ("cart", "menu_item", "plan_type", "plan_subtype", "day_of_week", "week_number")
 
     def __str__(self):
         return f"{self.menu_item.name} x {self.quantity}"
