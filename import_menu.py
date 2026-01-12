@@ -63,52 +63,32 @@ def import_menu_data(file_path):
     # Normalize columns
     df.columns = [c.strip() for c in df.columns]
     
-    required_cols = ["Week", "Day", "Item", "Price"]
-    missing_cols = [col for col in required_cols if col not in df.columns]
-    if missing_cols:
-        print(f"Missing required columns: {missing_cols}")
+    # Detect Mode
+    has_week_day = "Week" in df.columns and "Day" in df.columns
+    has_item_price = "Item" in df.columns and "Price" in df.columns
+    
+    if not has_item_price:
+        print("Error: 'Item' and 'Price' columns are required.")
         return
+
+    is_price_update_mode = not has_week_day
+    if is_price_update_mode:
+        print("Mode: PRICE UPDATE ONLY (Week/Day columns missing). Will update existing items globally.")
+    else:
+        print("Mode: FULL IMPORT (Creating/Updating Menu Items per Week/Day).")
 
     added_count = 0
     skipped_count = 0
 
     print("Starting import process...")
 
+    item_metadata_map = {}
+    
     for index, row in df.iterrows():
         try:
-            week_num = parse_week(row.get("Week", 1))
-            day_str = row.get("Day", "").strip().title() # Ensure Capitalized like 'Monday'
             item_name = row.get("Item", "").strip()
-            
-            if not item_name or not day_str:
-                print(f"Skipping row {index}: Missing Item Name or Day")
+            if not item_name:
                 continue
-
-            # Validate Day
-            if day_str not in DayOfWeek.values:
-                print(f"Skipping row {index}: Invalid Day '{day_str}'")
-                continue
-
-            # 1. Get or Create Menu (Week + Day)
-            menu, created = Menu.objects.get_or_create(
-                week_number=week_num,
-                day_of_week=day_str
-            )
-
-            # 2. Check if Item exists in this Menu
-            if MenuItem.objects.filter(menu=menu, name=item_name).exists():
-                print(f"Skipping existing item: {item_name} (Week {week_num}, {day_str})")
-                skipped_count += 1
-                continue
-
-            # 3. Prepare new item data
-            price = row.get("Price", 0)
-            description = row.get("Description", "")
-            calories = row.get("Calories", 0)
-            protein = row.get("Protein", 0)
-            carbs = row.get("Carbs", 0)
-            fats = row.get("Fats", 0)
-            image_url = row.get("Picture", "")
 
             # Cleanup numeric fields (remove 'kcal', 'g', etc if present)
             def clean_num(val):
@@ -122,16 +102,62 @@ def import_menu_data(file_path):
                 except:
                     return 0
 
-            item = MenuItem(
+            # Extract Data
+            price = row.get("Price", 0)
+            description = row.get("Description", "")
+            calories = row.get("Calories", 0)
+            protein = row.get("Protein", 0)
+            carbs = row.get("Carbs", 0)
+            fats = row.get("Fats", 0)
+            image_url = row.get("Picture", "")
+
+            final_data = {
+                'price': float(clean_num(price)),
+                'description': description if pd.notna(description) else "",
+                'calories': int(clean_num(calories)),
+                'protein': float(clean_num(protein)),
+                'carbs': float(clean_num(carbs)),
+                'fats': float(clean_num(fats))
+            }
+            
+            if is_price_update_mode:
+                # Direct capture for global update
+                item_metadata_map[item_name] = final_data
+                print(f"Captured update for '{item_name}': {final_data['price']}")
+                continue
+
+            # --- FULL IMPORT MODE LOGIC ---
+            week_num = parse_week(row.get("Week", 1))
+            day_str = row.get("Day", "").strip().title()
+
+            if not day_str or day_str not in DayOfWeek.values:
+                print(f"Skipping row {index}: Invalid Day '{day_str}'")
+                continue
+
+            # 1. Get or Create Menu
+            menu, created = Menu.objects.get_or_create(
+                week_number=week_num,
+                day_of_week=day_str
+            )
+
+            # 2. Get or Create MenuItem
+            item, created = MenuItem.objects.get_or_create(
                 menu=menu,
                 name=item_name,
-                price=float(clean_num(price)),
-                description=description if pd.notna(description) else "",
-                calories=int(clean_num(calories)),
-                protein=float(clean_num(protein)),
-                carbs=float(clean_num(carbs)),
-                fats=float(clean_num(fats))
+                defaults=final_data
             )
+
+            # 3. Update fields if it already existed
+            if not created:
+                item.price = final_data['price']
+                item.description = final_data['description']
+                item.calories = final_data['calories']
+                item.protein = final_data['protein']
+                item.carbs = final_data['carbs']
+                item.fats = final_data['fats']
+                print(f"Updating existing item: {item_name} (Week {week_num}, {day_str})")
+            else:
+                print(f"Added new item: {item_name} (Week {week_num}, {day_str})")
 
             # 4. Handle Image Download
             if image_url and pd.notna(image_url) and str(image_url).startswith('http'):
@@ -141,17 +167,35 @@ def import_menu_data(file_path):
                     if response.status_code == 200:
                         img_name = os.path.basename(urlparse(image_url).path)
                         if not img_name: img_name = f"{item_name.replace(' ', '_')}.jpg"
-                        
                         item.image.save(img_name, File(BytesIO(response.content)), save=False)
                 except Exception as e:
-                    print(f"Failed to download image for {item_name}: {e}")
+                    print(f"Failed to download image: {e}")
 
             item.save()
-            print(f"Added new item: {item_name} (Week {week_num}, {day_str})")
+            
+            # Store metadata for Final Global Pass
+            # The last row processed for "Item Name" determines the final global values.
+            item_metadata_map[item_name] = final_data
+
             added_count += 1
 
         except Exception as e:
             print(f"Error processing row {index}: {e}")
+
+    # -------------------------------------------------------
+    # PASS 2: Global Consistency Update
+    # -------------------------------------------------------
+    print("\nStarting Global Consistency Update...")
+    updated_groups = 0
+    for name, data in item_metadata_map.items():
+        # Update ALL instances of this item name with the final captured data
+        count = MenuItem.objects.filter(name=name).update(**data)
+        if count > 0:
+            updated_groups += 1
+            # Optional: Detailed log
+            # print(f"Synced '{name}' -> Price: {data['price']} ({count} items)")
+
+    print(f"Global Update Completed. Synced {updated_groups} unique item groups.")
 
     print("\n-----------------------------------")
     print(f"Import Summary:")

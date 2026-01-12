@@ -21,7 +21,8 @@ from .models import (
     OrderStatus,
     Cart,
     CartItem,
-    PickupType
+    PickupType,
+    VendingMachineStock
 )
 from .serializers import (
     VendingLocationSerializer,
@@ -297,7 +298,6 @@ class PlanTypeOptionsView(APIView):
             "options": [
                 {"key": "ORDER_NOW", "label": "Order Now"},
                 {"key": "START_PLAN", "label": "Start a Plan"},
-                {"key": "SMART_GRAB", "label": "Smart Grab"}
             ],
             "next_step": "pickup_options"
         }
@@ -327,7 +327,6 @@ class PickupOptionsView(APIView):
         return Response({
             "pickup_types": [
                 {"key": "TODAY", "label": "Pickup Today"},
-                {"key": "IN_24_HOURS", "label": "Pickup in 24 Hours"}
             ],
             "time_slots": serializer.data,
             "next_step": "choose_menu"
@@ -471,7 +470,13 @@ class ConfirmOrderView(APIView):
                 quantity=item.get("quantity", 1),
                 day_of_week=item.get("day_of_week"),
                 week_number=item.get("week_number"),
-                vending_good_uuid=item.get("vending_good_uuid")
+                vending_good_uuid=item.get("vending_good_uuid"),
+                # Individual plan context
+                plan_type=item.get("plan_type", order.plan_type),
+                plan_subtype=item.get("plan_subtype", order.plan_subtype),
+                pickup_type=item.get("pickup_type", order.pickup_type),
+                pickup_date=item.get("pickup_date", order.pickup_date),
+                pickup_slot=order.pickup_slot # Slot is usually shared per order
             )
 
         order.update_total()
@@ -535,6 +540,52 @@ class OrderProgressView(APIView):
             6: "confirm_order"
         }
         return steps.get(current_step + 1, "completed")
+
+
+class UpdatePickupCodeView(APIView):
+    """
+    POST /api/vending/order/update-pickup-code/
+    {
+        "order_id": 123,
+        "pickup_code": "ABC-123"
+    }
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        order_id = request.data.get("order_id")
+        pickup_code = request.data.get("pickup_code")
+
+        if not order_id or not pickup_code:
+            return Response({"error": "order_id and pickup_code are required"}, status=400)
+
+        try:
+            order = Order.objects.get(id=order_id, user=request.user)
+            order.pickup_code = pickup_code
+            # Generate QR code URL using a public API for simplicity
+            order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+            order.save()
+
+            # NEW: Decrement stock for vending items
+            for item in order.items.all():
+                if item.vending_good_uuid:
+                    stock = VendingMachineStock.objects.filter(vending_good_uuid=item.vending_good_uuid).first()
+                    if stock:
+                        if stock.quantity >= item.quantity:
+                            stock.quantity -= item.quantity
+                        else:
+                            stock.quantity = 0
+                        stock.save()
+
+            return Response({
+                "message": "Pickup code updated successfully",
+                "pickup_code": order.pickup_code,
+                "qr_code_url": order.qr_code_url
+            }, status=status.HTTP_200_OK)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=404)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     
 # -----------------------------------------------------------
 # ORDER HISTORY API
@@ -584,31 +635,52 @@ class CartView(APIView):
 
             # 2. Update Context Fields
             cart.location_id = data.get("location_id")
-            cart.plan_type = data.get("plan_type", PlanType.ORDER_NOW)
-            cart.plan_subtype = data.get("plan_subtype", PlanSubType.NONE)
+            incoming_plan_type = data.get("plan_type", PlanType.ORDER_NOW)
+            incoming_plan_subtype = data.get("plan_subtype", PlanSubType.NONE)
+            
+            # Support clearing the entire cart
+            if data.get("clear_all"):
+                cart.items.all().delete()
+                cart.update_total()
+                return Response({"message": "Cart cleared successfully"}, status=status.HTTP_200_OK)
+
+            cart.plan_type = incoming_plan_type
+            cart.plan_subtype = incoming_plan_subtype
             cart.pickup_type = data.get("pickup_type")
             cart.pickup_date = data.get("pickup_date")
             cart.pickup_slot_id = data.get("pickup_slot_id")
             cart.current_step = data.get("current_step", 1)  # Save current step
             cart.save()
 
-            # 3. Update Items (Full Sync Strategy: Clear existing, add new)
-            cart.items.all().delete()
+            # 3. Update Items (Partial Sync Strategy: Clear only items of the same plan type)
+            if incoming_plan_type == PlanType.START_PLAN:
+                cart.items.filter(plan_type=incoming_plan_type, plan_subtype=incoming_plan_subtype).delete()
+            else:
+                cart.items.filter(plan_type=incoming_plan_type).delete()
 
             items_data = data.get("items", [])
             for item in items_data:
-                # Validation: Ensure menu_item_id is present
-                if not item.get("menu_item_id"):
-                    continue 
+                menu_item_id = item.get("menu_item_id")
+                quantity = item.get("quantity", 1)
+                day_of_week = item.get("day_of_week")
+                week_number = item.get("week_number")
+                vending_good_uuid = item.get("vending_good_uuid")
 
-                CartItem.objects.create(
-                    cart=cart,
-                    menu_item_id=item["menu_item_id"],
-                    quantity=item.get("quantity", 1),
-                    day_of_week=item.get("day_of_week"),
-                    week_number=item.get("week_number"),
-                    vending_good_uuid=item.get("vending_good_uuid")
-                )
+                if menu_item_id:
+                    CartItem.objects.create(
+                        cart=cart,
+                        menu_item_id=menu_item_id,
+                        quantity=quantity,
+                        day_of_week=day_of_week,
+                        week_number=week_number,
+                        vending_good_uuid=vending_good_uuid,
+                        # Save context per item
+                        plan_type=incoming_plan_type,
+                        plan_subtype=incoming_plan_subtype,
+                        pickup_type=cart.pickup_type,
+                        pickup_date=cart.pickup_date,
+                        pickup_slot=cart.pickup_slot
+                    )
 
             cart.update_total()
             
@@ -637,7 +709,7 @@ class ExternalCheckUserView(APIView):
             "password": "8888"
         }
         try:
-            response = requests.get(url, params=params, timeout=10)
+            response = requests.get(url, params=params, timeout=30)
             return Response(response.json(), status=response.status_code)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
@@ -660,7 +732,7 @@ class ExternalMachineGoodsView(APIView):
         
         print(f"DEBUG: Fetching token for MachineGoods from {token_url}")
         try:
-            token_response = requests.get(token_url, params=token_params, timeout=10)
+            token_response = requests.get(token_url, params=token_params, timeout=30)
             print(f"DEBUG: Token response status: {token_response.status_code}")
             token_data = token_response.json()
             print(f"DEBUG: Token response data: {token_data}")
@@ -672,14 +744,81 @@ class ExternalMachineGoodsView(APIView):
 
             # 2. Fetch Machine Goods using the token
             params = request.query_params.dict()
-            goods_url = "http://www.hnzczy.cn:8087/customgoods/querymachinegoods"
+            goods_url = "http://www.hnzczy.cn:8087/commodityinfo/querycommodityinfo"
             headers = {"Authorization": token}
             print(f"DEBUG: Fetching goods from {goods_url} with params {params} and headers {headers}")
             
-            response = requests.get(goods_url, params=params, headers=headers, timeout=10)
-            print(f"DEBUG: Goods response status: {response.status_code}")
-            print(f"DEBUG: Goods response data: {response.json()}")
-            return Response(response.json(), status=response.status_code)
+            response = requests.get(goods_url, params=params, headers=headers, timeout=30)
+            api_data = response.json()
+            
+            # Transform the response to match the structure the frontend expects
+            # (Grouped by shelf/tier, including all slots)
+            if api_data.get("result") == "200" and "data" in api_data:
+                slots = api_data.get("data") or []
+                shelves = {}
+                
+                for slot in slots:
+                    goods = slot.get("commGoodsResp")
+                    shelf_index = slot.get("modityTierSeq", 0)
+                    
+                    if shelf_index not in shelves:
+                        shelves[shelf_index] = []
+                    
+                    slot_data = {
+                        "arrivalName": slot.get("arrivalName"),
+                        "presentNumber": slot.get("presentNumber"),
+                        "arrivalCapacity": slot.get("arrivalCapacity"),
+                        "modityTierSeq": shelf_index,
+                        "modityTierNum": slot.get("modityTierNum"),
+                    }
+                    
+                    if goods:
+                        slot_data["goods"] = {
+                            "uuid": str(goods.get("uuid")),
+                            "goodsName": goods.get("goodsName"),
+                            "goodsPrice": goods.get("goodsPrice"),
+                            "goodsUrl": goods.get("goodsUrl"),
+                            "goodsCode": goods.get("goodsCode"),
+                            "goodsDesc": goods.get("goodsDesc"),
+                        }
+                    else:
+                        slot_data["goods"] = None
+                        
+                    shelves[shelf_index].append(slot_data)
+                
+                # Sort shelves by index
+                sorted_shelves = []
+                unique_goods = {}
+                for idx in sorted(shelves.keys()):
+                    # Sort spots within shelf by modityTierNum
+                    spots = sorted(shelves[idx], key=lambda x: x.get("modityTierNum", 0))
+                    sorted_shelves.append({
+                        "shelfIndex": idx,
+                        "shelfName": f"Shelf {idx + 1}",
+                        "spots": spots
+                    })
+                    
+                    for spot in spots:
+                        if spot["goods"]:
+                            uuid = spot["goods"]["uuid"]
+                            if uuid not in unique_goods:
+                                unique_goods[uuid] = spot["goods"]
+                
+                transformed_data = {
+                    "result": "200",
+                    "resultDesc": "Success",
+                    "shelves": sorted_shelves,
+                    # Keep legacy format for compatibility
+                    "data": [
+                        {
+                            "commGoodsModel": {"typeName": "Vending Items"},
+                            "goodsList": list(unique_goods.values())
+                        }
+                    ]
+                }
+                return Response(transformed_data, status=status.HTTP_200_OK)
+
+            return Response(api_data, status=response.status_code)
             
         except Exception as e:
             print(f"DEBUG: Exception in ExternalMachineGoodsView: {str(e)}")
@@ -719,7 +858,7 @@ class ExternalProductionPickView(APIView):
             print(f"DEBUG: Posting pick to {url} with body {request.data} and headers {headers}")
             
             # Forward the JSON body
-            response = requests.post(url, json=request.data, headers=headers, timeout=10)
+            response = requests.post(url, json=request.data, headers=headers, timeout=30)
             print(f"DEBUG: Pick response status: {response.status_code}")
             print(f"DEBUG: Pick response data: {response.json()}")
             return Response(response.json(), status=response.status_code)

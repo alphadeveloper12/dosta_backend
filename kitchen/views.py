@@ -13,14 +13,15 @@ class DashboardView(ListView):
     context_object_name = 'orders'
 
     def get_queryset(self):
-        # Show specific statuses for kitchen
+        # Show specific statuses for kitchen, but only if they have non-Order Now items
         return Order.objects.filter(
             status__in=[
                 OrderStatus.PENDING,
                 OrderStatus.PREPARING,
                 OrderStatus.READY
-            ]
-        ).order_by('-created_at')
+            ],
+            items__plan_type__in=['START_PLAN'] # Only show orders that have plan items
+        ).distinct().order_by('-created_at')
 
 class TrackingView(ListView):
     model = Order
@@ -59,7 +60,7 @@ from django.contrib.auth.decorators import login_required, user_passes_test
 import csv
 import io
 import re
-from vending.models import Menu, MenuItem, DayOfWeek
+from vending.models import Menu, MenuItem, DayOfWeek, VendingMachineStock
 import requests
 from django.core.files.base import ContentFile
 from django.utils.text import slugify
@@ -125,13 +126,6 @@ def parse_macros(macro_str):
 def process_menu_data(data_iter):
     """
     Expected columns: Week, Day, Item, Description, Price, Picture, Macros/Calories identifiers...
-    Based on user sheet: 
-    Week | Day | Item | Description | Price | Picture | [Calories] | [Protein] ...? 
-    Wait, columns in user image:
-    A: Week, B: Day, C: Item, D: Description, E: Price, F: Picture, G: 478kcal (Calories), H: 36g (Protein?), I: (Carbs?), J: (Fats?)
-    
-    Refining assumptions based on typical macro order (Cal, Prot, Carb, Fat).
-    I will look for flexible headers or strict index if headers match 'Week', 'Day' etc.
     """
     
     # Mapping for DayOfWeek
@@ -145,9 +139,6 @@ def process_menu_data(data_iter):
         'Sunday': DayOfWeek.SUNDAY
     }
 
-    # Tracking created/updated to avoid clearing everything blindly if partial upload
-    # But usually full upload is better. Let's process row by row.
-    
     for row in data_iter:
         # Normalize keys and values
         row = {k.strip(): str(v).strip() for k, v in row.items() if k}
@@ -192,25 +183,16 @@ def process_menu_data(data_iter):
              
         # Columns based on user image perception:
         # We need to be smart about column names.
-        # Let's try to fetch by likely names or position if dict keys rely on header row
         
         price = parse_macros(row.get('Price', 0))
         desc = row.get('Description', '')
         
         # Nutritional - user image shows numeric columns at the end (G, H, I, J...)
-        # G: 478kcal -> Calories
-        # H: 36g -> Protein 
-        # I: [assume Carbs]
-        # J: [assume Fats]
-        # We'll look for headers "Calories", "Protein", "Carbs", "Fats" or similar
         
         cals = parse_macros(row.get('Calories', row.get('Kcal', 0)))
         prot = parse_macros(row.get('Protein', 0))
         carbs = parse_macros(row.get('Carbs', 0))
         fats = parse_macros(row.get('Fats', 0))
-        
-        # If headers are missing/different in the sheet, simple fallback logic:
-        # I will enforce headers in the template instructions: "Calories", "Protein", "Carbs", "Fats"
         
         # Check for explicitly updated fields to avoid overwriting with defaults if not present
         defaults = {
@@ -253,11 +235,261 @@ def process_menu_data(data_iter):
 
 def get_active_orders_api(request):
     """
-    Returns a list of active order IDs and their latest status.
-    Used for polling by the dashboard to detect new orders.
+    Returns a list of active orders with full details.
+    Used for polling by the dashboard to detect and render new orders.
     """
-    orders = Order.objects.filter(
-        status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY]
-    ).values('id', 'status', 'created_at')
+    from django.utils.timesince import timesince
+    from django.urls import reverse
     
-    return JsonResponse({'orders': list(orders)})
+    orders = Order.objects.filter(
+        status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY],
+        items__plan_type__in=['START_PLAN']
+    ).prefetch_related('items__menu_item').distinct().order_by('-created_at')
+    
+    orders_data = []
+    for order in orders:
+        # Filter items to only show those that need kitchen preparation
+        kitchen_items = order.items.filter(plan_type='START_PLAN')
+        
+        if not kitchen_items.exists():
+            continue
+
+        items_data = []
+        for item in kitchen_items[:3]:  # First 3 items like in template
+            items_data.append({
+                'name': item.menu_item.name,
+                'quantity': item.quantity
+            })
+        
+        orders_data.append({
+            'id': order.id,
+            'status': order.status,
+            'status_display': order.get_status_display(),
+            'created_at': order.created_at.isoformat(),
+            'timesince': timesince(order.created_at),
+            'pickup_date': str(order.pickup_date) if order.pickup_date else 'Today',
+            'pickup_slot': order.pickup_slot.label if order.pickup_slot else None,
+            'items_count': kitchen_items.count(),
+            'items': items_data,
+            'detail_url': reverse('kitchen:order_detail', args=[order.id])
+        })
+    
+    return JsonResponse({'orders': orders_data})
+
+# -----------------------------------------------------------
+# VENDING PRICES UPDATE
+# -----------------------------------------------------------
+
+# @login_required
+# @user_passes_test(is_kitchen_admin)
+def vending_prices_view(request):
+    not_found_items = []
+    updated_items = []
+    
+    if request.method == 'POST' and request.FILES.get('price_file'):
+        file = request.FILES['price_file']
+        
+        try:
+            data = []
+            if file.name.endswith('.csv'):
+                decoded_file = file.read().decode('utf-8-sig').splitlines()
+                reader = csv.DictReader(decoded_file)
+                data = list(reader)
+                
+            elif file.name.endswith(('.xls', '.xlsx')):
+                import openpyxl
+                wb = openpyxl.load_workbook(file)
+                sheet = wb.active
+                
+                rows = list(sheet.iter_rows(values_only=True))
+                if rows:
+                    headers = [str(h).strip() if h else f"col_{i}" for i, h in enumerate(rows[0])]
+                    for row in rows[1:]:
+                        row_dict = {}
+                        for i, val in enumerate(row):
+                            if i < len(headers):
+                                row_dict[headers[i]] = val
+                        data.append(row_dict)
+            else:
+                messages.error(request, "Unsupported file format. Please use CSV or Excel.")
+                return render(request, 'kitchen/vending_prices.html')
+
+            # Process Data
+            if not data:
+                with open('debug_log.txt', 'a') as f:
+                    f.write("DEBUG: No data found after parsing file.\n")
+
+            # PASS 1: Collect final prices for each item
+            price_updates = {} # Map: clean_name -> price_val
+            
+            for i, row in enumerate(data):
+                # Normalize keys slightly to key access
+                row_lower = {str(k).lower().strip(): v for k, v in row.items() if k}
+                
+                if i < 3: # Log first 3 rows
+                     with open('debug_log.txt', 'a') as f:
+                        f.write(f"DEBUG ROW {i} KEYS: {list(row_lower.keys())}\n")
+                        f.write(f"DEBUG ROW {i} VALS: {row_lower}\n")
+
+                # Fetch Name and Price
+                # Try 'item', 'item name', 'name'
+                raw_name = row_lower.get('item') or row_lower.get('item name') or row_lower.get('name')
+                
+                # Try 'price', 'new price', 'cost'
+                raw_price = row_lower.get('price') or row_lower.get('new price') or row_lower.get('cost')
+                
+                if not raw_name:
+                    continue # Skip empty rows
+                
+                # Clean Name: Valid name, remove '*', ignore case
+                clean_name = str(raw_name).replace('*', '').strip()
+                
+                # Clean Price
+                try:
+                     price_val = parse_macros(raw_price) # Reuse parse_macros for float extraction
+                except:
+                     price_val = 0.0
+
+                if price_val > 0:
+                     price_updates[clean_name] = price_val
+
+            # PASS 2: Global Update
+            for name, price in price_updates.items():
+                qs = MenuItem.objects.filter(name__iexact=name)
+                
+                if qs.exists():
+                    count = qs.update(price=price)
+                    updated_items.append({
+                        'name': name,
+                        'new_price': price,
+                        'count': count
+                    })
+                else:
+                    not_found_items.append({
+                        'name': name,
+                        'price': price
+                    })
+            
+            if updated_items:
+                total = sum(item['count'] for item in updated_items)
+                messages.success(request, f"Global Update Success: Updated {len(updated_items)} unique items affecting {total} total records.")
+            elif not_found_items:
+                 messages.warning(request, "Process complete. Some items were not found.")
+            else:
+                 messages.info(request, "Process complete. No changes needed.")
+
+        except Exception as e:
+            messages.error(request, f"Error processing file: {str(e)}")
+            
+    return render(request, 'kitchen/vending_prices.html', {
+        'not_found_items': not_found_items, 
+        'updated_items': updated_items
+    })
+
+# -----------------------------------------------------------
+# VENDING MACHINE ITEMS (STOCK)
+# -----------------------------------------------------------
+
+def vending_machine_items_view(request):
+    """
+    Fetches items from external vending API and merges with local stock data.
+    """
+    # 1. Fetch Token from External API
+    token_url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
+    token_params = {
+        "userName": "C202405128888",
+        "password": "8888"
+    }
+    
+    try:
+        token_response = requests.get(token_url, params=token_params, timeout=10)
+        token_data = token_response.json()
+        token = token_data.get("data") or token_data.get("token")
+        
+        if not token:
+            messages.error(request, "Could not fetch external vending token.")
+            return render(request, 'kitchen/vending_machine_items.html', {'items': []})
+
+        # 2. Fetch Machine Goods for all active locations
+        goods_url = "http://www.hnzczy.cn:8087/customgoods/querymachinegoods"
+        headers = {"Authorization": token}
+        
+        from vending.models import VendingLocation
+        # Get active serial numbers
+        serial_numbers = list(VendingLocation.objects.filter(is_active=True).exclude(serial_number__isnull=True).values_list('serial_number', flat=True))
+        
+        # Ensure we have some known working ones for testing if the list is empty
+        if not serial_numbers:
+            serial_numbers = ['140816', '140859', '155']
+        elif '140816' not in serial_numbers:
+            serial_numbers.insert(0, '140816')
+            
+        all_api_items = {} # Use dict to merge by UUID
+        
+        # Limit to first 10 machines to avoid extreme delays
+        for sn in serial_numbers[:10]:
+            try:
+                # Increased timeout to 10s
+                response = requests.get(goods_url, params={"machineUuid": sn}, headers=headers, timeout=10)
+                api_data = response.json()
+                
+                if api_data and api_data.get("result") == "200":
+                    for category in (api_data.get("data") or []):
+                        cat_name = category.get("commGoodsModel", {}).get("typeName")
+                        for goods in (category.get("goodsList") or []):
+                            uuid = str(goods.get("uuid"))
+                            if uuid not in all_api_items:
+                                all_api_items[uuid] = {
+                                    'uuid': uuid,
+                                    'name': goods.get("goodsName"),
+                                    'category': cat_name,
+                                    'price': goods.get("goodsPrice"),
+                                }
+            except Exception as e:
+                print(f"Error fetching for machine {sn}: {e}")
+
+        # 3. Process and Merge with Local Stock
+        merged_items = []
+        for uuid, item_data in all_api_items.items():
+            # Get or create local stock record
+            stock, created = VendingMachineStock.objects.get_or_create(
+                vending_good_uuid=uuid,
+                defaults={'goods_name': item_data['name'], 'quantity': 0}
+            )
+            
+            merged_items.append({
+                'uuid': uuid,
+                'name': item_data['name'],
+                'category': item_data['category'],
+                'price': item_data['price'],
+                'quantity': stock.quantity,
+                'is_sold_out': stock.quantity <= 0
+            })
+        
+        # Sort by name
+        merged_items.sort(key=lambda x: x['name'])
+        
+        return render(request, 'kitchen/vending_machine_items.html', {'items': merged_items})
+        
+    except Exception as e:
+        messages.error(request, f"Error fetching vending items: {str(e)}")
+        return render(request, 'kitchen/vending_machine_items.html', {'items': []})
+
+@require_POST
+def update_vending_stock(request):
+    """
+    Updates the quantity of a vending item.
+    """
+    uuid = request.POST.get('uuid')
+    quantity = request.POST.get('quantity')
+    
+    if uuid and quantity is not None:
+        try:
+            stock = VendingMachineStock.objects.get(vending_good_uuid=uuid)
+            stock.quantity = int(quantity)
+            stock.save()
+            messages.success(request, f"Updated stock for {stock.goods_name}")
+        except Exception as e:
+            messages.error(request, f"Error updating stock: {str(e)}")
+            
+    return redirect('kitchen:vending_machine_items')

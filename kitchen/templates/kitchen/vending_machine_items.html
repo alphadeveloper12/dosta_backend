@@ -1,0 +1,80 @@
+{% extends 'kitchen/base.html' %}
+
+{% block content %}
+<div class="bg-white shadow-md rounded-lg p-6">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-gray-800">📦 Vending Machine Items (Stock)</h2>
+        <div class="text-sm text-gray-500">
+            Machine ID: <span class="font-mono font-bold text-blue-600">155</span>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="min-w-full bg-white">
+            <thead>
+                <tr class="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
+                    <th class="py-3 px-6 text-left">Category</th>
+                    <th class="py-3 px-6 text-left">Item Name</th>
+                    <th class="py-3 px-6 text-center">Price</th>
+                    <th class="py-3 px-6 text-center">Current Stock</th>
+                    <th class="py-3 px-6 text-center">Status</th>
+                    <th class="py-3 px-6 text-center">Update Stock</th>
+                </tr>
+            </thead>
+            <tbody class="text-gray-600 text-sm font-light">
+                {% for item in items %}
+                <tr class="border-b border-gray-200 hover:bg-gray-50">
+                    <td class="py-3 px-6 text-left whitespace-nowrap">
+                        <span class="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-xs font-semibold">
+                            {{ item.category }}
+                        </span>
+                    </td>
+                    <td class="py-3 px-6 text-left font-medium text-gray-800">
+                        {{ item.name }}
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        AED {{ item.price }}
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <span
+                            class="text-lg font-bold {% if item.is_sold_out %}text-red-600{% else %}text-green-600{% endif %}">
+                            {{ item.quantity }}
+                        </span>
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        {% if item.is_sold_out %}
+                        <span class="bg-red-500 text-white py-1 px-3 rounded-full text-xs font-bold uppercase">
+                            SOLD
+                        </span>
+                        {% else %}
+                        <span class="bg-green-500 text-white py-1 px-3 rounded-full text-xs font-bold uppercase">
+                            Available
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="py-3 px-6 text-center">
+                        <form action="{% url 'kitchen:update_vending_stock' %}" method="POST"
+                            class="flex items-center justify-center space-x-2">
+                            {% csrf_token %}
+                            <input type="hidden" name="uuid" value="{{ item.uuid }}">
+                            <input type="number" name="quantity" value="{{ item.quantity }}" min="0"
+                                class="w-20 border border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <button type="submit"
+                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded transition duration-200">
+                                Save
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="6" class="py-10 text-center text-gray-500 italic">
+                        No items found for this machine.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
