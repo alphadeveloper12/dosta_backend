@@ -6,7 +6,7 @@ from .models import (
     Order, OrderItem,
     Cart, CartItem,
     MealPlan, MealPlanItem,
-    FavoriteMenuItem
+    FavoriteMenuItem, VendingMachineStock
 )
 
 # -----------------------------------------------------------
@@ -214,3 +214,10 @@ class FavoriteMenuItemAdmin(admin.ModelAdmin):
     list_display = ("user", "menu_item", "created_at")
     search_fields = ("user__username", "menu_item__name")
     ordering = ("-created_at",)
+
+
+@admin.register(VendingMachineStock)
+class VendingMachineStockAdmin(admin.ModelAdmin):
+    list_display = ("vending_good_uuid", "goods_name", "quantity", "updated_at")
+    search_fields = ("goods_name", "vending_good_uuid")
+    ordering = ("goods_name",)

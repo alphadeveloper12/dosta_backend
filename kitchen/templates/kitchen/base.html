@@ -1,46 +1,40 @@
 <!DOCTYPE html>
 <html lang="en">
- <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Kitchen Dashboard - Dosta</title>
-  <!-- Tailwind CSS for styling -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <meta http-equiv="refresh" content="60" />
-  <!-- Refresh every 60 seconds -->
- </head>
- <body class="bg-gray-100 font-sans leading-normal tracking-normal">
-  <nav class="bg-blue-800 p-4 shadow-lg">
-   <div class="container mx-auto flex justify-between items-center text-white">
-    <h1 class="font-bold text-xl">
-     <a href="{% url 'kitchen:dashboard' %}">👨‍🍳 Kitchen Dashboard</a>
-    </h1>
-    <div>
-     <a href="{% url 'kitchen:dashboard' %}" class="hover:text-blue-300 mr-4"
-      >Orders</a
-     >
-     <a
-      href="{% url 'kitchen:tracking_dashboard' %}"
-      class="hover:text-blue-300 mr-4"
-      >Tracking</a
-     >
-     <a
-      href="{% url 'kitchen:catering_dashboard' %}"
-      class="hover:text-amber-300 font-bold"
-      >Catering 👨‍🍳</a
-     >
-    </div>
-   </div>
-  </nav>
 
-  <div class="container mx-auto mt-8 p-4">
-   {% if messages %} {% for message in messages %}
-   <div
-    class="bg-{{ message.tags }}-100 border border-{{ message.tags }}-400 text-{{ message.tags }}-700 px-4 py-3 rounded relative mb-4"
-    role="alert">
-    <span class="block sm:inline">{{ message }}</span>
-   </div>
-   {% endfor %} {% endif %} {% block content %} {% endblock %}
-  </div>
- </body>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kitchen Dashboard - Dosta</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <meta http-equiv="refresh" content="60" />
+    <!-- Refresh every 60 seconds -->
+</head>
+
+<body class="bg-gray-100 font-sans leading-normal tracking-normal">
+    <nav class="bg-blue-800 p-4 shadow-lg">
+        <div class="container mx-auto flex justify-between items-center text-white">
+            <h1 class="font-bold text-xl">
+                <a href="{% url 'kitchen:dashboard' %}">👨‍🍳 Kitchen Dashboard</a>
+            </h1>
+            <div>
+                <a href="{% url 'kitchen:dashboard' %}" class="hover:text-blue-300 mr-4">Orders</a>
+                <a href="{% url 'kitchen:tracking_dashboard' %}" class="hover:text-blue-300 mr-4">Tracking</a>
+                <a href="{% url 'kitchen:vending_machine_items' %}" class="hover:text-blue-300 mr-4">Vending Items</a>
+                <a href="{% url 'kitchen:catering_dashboard' %}" class="hover:text-amber-300 font-bold">Catering
+                    👨‍🍳</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto mt-8 p-4">
+        {% if messages %} {% for message in messages %}
+        <div class="bg-{{ message.tags }}-100 border border-{{ message.tags }}-400 text-{{ message.tags }}-700 px-4 py-3 rounded relative mb-4"
+            role="alert">
+            <span class="block sm:inline">{{ message }}</span>
+        </div>
+        {% endfor %} {% endif %} {% block content %} {% endblock %}
+    </div>
+</body>
+
 </html>
