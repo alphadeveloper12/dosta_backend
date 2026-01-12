@@ -126,13 +126,6 @@ def parse_macros(macro_str):
 def process_menu_data(data_iter):
     """
     Expected columns: Week, Day, Item, Description, Price, Picture, Macros/Calories identifiers...
-    Based on user sheet: 
-    Week | Day | Item | Description | Price | Picture | [Calories] | [Protein] ...? 
-    Wait, columns in user image:
-    A: Week, B: Day, C: Item, D: Description, E: Price, F: Picture, G: 478kcal (Calories), H: 36g (Protein?), I: (Carbs?), J: (Fats?)
-    
-    Refining assumptions based on typical macro order (Cal, Prot, Carb, Fat).
-    I will look for flexible headers or strict index if headers match 'Week', 'Day' etc.
     """
     
     # Mapping for DayOfWeek
@@ -146,9 +139,6 @@ def process_menu_data(data_iter):
         'Sunday': DayOfWeek.SUNDAY
     }
 
-    # Tracking created/updated to avoid clearing everything blindly if partial upload
-    # But usually full upload is better. Let's process row by row.
-    
     for row in data_iter:
         # Normalize keys and values
         row = {k.strip(): str(v).strip() for k, v in row.items() if k}
@@ -193,25 +183,16 @@ def process_menu_data(data_iter):
              
         # Columns based on user image perception:
         # We need to be smart about column names.
-        # Let's try to fetch by likely names or position if dict keys rely on header row
         
         price = parse_macros(row.get('Price', 0))
         desc = row.get('Description', '')
         
         # Nutritional - user image shows numeric columns at the end (G, H, I, J...)
-        # G: 478kcal -> Calories
-        # H: 36g -> Protein 
-        # I: [assume Carbs]
-        # J: [assume Fats]
-        # We'll look for headers "Calories", "Protein", "Carbs", "Fats" or similar
         
         cals = parse_macros(row.get('Calories', row.get('Kcal', 0)))
         prot = parse_macros(row.get('Protein', 0))
         carbs = parse_macros(row.get('Carbs', 0))
         fats = parse_macros(row.get('Fats', 0))
-        
-        # If headers are missing/different in the sheet, simple fallback logic:
-        # I will enforce headers in the template instructions: "Calories", "Protein", "Carbs", "Fats"
         
         # Check for explicitly updated fields to avoid overwriting with defaults if not present
         defaults = {
@@ -338,6 +319,9 @@ def vending_prices_view(request):
                 with open('debug_log.txt', 'a') as f:
                     f.write("DEBUG: No data found after parsing file.\n")
 
+            # PASS 1: Collect final prices for each item
+            price_updates = {} # Map: clean_name -> price_val
+            
             for i, row in enumerate(data):
                 # Normalize keys slightly to key access
                 row_lower = {str(k).lower().strip(): v for k, v in row.items() if k}
@@ -366,35 +350,29 @@ def vending_prices_view(request):
                 except:
                      price_val = 0.0
 
-                if price_val <= 0:
-                     continue # Skip if no valid price found
+                if price_val > 0:
+                     price_updates[clean_name] = price_val
 
-                # Find in DB
-                # Note: This is O(N) queries, ideally load all names to memory if list is huge, 
-                # but for typical menu size this is fine.
-                # We need case-insensitive exact match
+            # PASS 2: Global Update
+            for name, price in price_updates.items():
+                qs = MenuItem.objects.filter(name__iexact=name)
                 
-                db_item = MenuItem.objects.filter(name__iexact=clean_name).first()
-                
-                if db_item:
-                    # Check Price
-                    current_price = float(db_item.price)
-                    if abs(current_price - price_val) > 0.01: # Check diff ignoring float weirdness
-                        db_item.price = price_val
-                        db_item.save()
-                        updated_items.append({
-                            'name': db_item.name,
-                            'old_price': current_price,
-                            'new_price': price_val
-                        })
+                if qs.exists():
+                    count = qs.update(price=price)
+                    updated_items.append({
+                        'name': name,
+                        'new_price': price,
+                        'count': count
+                    })
                 else:
                     not_found_items.append({
-                        'name': str(raw_name).strip(), # Show original name
-                        'price': price_val
+                        'name': name,
+                        'price': price
                     })
             
             if updated_items:
-                messages.success(request, f"Updated {len(updated_items)} items successfully.")
+                total = sum(item['count'] for item in updated_items)
+                messages.success(request, f"Global Update Success: Updated {len(updated_items)} unique items affecting {total} total records.")
             elif not_found_items:
                  messages.warning(request, "Process complete. Some items were not found.")
             else:
