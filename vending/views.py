@@ -744,14 +744,81 @@ class ExternalMachineGoodsView(APIView):
 
             # 2. Fetch Machine Goods using the token
             params = request.query_params.dict()
-            goods_url = "http://www.hnzczy.cn:8087/customgoods/querymachinegoods"
+            goods_url = "http://www.hnzczy.cn:8087/commodityinfo/querycommodityinfo"
             headers = {"Authorization": token}
             print(f"DEBUG: Fetching goods from {goods_url} with params {params} and headers {headers}")
             
             response = requests.get(goods_url, params=params, headers=headers, timeout=30)
-            print(f"DEBUG: Goods response status: {response.status_code}")
-            print(f"DEBUG: Goods response data: {response.json()}")
-            return Response(response.json(), status=response.status_code)
+            api_data = response.json()
+            
+            # Transform the response to match the structure the frontend expects
+            # (Grouped by shelf/tier, including all slots)
+            if api_data.get("result") == "200" and "data" in api_data:
+                slots = api_data.get("data") or []
+                shelves = {}
+                
+                for slot in slots:
+                    goods = slot.get("commGoodsResp")
+                    shelf_index = slot.get("modityTierSeq", 0)
+                    
+                    if shelf_index not in shelves:
+                        shelves[shelf_index] = []
+                    
+                    slot_data = {
+                        "arrivalName": slot.get("arrivalName"),
+                        "presentNumber": slot.get("presentNumber"),
+                        "arrivalCapacity": slot.get("arrivalCapacity"),
+                        "modityTierSeq": shelf_index,
+                        "modityTierNum": slot.get("modityTierNum"),
+                    }
+                    
+                    if goods:
+                        slot_data["goods"] = {
+                            "uuid": str(goods.get("uuid")),
+                            "goodsName": goods.get("goodsName"),
+                            "goodsPrice": goods.get("goodsPrice"),
+                            "goodsUrl": goods.get("goodsUrl"),
+                            "goodsCode": goods.get("goodsCode"),
+                            "goodsDesc": goods.get("goodsDesc"),
+                        }
+                    else:
+                        slot_data["goods"] = None
+                        
+                    shelves[shelf_index].append(slot_data)
+                
+                # Sort shelves by index
+                sorted_shelves = []
+                unique_goods = {}
+                for idx in sorted(shelves.keys()):
+                    # Sort spots within shelf by modityTierNum
+                    spots = sorted(shelves[idx], key=lambda x: x.get("modityTierNum", 0))
+                    sorted_shelves.append({
+                        "shelfIndex": idx,
+                        "shelfName": f"Shelf {idx + 1}",
+                        "spots": spots
+                    })
+                    
+                    for spot in spots:
+                        if spot["goods"]:
+                            uuid = spot["goods"]["uuid"]
+                            if uuid not in unique_goods:
+                                unique_goods[uuid] = spot["goods"]
+                
+                transformed_data = {
+                    "result": "200",
+                    "resultDesc": "Success",
+                    "shelves": sorted_shelves,
+                    # Keep legacy format for compatibility
+                    "data": [
+                        {
+                            "commGoodsModel": {"typeName": "Vending Items"},
+                            "goodsList": list(unique_goods.values())
+                        }
+                    ]
+                }
+                return Response(transformed_data, status=status.HTTP_200_OK)
+
+            return Response(api_data, status=response.status_code)
             
         except Exception as e:
             print(f"DEBUG: Exception in ExternalMachineGoodsView: {str(e)}")
