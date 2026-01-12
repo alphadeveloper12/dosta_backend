@@ -392,14 +392,31 @@ def vending_prices_view(request):
 
 def vending_machine_items_view(request):
     """
-    Fetches items from external vending API and merges with local stock data.
+    Fetches items from external vending API and structures them by shelf/slot for a visual UI.
     """
-    # 1. Fetch Token from External API
+    from vending.models import VendingLocation
+    
+    # 1. Get Active Machines for Selector
+    machines = VendingLocation.objects.filter(is_active=True).exclude(serial_number__isnull=True).order_by('name')
+    if not machines.exists():
+        messages.warning(request, "No active vending machines found in database.")
+        return render(request, 'kitchen/vending_machine_items.html', {'machines': [], 'shelves': []})
+
+    # 2. Determine Selected Machine
+    selected_uuid = request.GET.get('machine_uuid')
+    if not selected_uuid:
+        selected_uuid = machines.first().serial_number
+    
+    current_machine = machines.filter(serial_number=selected_uuid).first()
+    
+    # 3. Fetch Token
     token_url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
     token_params = {
         "userName": "C202405128888",
         "password": "8888"
     }
+    
+    shelves_data = []
     
     try:
         token_response = requests.get(token_url, params=token_params, timeout=10)
@@ -408,72 +425,82 @@ def vending_machine_items_view(request):
         
         if not token:
             messages.error(request, "Could not fetch external vending token.")
-            return render(request, 'kitchen/vending_machine_items.html', {'items': []})
-
-        # 2. Fetch Machine Goods for all active locations
-        goods_url = "http://www.hnzczy.cn:8087/customgoods/querymachinegoods"
-        headers = {"Authorization": token}
-        
-        from vending.models import VendingLocation
-        # Get active serial numbers
-        serial_numbers = list(VendingLocation.objects.filter(is_active=True).exclude(serial_number__isnull=True).values_list('serial_number', flat=True))
-        
-        # Ensure we have some known working ones for testing if the list is empty
-        if not serial_numbers:
-            serial_numbers = ['140816', '140859', '155']
-        elif '140816' not in serial_numbers:
-            serial_numbers.insert(0, '140816')
+        else:
+            # 4. Fetch Machine Goods
+            goods_url = "http://www.hnzczy.cn:8087/commodityinfo/querycommodityinfo"
+            headers = {"Authorization": token}
             
-        all_api_items = {} # Use dict to merge by UUID
-        
-        # Limit to first 10 machines to avoid extreme delays
-        for sn in serial_numbers[:10]:
             try:
-                # Increased timeout to 10s
-                response = requests.get(goods_url, params={"machineUuid": sn}, headers=headers, timeout=10)
+                response = requests.get(goods_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=15)
                 api_data = response.json()
                 
                 if api_data and api_data.get("result") == "200":
-                    for category in (api_data.get("data") or []):
-                        cat_name = category.get("commGoodsModel", {}).get("typeName")
-                        for goods in (category.get("goodsList") or []):
-                            uuid = str(goods.get("uuid"))
-                            if uuid not in all_api_items:
-                                all_api_items[uuid] = {
-                                    'uuid': uuid,
-                                    'name': goods.get("goodsName"),
-                                    'category': cat_name,
-                                    'price': goods.get("goodsPrice"),
-                                }
-            except Exception as e:
-                print(f"Error fetching for machine {sn}: {e}")
+                    slots = api_data.get("data") or []
+                    shelves_dict = {}
+                    
+                    for slot in slots:
+                        # Group by Tier (Shelf)
+                        tier = slot.get("modityTierSeq", 0)
+                        if tier not in shelves_dict:
+                            shelves_dict[tier] = {
+                                'id': tier,
+                                'name': f"Shelf {tier}",
+                                'spots': []
+                            }
+                        
+                        goods = slot.get("commGoodsResp")
+                        
+                        spot_data = {
+                            'arrivalName': slot.get('arrivalName'),
+                            'modityTierNum': slot.get('modityTierNum'), # Slot number on shelf
+                            'capacity': slot.get('arrivalCapacity'),
+                            'present': slot.get('presentNumber', 0),
+                            'status': 'empty',
+                            'item': None
+                        }
+                        
+                        if goods:
+                            spot_data['item'] = {
+                                'uuid': goods.get('uuid'),
+                                'name': goods.get('goodsName'),
+                                'price': goods.get('goodsPrice'),
+                                'image': goods.get('goodsUrl'),
+                                'desc': goods.get('goodsDesc')
+                            }
+                            
+                            if slot.get('presentNumber', 0) > 0:
+                                spot_data['status'] = 'available'
+                            else:
+                                spot_data['status'] = 'sold_out'
+                        
+                        shelves_dict[tier]['spots'].append(spot_data)
+                    
+                    # Sort shelves and spots
+                    sorted_tiers = sorted(shelves_dict.keys())
+                    for tier in sorted_tiers:
+                        shelf = shelves_dict[tier]
+                        # Sort spots by modityTierNum (column index) or arrivalName
+                        shelf['spots'].sort(key=lambda x: int(x['modityTierNum']) if x['modityTierNum'] else x['arrivalName'])
+                        shelves_data.append(shelf)
+                        
+                else:
+                    messages.warning(request, f"API returned error or empty data: {api_data.get('msg', 'Unknown Error')}")
 
-        # 3. Process and Merge with Local Stock
-        merged_items = []
-        for uuid, item_data in all_api_items.items():
-            # Get or create local stock record
-            stock, created = VendingMachineStock.objects.get_or_create(
-                vending_good_uuid=uuid,
-                defaults={'goods_name': item_data['name'], 'quantity': 0}
-            )
-            
-            merged_items.append({
-                'uuid': uuid,
-                'name': item_data['name'],
-                'category': item_data['category'],
-                'price': item_data['price'],
-                'quantity': stock.quantity,
-                'is_sold_out': stock.quantity <= 0
-            })
-        
-        # Sort by name
-        merged_items.sort(key=lambda x: x['name'])
-        
-        return render(request, 'kitchen/vending_machine_items.html', {'items': merged_items})
-        
+            except Exception as e:
+                print(f"Error fetching machine data: {e}")
+                messages.error(request, f"Failed to connect to machine API: {str(e)}")
+
     except Exception as e:
-        messages.error(request, f"Error fetching vending items: {str(e)}")
-        return render(request, 'kitchen/vending_machine_items.html', {'items': []})
+        messages.error(request, f"Error fetching token: {str(e)}")
+
+    context = {
+        'machines': machines,
+        'current_machine_uuid': selected_uuid,
+        'current_machine': current_machine,
+        'shelves': shelves_data
+    }
+    
+    return render(request, 'kitchen/vending_machine_items.html', context)
 
 @require_POST
 def update_vending_stock(request):
@@ -492,4 +519,9 @@ def update_vending_stock(request):
         except Exception as e:
             messages.error(request, f"Error updating stock: {str(e)}")
             
-    return redirect('kitchen:vending_machine_items')
+    machine_uuid = request.POST.get('machine_uuid')
+    
+    response = redirect('kitchen:vending_machine_items')
+    if machine_uuid:
+        response['Location'] += f'?machine_uuid={machine_uuid}'
+    return response

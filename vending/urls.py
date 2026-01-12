@@ -16,7 +16,8 @@ from .views import (
     data_upload_view,
     ExternalCheckUserView,
     ExternalMachineGoodsView,
-    ExternalProductionPickView
+    ExternalProductionPickView,
+    ExternalUpdateCommodityView
 )
 
 # -----------------------------------------------------------
@@ -52,4 +53,5 @@ urlpatterns = [
     path('external/check-user/', ExternalCheckUserView.as_view(), name='external-check-user'),
     path('external/machine-goods/', ExternalMachineGoodsView.as_view(), name='external-machine-goods'),
     path('external/production-pick/', ExternalProductionPickView.as_view(), name='external-production-pick'),
+    path('external/update-commodity/', ExternalUpdateCommodityView.as_view(), name='external-update-commodity'),
 ]

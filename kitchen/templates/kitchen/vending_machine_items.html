@@ -1,80 +1,153 @@
 {% extends 'kitchen/base.html' %}
 
 {% block content %}
-<div class="bg-white shadow-md rounded-lg p-6">
-    <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold text-gray-800">📦 Vending Machine Items (Stock)</h2>
-        <div class="text-sm text-gray-500">
-            Machine ID: <span class="font-mono font-bold text-blue-600">155</span>
+<div class="space-y-6">
+    <!-- Machine Selector Header -->
+    <div
+        class="bg-white shadow-md rounded-lg p-6 flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">📦 Vending Machine Visualizer</h2>
+            <p class="text-gray-500 text-sm">Real-time physical layout view</p>
         </div>
+
+        <form method="GET" action="{% url 'kitchen:vending_machine_items' %}" class="flex items-center space-x-3">
+            <label for="machine_uuid" class="text-gray-700 font-medium">Select Machine:</label>
+            <select name="machine_uuid" id="machine_uuid" onchange="this.form.submit()"
+                class="border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+                {% for machine in machines %}
+                <option value="{{ machine.serial_number }}">
+                    {{ machine.name }} ({{ machine.serial_number }})
+                </option>
+                {% endfor %}
+            </select>
+            <script>
+                document.getElementById('machine_uuid').value = "{{ current_machine_uuid }}";
+            </script>
+        </form>
     </div>
 
-    <div class="overflow-x-auto">
-        <table class="min-w-full bg-white">
-            <thead>
-                <tr class="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
-                    <th class="py-3 px-6 text-left">Category</th>
-                    <th class="py-3 px-6 text-left">Item Name</th>
-                    <th class="py-3 px-6 text-center">Price</th>
-                    <th class="py-3 px-6 text-center">Current Stock</th>
-                    <th class="py-3 px-6 text-center">Status</th>
-                    <th class="py-3 px-6 text-center">Update Stock</th>
-                </tr>
-            </thead>
-            <tbody class="text-gray-600 text-sm font-light">
-                {% for item in items %}
-                <tr class="border-b border-gray-200 hover:bg-gray-50">
-                    <td class="py-3 px-6 text-left whitespace-nowrap">
-                        <span class="bg-blue-100 text-blue-800 py-1 px-3 rounded-full text-xs font-semibold">
-                            {{ item.category }}
-                        </span>
-                    </td>
-                    <td class="py-3 px-6 text-left font-medium text-gray-800">
-                        {{ item.name }}
-                    </td>
-                    <td class="py-3 px-6 text-center">
-                        AED {{ item.price }}
-                    </td>
-                    <td class="py-3 px-6 text-center">
-                        <span
-                            class="text-lg font-bold {% if item.is_sold_out %}text-red-600{% else %}text-green-600{% endif %}">
-                            {{ item.quantity }}
-                        </span>
-                    </td>
-                    <td class="py-3 px-6 text-center">
-                        {% if item.is_sold_out %}
-                        <span class="bg-red-500 text-white py-1 px-3 rounded-full text-xs font-bold uppercase">
-                            SOLD
-                        </span>
+    <!-- Machine Layout -->
+    {% if current_machine %}
+    <div class="bg-gray-800 p-8 rounded-xl shadow-inner border border-gray-700 min-h-screen">
+
+        {% for shelf in shelves %}
+        <div class="mb-12">
+            <!-- Shelf Header -->
+            <div class="flex items-center mb-4">
+                <div class="h-px bg-gray-600 flex-grow"></div>
+                <span class="px-4 text-gray-400 font-mono text-sm uppercase tracking-wider">{{ shelf.name }}</span>
+                <div class="h-px bg-gray-600 flex-grow"></div>
+            </div>
+
+            <!-- Slots Grid -->
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                {% for spot in shelf.spots %}
+                <div class="relative group">
+                    <!-- Card Body -->
+                    <div class="relative h-full bg-white rounded-lg shadow-sm border-2 overflow-hidden transition-all duration-200
+                        {% if spot.status == 'available' %}
+                            border-green-500 hover:shadow-green-500/50
+                        {% elif spot.status == 'sold_out' %}
+                            border-red-500 opacity-90
                         {% else %}
-                        <span class="bg-green-500 text-white py-1 px-3 rounded-full text-xs font-bold uppercase">
-                            Available
-                        </span>
+                            border-gray-600 border-dashed bg-gray-800/50
                         {% endif %}
-                    </td>
-                    <td class="py-3 px-6 text-center">
-                        <form action="{% url 'kitchen:update_vending_stock' %}" method="POST"
-                            class="flex items-center justify-center space-x-2">
-                            {% csrf_token %}
-                            <input type="hidden" name="uuid" value="{{ item.uuid }}">
-                            <input type="number" name="quantity" value="{{ item.quantity }}" min="0"
-                                class="w-20 border border-gray-300 rounded px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <button type="submit"
-                                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded transition duration-200">
-                                Save
-                            </button>
-                        </form>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="6" class="py-10 text-center text-gray-500 italic">
-                        No items found for this machine.
-                    </td>
-                </tr>
+                    ">
+
+                        <!-- Header: Slot Number -->
+                        <div class="absolute top-2 left-2 z-10">
+                            <span class="bg-black/70 text-white text-xs font-mono px-2 py-1 rounded">
+                                {{ spot.arrivalName }}
+                            </span>
+                        </div>
+
+                        {% if spot.status == 'empty' %}
+                        <!-- Empty State -->
+                        <div class="flex flex-col items-center justify-center h-48 text-gray-500">
+                            <span class="text-4xl opacity-20">🚫</span>
+                            <span class="text-xs uppercase mt-2 font-semibold">Empty Slot</span>
+                        </div>
+
+                        {% else %}
+                        <!-- Item Content -->
+                        <div class="h-32 w-full bg-gray-100 relative">
+                            {% if spot.item.image %}
+                            <img src="{{ spot.item.image }}" alt="{{ spot.item.name }}"
+                                class="w-full h-full object-cover">
+                            {% else %}
+                            <div class="w-full h-full flex items-center justify-center text-gray-300">
+                                <span class="text-2xl">🖼️</span>
+                            </div>
+                            {% endif %}
+
+                            {% if spot.status == 'sold_out' %}
+                            <div
+                                class="absolute inset-0 bg-red-900/40 flex items-center justify-center backdrop-blur-sm">
+                                <span
+                                    class="bg-red-600 text-white px-3 py-10 w-full text-center font-black uppercase text-xl transform -rotate-12 shadow-lg tracking-widest border-y-4 border-white/20">
+                                    SOLD OUT
+                                </span>
+                            </div>
+                            {% endif %}
+                        </div>
+
+                        <div class="p-3">
+                            <h3 class="font-bold text-gray-800 text-sm leading-tight line-clamp-2 h-10"
+                                title="{{ spot.item.name }}">
+                                {{ spot.item.name }}
+                            </h3>
+
+                            <div class="flex justify-between items-end mt-2">
+                                <span class="text-blue-600 font-bold">AED {{ spot.item.price }}</span>
+
+                                <form action="{% url 'kitchen:update_vending_stock' %}" method="POST"
+                                    class="flex items-center">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="uuid" value="{{ spot.item.uuid }}">
+                                    <input type="hidden" name="machine_uuid" value="{{ current_machine_uuid }}">
+                                    <div class="flex items-center space-x-1">
+                                        <span class="text-xs text-gray-400">Qty:</span>
+                                        <input type="number" name="quantity" value="{{ spot.present }}" min="0"
+                                            max="{{ spot.capacity }}"
+                                            class="w-12 text-center text-sm border border-gray-300 rounded px-1 py-0.5 focus:ring-1 focus:ring-blue-500">
+                                    </div>
+                                    <button type="submit"
+                                        class="hidden group-hover:block absolute top-2 right-2 bg-blue-600 text-white p-1 rounded-full shadow hover:bg-blue-700">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none"
+                                            viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                                d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
                 {% endfor %}
-            </tbody>
-        </table>
+            </div>
+        </div>
+        {% empty %}
+        <div class="text-center py-20 text-gray-400">
+            <p class="text-xl">No shelf data available for this machine.</p>
+        </div>
+        {% endfor %}
+
     </div>
+    {% else %}
+    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                ⚠️
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-yellow-700">
+                    Please select a machine to view its layout.
+                </p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

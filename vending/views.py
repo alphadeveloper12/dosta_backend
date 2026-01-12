@@ -866,3 +866,47 @@ class ExternalProductionPickView(APIView):
         except Exception as e:
             print(f"DEBUG: Exception in ExternalProductionPickView: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ExternalUpdateCommodityView(APIView):
+    """
+    Proxies request to:
+    PUT http://www.hnzczy.cn:8087/commodityinfo/updatecommodityinfolist
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def put(self, request):
+        # 1. Fetch Token from External API
+        token_url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
+        token_params = {
+            "userName": "C202405128888",
+            "password": "8888"
+        }
+        
+        print(f"DEBUG: Fetching token for UpdateCommodity from {token_url}")
+        try:
+            token_response = requests.get(token_url, params=token_params, timeout=10)
+            token_data = token_response.json()
+            token = token_data.get("data") or token_data.get("token")
+            
+            if not token:
+                return Response({"error": "Could not fetch external vending token", "details": token_data}, status=status.HTTP_502_BAD_GATEWAY)
+
+            # 2. Update Commodity Request using the token (PUT)
+            url = "http://www.hnzczy.cn:8087/commodityinfo/updatecommodityinfolist"
+            headers = {"Authorization": token}
+            print(f"DEBUG: Putting commodity update to {url} with body {request.data}")
+            
+            # Forward the JSON body via PUT
+            response = requests.put(url, json=request.data, headers=headers, timeout=30)
+            print(f"DEBUG: Update payload: {request.data}")
+            print(f"DEBUG: Update response: {response.status_code} - {response.text}")
+            
+            try:
+                return Response(response.json(), status=response.status_code)
+            except:
+                return Response({"result": "unknown", "raw": response.text}, status=response.status_code)
+            
+        except Exception as e:
+            print(f"DEBUG: Exception in ExternalUpdateCommodityView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
