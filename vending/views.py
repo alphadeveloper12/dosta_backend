@@ -6,6 +6,8 @@ import requests
 from django.db.models import Q, ProtectedError
 from django.db import transaction
 from django.utils import timezone
+import pytz
+from datetime import datetime
 
 from .models import (
     VendingLocation,
@@ -852,13 +854,24 @@ class ExternalProductionPickView(APIView):
             if not token:
                 return Response({"error": "Could not fetch external vending token", "details": token_data}, status=status.HTTP_502_BAD_GATEWAY)
 
-            # 2. Production Pick Request using the token
+            # 2. Production Pick Request using the token (and set orderTime to UAE time)
             url = "http://www.hnzczy.cn:8087/commpick/productionpick"
             headers = {"Authorization": token}
-            print(f"DEBUG: Posting pick to {url} with body {request.data} and headers {headers}")
             
-            # Forward the JSON body
-            response = requests.post(url, json=request.data, headers=headers, timeout=30)
+            # Use actual date and time in UAE time zone (UTC+4)
+            uae_tz = pytz.timezone('Asia/Dubai')
+            now_uae = datetime.now(uae_tz)
+            # Format requested: 2026-01-13T18:12:33.970Z
+            order_time_str = now_uae.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+            
+            # Create a copy of the request data and inject/override the orderTime
+            pick_payload = request.data.copy()
+            pick_payload['orderTime'] = order_time_str
+            
+            print(f"DEBUG: Posting pick to {url} with modified body {pick_payload} and headers {headers}")
+            
+            # Forward the modified JSON body
+            response = requests.post(url, json=pick_payload, headers=headers, timeout=30)
             print(f"DEBUG: Pick response status: {response.status_code}")
             print(f"DEBUG: Pick response data: {response.json()}")
             return Response(response.json(), status=response.status_code)
