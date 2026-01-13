@@ -588,10 +588,11 @@ def daily_orders_view(request):
     day_name = selected_date.strftime('%A') # e.g. "Tuesday"
     
     # Query items for this day
-    # Condition 1: Immediate orders (Order Now / Smart Grab) created on this date
+    # Condition 1: Immediate orders (Order Now / Smart Grab) scheduled for this date
     # Condition 2: Plan orders for this day of week
     items = OrderItem.objects.filter(
-        Q(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB], order__created_at__date=selected_date) |
+        Q(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB], pickup_date=selected_date) |
+        Q(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB], pickup_date__isnull=True, order__created_at__date=selected_date) |
         Q(plan_subtype__in=[PlanSubType.WEEKLY, PlanSubType.MONTHLY], day_of_week=day_name)
     ).filter(
         order__status__in=[
@@ -600,29 +601,35 @@ def daily_orders_view(request):
             OrderStatus.READY, 
             OrderStatus.COMPLETED
         ]
-    ).select_related('menu_item', 'order', 'order__user').order_by('menu_item__name')
+    ).select_related('menu_item', 'order', 'order__user', 'pickup_slot', 'order__pickup_slot').order_by('pickup_slot__start_time', 'menu_item__name')
 
-    # Aggregation logic
-    aggregated = {}
+    # Aggregation logic (Group by Slot -> Item)
+    slots_aggregated = {}
     for item in items:
+        # Determine slot label
+        slot_obj = item.pickup_slot or item.order.pickup_slot
+        slot_label = slot_obj.label if slot_obj else "Standard Pickup / Unscheduled"
+        
+        if slot_label not in slots_aggregated:
+            slots_aggregated[slot_label] = {}
+        
         name = item.menu_item.name
         user_obj = item.order.user
         display_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
         
-        if name not in aggregated:
-            aggregated[name] = {
+        if name not in slots_aggregated[slot_label]:
+            slots_aggregated[slot_label][name] = {
                 'total': 0,
                 'users': {}
             }
         
-        aggregated[name]['total'] += item.quantity
-        # Track quantity per user for this item
-        aggregated[name]['users'][display_name] = aggregated[name]['users'].get(display_name, 0) + item.quantity
+        slots_aggregated[slot_label][name]['total'] += item.quantity
+        slots_aggregated[slot_label][name]['users'][display_name] = slots_aggregated[slot_label][name]['users'].get(display_name, 0) + item.quantity
 
     context = {
         'selected_date': selected_date,
         'day_name': day_name,
-        'aggregated': aggregated,
+        'slots_aggregated': slots_aggregated,
         'date_str': selected_date.strftime('%Y-%m-%d'),
         'total_orders_count': items.count()
     }
