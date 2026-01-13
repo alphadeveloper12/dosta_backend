@@ -1,0 +1,54 @@
+{% extends 'kitchen/base.html' %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Header & Date Picker -->
+    <div class="bg-white shadow rounded-lg p-6 flex flex-col md:flex-row justify-between items-center">
+        <div>
+            <h2 class="text-2xl font-bold text-gray-800">📅 Daily Prep Summary</h2>
+            <p class="text-gray-500">
+                Orders for <strong>{{ selected_date|date:"l, F j, Y" }}</strong>
+                ({{ total_orders_count }} items total)
+            </p>
+        </div>
+
+        <form method="GET" action="{% url 'kitchen:daily_orders' %}" class="flex items-center space-x-3 mt-4 md:mt-0">
+            <label for="date" class="text-gray-700 font-medium whitespace-nowrap">Change Date:</label>
+            <input type="date" name="date" id="date" value="{{ date_str }}" onchange="this.form.submit()"
+                class="border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
+        </form>
+    </div>
+
+    <!-- Aggregated Summary Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for item_name, data in aggregated.items %}
+        <div
+            class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+            <div class="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                <h3 class="font-bold text-lg text-gray-800">{{ item_name }}</h3>
+                <span class="bg-blue-600 text-white text-xl font-black px-4 py-1 rounded-lg shadow-sm">
+                    {{ data.total }}
+                </span>
+            </div>
+
+            <div class="p-5">
+                <h4 class="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">User Breakdown</h4>
+                <ul class="space-y-2">
+                    {% for user_name, qty in data.users.items %}
+                    <li class="flex justify-between items-center text-sm">
+                        <span class="text-gray-600 font-medium">{{ user_name }}</span>
+                        <span class="bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-xs font-bold">x {{ qty }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-span-full bg-yellow-50 border-l-4 border-yellow-400 p-8 text-center rounded-lg">
+            <p class="text-yellow-700 text-lg font-medium">No orders found for this date.</p>
+            <p class="text-yellow-600 text-sm mt-1">Try picking a different date or check the "Weekly Plan" items.</p>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

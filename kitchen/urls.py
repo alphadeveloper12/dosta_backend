@@ -15,6 +15,7 @@ urlpatterns = [
     path('vending-prices/', views.vending_prices_view, name='vending_prices'),
     path('vending-machine-items/', views.vending_machine_items_view, name='vending_machine_items'),
     path('update-vending-stock/', views.update_vending_stock, name='update_vending_stock'),
+    path('daily-orders/', views.daily_orders_view, name='daily_orders'),
     
     # Catering Dashboard
     path('catering/', CateringKitchenDashboardView.as_view(), name='catering_dashboard'),

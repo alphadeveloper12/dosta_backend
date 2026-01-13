@@ -5,7 +5,8 @@ from django.db.models import Q
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 
-from vending.models import Order, OrderStatus
+from django.utils import timezone
+from vending.models import Order, OrderStatus, OrderItem, PlanType, PlanSubType
 
 class DashboardView(ListView):
     model = Order
@@ -567,3 +568,62 @@ def update_vending_stock(request):
     if machine_uuid:
         response['Location'] += f'?machine_uuid={machine_uuid}'
     return response
+
+# @login_required
+# @user_passes_test(is_kitchen_admin)
+def daily_orders_view(request):
+    """
+    Shows aggregated orders for a specific day.
+    Includes 'Order Now' items for that date and 'Weekly/Monthly' plan items for that day of week.
+    """
+    date_str = request.GET.get('date')
+    if date_str:
+        try:
+            selected_date = timezone.datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            selected_date = timezone.now().date()
+    else:
+        selected_date = timezone.now().date()
+    
+    day_name = selected_date.strftime('%A') # e.g. "Tuesday"
+    
+    # Query items for this day
+    # Condition 1: Immediate orders (Order Now / Smart Grab) created on this date
+    # Condition 2: Plan orders for this day of week
+    items = OrderItem.objects.filter(
+        Q(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB], order__created_at__date=selected_date) |
+        Q(plan_subtype__in=[PlanSubType.WEEKLY, PlanSubType.MONTHLY], day_of_week=day_name)
+    ).filter(
+        order__status__in=[
+            OrderStatus.CONFIRMED, 
+            OrderStatus.PREPARING, 
+            OrderStatus.READY, 
+            OrderStatus.COMPLETED
+        ]
+    ).select_related('menu_item', 'order', 'order__user').order_by('menu_item__name')
+
+    # Aggregation logic
+    aggregated = {}
+    for item in items:
+        name = item.menu_item.name
+        user_obj = item.order.user
+        display_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
+        
+        if name not in aggregated:
+            aggregated[name] = {
+                'total': 0,
+                'users': {}
+            }
+        
+        aggregated[name]['total'] += item.quantity
+        # Track quantity per user for this item
+        aggregated[name]['users'][display_name] = aggregated[name]['users'].get(display_name, 0) + item.quantity
+
+    context = {
+        'selected_date': selected_date,
+        'day_name': day_name,
+        'aggregated': aggregated,
+        'date_str': selected_date.strftime('%Y-%m-%d'),
+        'total_orders_count': items.count()
+    }
+    return render(request, 'kitchen/daily_orders.html', context)
