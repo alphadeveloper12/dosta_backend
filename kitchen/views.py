@@ -430,6 +430,23 @@ def vending_machine_items_view(request):
             goods_url = "http://www.hnzczy.cn:8087/commodityinfo/querycommodityinfo"
             headers = {"Authorization": token}
             
+            # Pre-fetch local images to fix broken external URLs
+            from vending.models import MenuItem
+            import re
+            
+            def normalize_name(name):
+                if not name: return ""
+                name = name.replace("&", "and")
+                return re.sub(r'[^a-zA-Z0-9]', '', name).lower()
+
+            local_image_map = {}
+            for item in MenuItem.objects.exclude(image=''):
+                # Map exact name
+                if item.image:
+                    local_image_map[item.name] = item.image.url
+                    # Map normalized name
+                    local_image_map[normalize_name(item.name)] = item.image.url
+            
             try:
                 response = requests.get(goods_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=15)
                 api_data = response.json()
@@ -444,7 +461,8 @@ def vending_machine_items_view(request):
                         try:
                             tier = int(raw_tier)
                         except (ValueError, TypeError):
-                            tier = 999 # Safe fallback for bad data
+                            tier = 999 
+
                         if tier not in shelves_dict:
                             shelves_dict[tier] = {
                                 'id': tier,
@@ -464,11 +482,15 @@ def vending_machine_items_view(request):
                         }
                         
                         if goods:
+                            g_name = goods.get('goodsName')
+                            # Try local image match
+                            local_img = local_image_map.get(g_name) or local_image_map.get(normalize_name(g_name))
+                            
                             spot_data['item'] = {
                                 'uuid': goods.get('uuid'),
-                                'name': goods.get('goodsName'),
+                                'name': g_name,
                                 'price': goods.get('goodsPrice'),
-                                'image': goods.get('goodsUrl'),
+                                'image': local_img if local_img else goods.get('goodsUrl'), # Fallback to external if no local
                                 'desc': goods.get('goodsDesc')
                             }
                             
