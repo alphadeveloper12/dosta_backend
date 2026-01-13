@@ -467,13 +467,21 @@ def vending_machine_items_view(request):
                             shelves_dict[tier] = {
                                 'id': tier,
                                 'name': f"Shelf {tier}",
-                                'spots': []
+                                'spots': [],
+                                'seen_spots': set() # fast lookup for duplicates
                             }
                         
                         goods = slot.get("commGoodsResp")
                         
+                        # Fix: Deduplicate items based on arrivalName (Slot ID)
+                        slot_id = slot.get('arrivalName')
+                        if slot_id in shelves_dict[tier]['seen_spots']:
+                            continue
+                        
+                        shelves_dict[tier]['seen_spots'].add(slot_id)
+                        
                         spot_data = {
-                            'arrivalName': slot.get('arrivalName'),
+                            'arrivalName': slot_id,
                             'modityTierNum': slot.get('modityTierNum'), # Slot number on shelf
                             'capacity': slot.get('arrivalCapacity'),
                             'present': slot.get('presentNumber', 0),
