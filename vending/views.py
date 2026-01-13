@@ -868,7 +868,13 @@ class ExternalProductionPickView(APIView):
             pick_payload = request.data.copy()
             pick_payload['orderTime'] = order_time_str
             
-            print(f"DEBUG: Posting pick to {url} with modified body {pick_payload} and headers {headers}")
+            # --- CLEAR API LOGGING ---
+            print("\n" + "="*50)
+            print("🚀 SENDING REQUEST TO EXTERNAL VENDING API")
+            print(f"URL: {url}")
+            print(f"HEADERS: {headers}")
+            print(f"PAYLOAD: {pick_payload}")
+            print("="*50 + "\n")
             
             # Forward the modified JSON body
             response = requests.post(url, json=pick_payload, headers=headers, timeout=30)
