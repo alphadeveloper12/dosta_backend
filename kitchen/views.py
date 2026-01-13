@@ -440,7 +440,11 @@ def vending_machine_items_view(request):
                     
                     for slot in slots:
                         # Group by Tier (Shelf)
-                        tier = slot.get("modityTierSeq", 0)
+                        raw_tier = slot.get("modityTierSeq", 0)
+                        try:
+                            tier = int(raw_tier)
+                        except (ValueError, TypeError):
+                            tier = 999 # Safe fallback for bad data
                         if tier not in shelves_dict:
                             shelves_dict[tier] = {
                                 'id': tier,
@@ -480,7 +484,7 @@ def vending_machine_items_view(request):
                     for tier in sorted_tiers:
                         shelf = shelves_dict[tier]
                         # Sort spots by modityTierNum (column index) or arrivalName
-                        shelf['spots'].sort(key=lambda x: int(x['modityTierNum']) if x['modityTierNum'] else x['arrivalName'])
+                        shelf['spots'].sort(key=lambda x: (int(x['modityTierNum']) if str(x['modityTierNum']).isdigit() else 999, x['arrivalName']))
                         shelves_data.append(shelf)
                         
                 else:
