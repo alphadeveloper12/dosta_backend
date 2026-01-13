@@ -140,6 +140,32 @@ def populate():
             if i_created:
                 print(f"    Created Item: {item.name}")
             
+            # NEW: Image sourcing
+            source_folder = os.path.join(django.conf.settings.MEDIA_ROOT, 'source_images', 'Arabic', '2')
+            if os.path.exists(source_folder):
+                try:
+                    target_name = item.name.lower().strip()
+                    files = os.listdir(source_folder)
+                    found_image = None
+                    
+                    for filename in files:
+                        name_without_ext = os.path.splitext(filename)[0].lower()
+                        if name_without_ext == target_name:
+                            found_image = filename
+                            break
+                        if target_name in name_without_ext:
+                            found_image = filename
+                            break
+                    
+                    if found_image:
+                        source_path = os.path.join(source_folder, found_image)
+                        with open(source_path, 'rb') as f:
+                            from django.core.files import File
+                            item.image.save(found_image, File(f), save=True)
+                            print(f"      Attached image: {found_image}")
+                except Exception as e:
+                    print(f"      Error attached image: {e}")
+
             all_items.append(item)
 
     # 4. Create FixedCateringMenu

@@ -94,17 +94,63 @@ def populate():
     AmericanMenu.objects.all().delete()
     print("Cleared existing American Menus.")
 
-    for menu_data in MENUS:
+    base_image_path = os.path.join(django.conf.settings.MEDIA_ROOT, 'source_images', 'american')
+
+    for index, menu_data in enumerate(MENUS):
+        menu_number = index + 1
         menu = AmericanMenu.objects.create(name=menu_data["name"])
         print(f"Created Menu: {menu.name}")
         
+        menu_image_folder = os.path.join(base_image_path, str(menu_number))
+        
         for item_data in menu_data["items"]:
-            AmericanMenuItem.objects.create(
+            item = AmericanMenuItem.objects.create(
                 menu=menu,
                 name=item_data["name"],
                 description=item_data["description"],
                 category=item_data["category"]
             )
+
+            # Try to find image
+            if os.path.exists(menu_image_folder):
+                # Search for file with case-insensitive match
+                found_image = None
+                target_name = item_data["name"].lower().replace(" ", "") # Remove spaces for looser matching if needed, or just lower
+                
+                # Let's try exact name first, then different variations
+                # Get all files in the folder
+                try:
+                    files = os.listdir(menu_image_folder)
+                    for filename in files:
+                        name_without_ext = os.path.splitext(filename)[0].lower()
+                        # Normalize item name for comparison
+                        item_name_norm = item_data["name"].lower()
+                        
+                        # Check logic: Exact match or simple variations
+                        if name_without_ext == item_name_norm:
+                            found_image = filename
+                            break
+                        # Fallback: check if item name is in filename
+                        if item_name_norm in name_without_ext:
+                            found_image = filename
+                            # Don't break yet, keep looking for exact match? 
+                            # Actually, first match is probably fine for now.
+                            break
+                            
+                    if found_image:
+                        source_path = os.path.join(menu_image_folder, found_image)
+                        with open(source_path, 'rb') as f:
+                            from django.core.files import File
+                            item.image.save(found_image, File(f), save=True)
+                            print(f"  Attached image to: {item.name}")
+                    else:
+                        print(f"  No image found for: {item.name} in {menu_image_folder}")
+
+                except Exception as e:
+                    print(f"  Error accessing folder {menu_image_folder}: {e}")
+            else:
+                print(f"  Image folder not found: {menu_image_folder}")
+
     print("Done!")
 
 if __name__ == "__main__":
