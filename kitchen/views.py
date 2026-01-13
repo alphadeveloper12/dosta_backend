@@ -467,22 +467,18 @@ def vending_machine_items_view(request):
                             shelves_dict[tier] = {
                                 'id': tier,
                                 'name': f"Shelf {tier}",
-                                'spots': [],
-                                'seen_spots': set() # fast lookup for duplicates
+                                'spots_map': {} # Use dict for strict deduplication
                             }
                         
                         goods = slot.get("commGoodsResp")
                         
-                        # Fix: Deduplicate items based on arrivalName (Slot ID)
-                        slot_id = slot.get('arrivalName')
-                        if slot_id in shelves_dict[tier]['seen_spots']:
-                            continue
-                        
-                        shelves_dict[tier]['seen_spots'].add(slot_id)
+                        # Normalize Slot ID
+                        raw_spot_id = slot.get('arrivalName')
+                        spot_id_str = str(raw_spot_id).strip()
                         
                         spot_data = {
-                            'arrivalName': slot_id,
-                            'modityTierNum': slot.get('modityTierNum'), # Slot number on shelf
+                            'arrivalName': spot_id_str,
+                            'modityTierNum': slot.get('modityTierNum'), 
                             'capacity': slot.get('arrivalCapacity'),
                             'present': slot.get('presentNumber', 0),
                             'status': 'empty',
@@ -491,14 +487,13 @@ def vending_machine_items_view(request):
                         
                         if goods:
                             g_name = goods.get('goodsName')
-                            # Try local image match
                             local_img = local_image_map.get(g_name) or local_image_map.get(normalize_name(g_name))
                             
                             spot_data['item'] = {
                                 'uuid': goods.get('uuid'),
                                 'name': g_name,
                                 'price': goods.get('goodsPrice'),
-                                'image': local_img if local_img else goods.get('goodsUrl'), # Fallback to external if no local
+                                'image': local_img if local_img else goods.get('goodsUrl'),
                                 'desc': goods.get('goodsDesc')
                             }
                             
@@ -506,15 +501,28 @@ def vending_machine_items_view(request):
                                 spot_data['status'] = 'available'
                             else:
                                 spot_data['status'] = 'sold_out'
-                        
-                        shelves_dict[tier]['spots'].append(spot_data)
+
+                        # Deduplication / Merge Logic
+                        # If spot exists, only overwrite if current one has item (is better)
+                        existing = shelves_dict[tier]['spots_map'].get(spot_id_str)
+                        if existing:
+                            if spot_data['item'] is not None:
+                                shelves_dict[tier]['spots_map'][spot_id_str] = spot_data
+                            # Else: keep existing (which might have item or be empty, doesn't matter, we prioritize occupied)
+                        else:
+                             shelves_dict[tier]['spots_map'][spot_id_str] = spot_data
                     
-                    # Sort shelves and spots
+                    # Convert maps to sorted lists
                     sorted_tiers = sorted(shelves_dict.keys())
                     for tier in sorted_tiers:
                         shelf = shelves_dict[tier]
-                        # Sort spots by modityTierNum (column index) or arrivalName
-                        shelf['spots'].sort(key=lambda x: (int(x['modityTierNum']) if str(x['modityTierNum']).isdigit() else 999, x['arrivalName']))
+                        # Flatten spots map values
+                        spots_list = list(shelf['spots_map'].values())
+                        
+                        # Sort spots
+                        spots_list.sort(key=lambda x: (int(x['modityTierNum']) if str(x['modityTierNum']).isdigit() else 999, x['arrivalName']))
+                        
+                        shelf['spots'] = spots_list
                         shelves_data.append(shelf)
                         
                 else:
