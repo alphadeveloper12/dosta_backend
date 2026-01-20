@@ -704,7 +704,8 @@ class UserOrdersView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        orders = Order.objects.filter(user=request.user).order_by('-created_at')
+        # Sort by id descending as well to guarantee order if created_at is identical
+        orders = Order.objects.filter(user=request.user).order_by('-created_at', '-id')
         serializer = OrderSerializer(orders, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
