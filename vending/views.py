@@ -477,12 +477,13 @@ class ConfirmOrderView(APIView):
                 # Individual plan context
                 pickup_date=item.get("pickup_date", order.pickup_date),
                 pickup_slot_id=item.get("pickup_slot_id") or order.pickup_slot_id,
-                plan_type=item.get("plan_type", order.plan_type),
-                plan_subtype=item.get("plan_subtype", order.plan_subtype),
-                pickup_type=item.get("pickup_type", order.pickup_type),
-                status=OrderStatus.PREPARING if item.get("plan_type", order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
+                plan_type=item.get("plan_type") or (order.plan_type if order.plan_type != PlanType.START_PLAN else PlanType.ORDER_NOW),
+                plan_subtype=item.get("plan_subtype") or order.plan_subtype or PlanSubType.NONE,
+                pickup_type=item.get("pickup_type") or order.pickup_type,
+                status=OrderStatus.PREPARING if (item.get("plan_type") or order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
             )
-            print(f"DEBUG: Item {item.get('menu_item_id')} created with plan_type={item.get('plan_type', order.plan_type)} and status={OrderStatus.PREPARING if item.get('plan_type', order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING}")
+            item_type = item.get("plan_type") or order.plan_type
+            print(f"DEBUG: Order #{order.id} | Item {item.get('menu_item_id')} | Saved Type: {item_type} | Status: {OrderStatus.PREPARING if item_type == PlanType.START_PLAN else OrderStatus.PENDING}")
 
         order.update_total()
         serializer = OrderSerializer(order, context={'request': request})
