@@ -480,9 +480,9 @@ class ConfirmOrderView(APIView):
                 plan_type=item.get("plan_type", order.plan_type),
                 plan_subtype=item.get("plan_subtype", order.plan_subtype),
                 pickup_type=item.get("pickup_type", order.pickup_type),
-                status=OrderStatus.PREPARING if (item.get("plan_type") or order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
+                status=OrderStatus.PREPARING if item.get("plan_type", order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
             )
-            print(f"DEBUG: Item {item.get('menu_item_id')} created with plan_type={item.get('plan_type', order.plan_type)} and status={OrderStatus.PREPARING if (item.get('plan_type') or order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING}")
+            print(f"DEBUG: Item {item.get('menu_item_id')} created with plan_type={item.get('plan_type', order.plan_type)} and status={OrderStatus.PREPARING if item.get('plan_type', order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING}")
 
         order.update_total()
         serializer = OrderSerializer(order, context={'request': request})
@@ -783,10 +783,10 @@ class CartView(APIView):
                         vending_good_uuid=vending_good_uuid,
                         heating_requested=heating_requested,
                         # Save context per item
-                        plan_type=incoming_plan_type,
-                        plan_subtype=incoming_plan_subtype,
-                        pickup_type=cart.pickup_type,
-                        pickup_date=cart.pickup_date,
+                        plan_type=item.get("plan_type", incoming_plan_type),
+                        plan_subtype=item.get("plan_subtype", incoming_plan_subtype),
+                        pickup_type=item.get("pickup_type", cart.pickup_type),
+                        pickup_date=item.get("pickup_date", cart.pickup_date),
                         pickup_slot_id=item.get("pickup_slot_id") or cart.pickup_slot_id
                     )
 

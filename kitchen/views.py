@@ -301,7 +301,7 @@ def get_active_orders_api(request):
             'timesince': timesince(order.created_at),
             'pickup_date': str(order.pickup_date) if order.pickup_date else 'Today',
             'pickup_slot': order.pickup_slot.label if order.pickup_slot else None,
-            'items_count': kitchen_items.count(),
+            'items_count': order.kitchen_items.count(),
             'items': items_data,
             'detail_url': reverse('kitchen:order_detail', args=[order.id])
         })

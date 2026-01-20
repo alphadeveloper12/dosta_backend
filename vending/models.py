@@ -174,6 +174,11 @@ class Order(models.Model):
         self.total_amount = total
         self.save(update_fields=["total_amount"])
 
+    @property
+    def kitchen_items(self):
+        """Returns items that require kitchen preparation and aren't fulfilled yet."""
+        return self.items.filter(plan_type='START_PLAN', pickup_code__isnull=True)
+
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
