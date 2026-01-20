@@ -480,7 +480,7 @@ class ConfirmOrderView(APIView):
                 pickup_type=item.get("pickup_type", order.pickup_type),
                 pickup_date=item.get("pickup_date", order.pickup_date),
                 pickup_slot_id=item.get("pickup_slot_id") or order.pickup_slot_id,
-                status=OrderStatus.PREPARING if item.get("plan_type", order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
+                status="PREPARING" if (item.get("plan_type") or order.plan_type) == "START_PLAN" else "PENDING"
             )
 
         order.update_total()

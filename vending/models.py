@@ -191,7 +191,7 @@ class OrderItem(models.Model):
     pickup_date = models.DateField(null=True, blank=True)
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
     
-    status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PENDING)
+    status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PENDING, null=True, blank=True)
     pickup_code = models.CharField(max_length=50, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
