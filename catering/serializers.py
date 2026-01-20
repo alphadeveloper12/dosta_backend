@@ -6,7 +6,7 @@ class EventTypeSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EventType
-        fields = ['id', 'name', 'image_url']
+        fields = ['id', 'name', 'description', 'image_url']
 
     def get_image_url(self, obj):
         request = self.context.get('request')
@@ -203,7 +203,7 @@ class FixedCateringMenuSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = FixedCateringMenu
-        fields = ['id', 'name', 'description', 'cuisine', 'budget_option', 'courses', 'items']
+        fields = ['id', 'name', 'cuisine', 'budget_option', 'courses', 'items']
 
 
 class AmericanMenuItemSerializer(serializers.ModelSerializer):
@@ -224,7 +224,7 @@ class AmericanMenuSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AmericanMenu
-        fields = ['id', 'name', 'description', 'items']
+        fields = ['id', 'name', 'items']
 
 class CanapeItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()

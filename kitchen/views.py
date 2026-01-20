@@ -195,6 +195,10 @@ def process_menu_data(data_iter):
         carbs = parse_macros(row.get('Carbs', 0))
         fats = parse_macros(row.get('Fats', 0))
         
+        # Heating
+        heating_raw = row.get('Heating', row.get('heating', '')).lower().strip()
+        heating = (heating_raw == 'yes')
+
         # Check for explicitly updated fields to avoid overwriting with defaults if not present
         defaults = {
             'description': desc,
@@ -203,6 +207,7 @@ def process_menu_data(data_iter):
             'protein': prot,
             'carbs': carbs,
             'fats': fats,
+            'heating': heating,
         }
         
         item, created = MenuItem.objects.update_or_create(
@@ -213,25 +218,49 @@ def process_menu_data(data_iter):
         
         # Handle Image URL
         picture_url = row.get('Picture', '').strip()
+        
+        # Clean Excel formulas e.g. =IMAGE("url")
+        if picture_url.startswith('=') or 'IMAGE(' in picture_url:
+            # Extract http/https url via regex
+            url_match = re.search(r'(https?://[^\s"\'\)]+)', picture_url)
+            if url_match:
+                picture_url = url_match.group(1)
+        
+        # Basic cleanup of quotes if any remain
+        picture_url = picture_url.strip('"\'')
+
         if picture_url and (picture_url.startswith('http') or 'drive.google.com' in picture_url):
-            try:
-                with open('debug_log.txt', 'a') as f:
-                     f.write(f"DEBUG: Downloading image for {item_name} from {picture_url}\n")
-                
-                # For Google Drive Export URLs, standard requests.get usually works if public
-                response = requests.get(picture_url, timeout=10)
-                if response.status_code == 200:
-                    # Create filename
-                    filename = f"{slugify(item_name)}.jpg"
-                    item.image.save(filename, ContentFile(response.content), save=True)
+            # Check if we need to update
+            # We update if: 
+            # 1. We don't have an image source URL stored (legacy items)
+            # 2. The stored source URL is different from the new one
+            # 3. The item has no image file associated
+            if item.image_source_url != picture_url or not item.image:
+                try:
                     with open('debug_log.txt', 'a') as f:
-                        f.write(f"DEBUG: Saved image {filename}\n")
-                else:
-                     with open('debug_log.txt', 'a') as f:
-                        f.write(f"DEBUG: Failed to download image. Status: {response.status_code}\n")
-            except Exception as e:
+                        f.write(f"DEBUG: Downloading new image for {item_name} from {picture_url}\n")
+                    
+                    # For Google Drive Export URLs, standard requests.get usually works if public
+                    response = requests.get(picture_url, timeout=10)
+                    if response.status_code == 200:
+                        # Create filename
+                        filename = f"{slugify(item_name)}.jpg"
+                        # Save image and update source URL
+                        item.image.save(filename, ContentFile(response.content), save=False)
+                        item.image_source_url = picture_url
+                        item.save()
+                        
+                        with open('debug_log.txt', 'a') as f:
+                            f.write(f"DEBUG: Saved image {filename}\n")
+                    else:
+                        with open('debug_log.txt', 'a') as f:
+                            f.write(f"DEBUG: Failed to download image. Status: {response.status_code}\n")
+                except Exception as e:
+                    with open('debug_log.txt', 'a') as f:
+                        f.write(f"DEBUG: Error downloading image: {e}\n")
+            else:
                  with open('debug_log.txt', 'a') as f:
-                    f.write(f"DEBUG: Error downloading image: {e}\n")
+                        f.write(f"DEBUG: Image URL unchanged for {item_name}, skipping download.\n")
 
 
 def get_active_orders_api(request):

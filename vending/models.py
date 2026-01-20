@@ -67,6 +67,8 @@ class MenuItem(models.Model):
     fats = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
     offer = models.CharField(max_length=255, blank=True, null=True)
     terms_and_conditions = models.TextField(blank=True, null=True)
+    heating = models.BooleanField(default=False)
+    image_source_url = models.URLField(max_length=500, blank=True, null=True)
     image = models.ImageField(upload_to='menu_images/')
 
     def __str__(self):

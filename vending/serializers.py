@@ -51,6 +51,7 @@ class OfferSerializer(serializers.ModelSerializer):
 class MenuItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     offers = OfferSerializer(many=True, read_only=True)
+    heating = serializers.SerializerMethodField()
 
     class Meta:
         model = MenuItem
@@ -62,8 +63,12 @@ class MenuItemSerializer(serializers.ModelSerializer):
             'offer',
             'terms_and_conditions',
             'image_url',
-            'offers'
+            'offers',
+            'heating'
         ]
+
+    def get_heating(self, obj):
+        return "yes" if obj.heating else "no"
 
     def get_image_url(self, obj):
         request = self.context.get('request')

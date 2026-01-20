@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 
 class EventType(models.Model):
     name = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
     image = models.FileField(upload_to='event_types/')
     
     def __str__(self):
@@ -103,7 +104,7 @@ class Pax(models.Model):
 
 class FixedCateringMenu(models.Model):
     name = models.CharField(max_length=200)
-    description = models.TextField(blank=True, null=True, default="Dummy description")
+    # description field removed per refactor
     cuisine = models.ForeignKey(Cuisine, on_delete=models.CASCADE, related_name='fixed_menus')
     budget_option = models.ForeignKey(BudgetOption, on_delete=models.CASCADE, related_name='fixed_menus')
     courses = models.ManyToManyField(Course, related_name='fixed_menus', blank=True)
@@ -202,7 +203,7 @@ class LiveStationItem(models.Model):
 
 class AmericanMenu(models.Model):
     name = models.CharField(max_length=100) # e.g., "Buffet Menu 1: Southern Comfort"
-    description = models.TextField(blank=True, null=True, default="Dummy description")
+    # description field removed per refactor
     
     def __str__(self):
         return self.name

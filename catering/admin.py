@@ -19,8 +19,8 @@ class AmericanMenuItemInline(admin.TabularInline):
     extra = 1
 
 class AmericanMenuAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description')
-    search_fields = ('name', 'description')
+    list_display = ('name',)
+    search_fields = ('name',)
     inlines = [AmericanMenuItemInline]
 safe_register(AmericanMenu, AmericanMenuAdmin)
 
@@ -51,15 +51,15 @@ class CateringPlanCourseInline(admin.TabularInline):
 
 @admin.register(FixedCateringMenu)
 class FixedCateringMenuAdmin(admin.ModelAdmin):
-    list_display = ('name', 'cuisine', 'budget_option', 'description')
+    list_display = ('name', 'cuisine', 'budget_option')
     list_filter = ('cuisine', 'budget_option')
     filter_horizontal = ('courses', 'items')
-    search_fields = ('name', 'description')
+    search_fields = ('name',)
 
 @admin.register(EventType)
 class EventTypeAdmin(admin.ModelAdmin):
-    list_display = ('name',)
-    search_fields = ('name',)
+    list_display = ('name', 'description')
+    search_fields = ('name', 'description')
 
 @admin.register(EventName)
 class EventNameAdmin(admin.ModelAdmin):
