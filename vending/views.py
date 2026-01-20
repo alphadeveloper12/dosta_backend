@@ -479,7 +479,8 @@ class ConfirmOrderView(APIView):
                 plan_subtype=item.get("plan_subtype", order.plan_subtype),
                 pickup_type=item.get("pickup_type", order.pickup_type),
                 pickup_date=item.get("pickup_date", order.pickup_date),
-                pickup_slot_id=item.get("pickup_slot_id") or order.pickup_slot_id
+                pickup_slot_id=item.get("pickup_slot_id") or order.pickup_slot_id,
+                status=OrderStatus.PREPARING if item.get("plan_type", order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
             )
 
         order.update_total()
@@ -564,13 +565,19 @@ class UpdatePickupCodeView(APIView):
 
         try:
             order = Order.objects.get(id=order_id, user=request.user)
-            order.pickup_code = pickup_code
-            # Generate QR code URL using a public API for simplicity
-            order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
-            order.save()
+            if not order.pickup_code:
+                order.pickup_code = pickup_code
+                order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+                order.save()
+
+            # Update only ORDER_NOW / SMART_GRAB items
+            instant_items = order.items.filter(
+                plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]
+            )
+            instant_items.update(status=OrderStatus.READY, pickup_code=pickup_code)
 
             # NEW: Decrement stock for vending items
-            for item in order.items.all():
+            for item in instant_items:
                 if item.vending_good_uuid:
                     stock = VendingMachineStock.objects.filter(vending_good_uuid=item.vending_good_uuid).first()
                     if stock:
@@ -589,6 +596,100 @@ class UpdatePickupCodeView(APIView):
             return Response({"error": "Order not found"}, status=404)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class KitchenOrderItemCompleteView(APIView):
+    """
+    POST /api/vending/kitchen/complete-item/
+    {
+        "order_item_id": 456
+    }
+    Triggered by kitchen manager when meal is put into machine.
+    Calls External Vending API to get pickup code for this specific item.
+    """
+    permission_classes = [permissions.AllowAny] # In production, restrict to Staff/Kitchen Admin
+
+    def post(self, request):
+        order_item_id = request.data.get("order_item_id")
+        if not order_item_id:
+            return Response({"error": "order_item_id required"}, status=400)
+
+        try:
+            item = OrderItem.objects.get(id=order_item_id)
+            if item.status == OrderStatus.READY:
+                return Response({"message": "Item already ready", "pickup_code": item.pickup_code})
+
+            order = item.order
+            serial_number = order.location.serial_number
+
+            if not serial_number:
+                return Response({"error": "Location serial number missing"}, status=400)
+            if not item.vending_good_uuid:
+                return Response({"error": "Item vending good UUID missing"}, status=400)
+
+            # --- 1. Fetch Token from External API ---
+            token_url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
+            token_params = {"userName": "C202405128888", "password": "8888"}
+            
+            token_response = requests.get(token_url, params=token_params, timeout=10)
+            token_data = token_response.json()
+            token = token_data.get("data") or token_data.get("token")
+            
+            if not token:
+                return Response({"error": "Failed to fetch vending token"}, status=502)
+
+            # --- 2. Request Pickup Code ---
+            url = "http://www.hnzczy.cn:8087/commpick/productionpick"
+            headers = {"Authorization": token}
+            
+            uae_tz = pytz.timezone('Asia/Dubai')
+            now_uae = datetime.now(uae_tz)
+            order_time_str = now_uae.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+
+            goods_list = [{
+                "goodsNumber": item.quantity,
+                "goodsPrice": 0.01,
+                "goodsUuid": item.vending_good_uuid,
+            }]
+            
+            if item.heating_requested:
+                goods_list[0]['serviceType'] = 1
+                goods_list[0]['serviceVal'] = "15"
+
+            pick_payload = {
+                "goodsList": goods_list,
+                "goodsNumber": item.quantity,
+                "machineUuid": serial_number,
+                "orderNo": f"{order.id}-{item.id}", # Unique sub-order NO
+                "orderTime": order_time_str,
+                "timeOut": 1,
+                "lock": 0,
+            }
+
+            pick_res = requests.post(url, json=pick_payload, headers=headers, timeout=30)
+            pick_data = pick_res.json()
+
+            if pick_data.get("result") == "200" and pick_data.get("data"):
+                new_code = pick_data["data"]
+                item.pickup_code = new_code
+                item.status = OrderStatus.READY
+                item.save()
+
+                return Response({
+                    "status": "READY",
+                    "pickup_code": new_code,
+                    "message": "Fulfillment successful"
+                })
+            else:
+                return Response({
+                    "error": "Vending API error",
+                    "details": pick_data
+                }, status=502)
+
+        except OrderItem.DoesNotExist:
+            return Response({"error": "OrderItem not found"}, status=404)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
     
 # -----------------------------------------------------------
 # ORDER HISTORY API

@@ -106,7 +106,11 @@ class OrderItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = OrderItem
-        fields = ['id', 'menu_item', 'quantity', 'day_of_week', 'week_number', 'vending_good_uuid', 'heating_requested']
+        fields = [
+            'id', 'menu_item', 'quantity', 'day_of_week', 'week_number', 
+            'vending_good_uuid', 'heating_requested', 'status', 'pickup_code',
+            'plan_type', 'plan_subtype'
+        ]
 
 
 class OrderSerializer(serializers.ModelSerializer):
