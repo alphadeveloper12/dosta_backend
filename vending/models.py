@@ -182,6 +182,7 @@ class OrderItem(models.Model):
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
+    heating_requested = models.BooleanField(default=False)
     
     # Plan Context (Moved to Item level for mixed carts)
     plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)
@@ -247,6 +248,7 @@ class CartItem(models.Model):
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
+    heating_requested = models.BooleanField(default=False)
     
     # Plan Context (Moved to Item level for mixed carts)
     plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)

@@ -473,6 +473,7 @@ class ConfirmOrderView(APIView):
                 day_of_week=item.get("day_of_week"),
                 week_number=item.get("week_number"),
                 vending_good_uuid=item.get("vending_good_uuid"),
+                heating_requested=item.get("heating_requested", False),
                 # Individual plan context
                 plan_type=item.get("plan_type", order.plan_type),
                 plan_subtype=item.get("plan_subtype", order.plan_subtype),
@@ -667,6 +668,7 @@ class CartView(APIView):
                 day_of_week = item.get("day_of_week")
                 week_number = item.get("week_number")
                 vending_good_uuid = item.get("vending_good_uuid")
+                heating_requested = item.get("heating_requested", False)
 
                 if menu_item_id:
                     CartItem.objects.create(
@@ -676,6 +678,7 @@ class CartView(APIView):
                         day_of_week=day_of_week,
                         week_number=week_number,
                         vending_good_uuid=vending_good_uuid,
+                        heating_requested=heating_requested,
                         # Save context per item
                         plan_type=incoming_plan_type,
                         plan_subtype=incoming_plan_subtype,
@@ -867,6 +870,14 @@ class ExternalProductionPickView(APIView):
             # Create a copy of the request data and inject/override the orderTime
             pick_payload = request.data.copy()
             pick_payload['orderTime'] = order_time_str
+            
+            # Add heating parameters if requested
+            if 'goodsList' in pick_payload:
+                for item in pick_payload['goodsList']:
+                    if item.get('heating_requested') is True or item.get('heatingChoice') == 'yes':
+                        item['serviceType'] = 1
+                        item['serviceVal'] = "15"
+            
             
             # --- CLEAR API LOGGING ---
             print("\n" + "="*50)
