@@ -479,7 +479,7 @@ class ConfirmOrderView(APIView):
                 plan_subtype=item.get("plan_subtype", order.plan_subtype),
                 pickup_type=item.get("pickup_type", order.pickup_type),
                 pickup_date=item.get("pickup_date", order.pickup_date),
-                pickup_slot=order.pickup_slot # Slot is usually shared per order
+                pickup_slot_id=item.get("pickup_slot_id") or order.pickup_slot_id
             )
 
         order.update_total()
@@ -684,7 +684,7 @@ class CartView(APIView):
                         plan_subtype=incoming_plan_subtype,
                         pickup_type=cart.pickup_type,
                         pickup_date=cart.pickup_date,
-                        pickup_slot=cart.pickup_slot
+                        pickup_slot_id=item.get("pickup_slot_id") or cart.pickup_slot_id
                     )
 
             cart.update_total()
