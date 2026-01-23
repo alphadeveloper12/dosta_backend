@@ -68,8 +68,7 @@
         <dt class="text-sm font-medium text-gray-500">Items</dt>
         <dd class="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
           <ul class="border border-gray-200 rounded-md divide-y divide-gray-200">
-            {% for item in order.items.all %}
-            {% if item.plan_type == 'START_PLAN' %}
+            {% for item in order.kitchen_items %}
             <li class="pl-3 pr-4 py-3 text-sm">
               <div class="flex items-start justify-between">
                 <div class="flex-1">
@@ -96,7 +95,6 @@
               </div>
               {% endif %}
             </li>
-            {% endif %}
             {% endfor %}
           </ul>
         </dd>

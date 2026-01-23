@@ -88,10 +88,10 @@
       </div>
       <div>
         <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-          Items ({{ order.items.count }})
+          Items ({{ order.kitchen_items.count }})
         </div>
         <ul class="space-y-2">
-          {% for item in order.items.all|slice:":3" %}
+          {% for item in order.kitchen_items|slice:":3" %}
           <li class="flex justify-between text-sm text-gray-700">
             <span class="truncate pr-2">{{ item.menu_item.name }}</span>
             <span class="font-bold text-gray-900">x{{ item.quantity }}</span>

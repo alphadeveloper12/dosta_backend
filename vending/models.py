@@ -174,6 +174,11 @@ class Order(models.Model):
         self.total_amount = total
         self.save(update_fields=["total_amount"])
 
+    @property
+    def kitchen_items(self):
+        """Returns items that require kitchen preparation and aren't fulfilled yet."""
+        return self.items.filter(plan_type='START_PLAN', pickup_code__isnull=True)
+
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
@@ -182,6 +187,7 @@ class OrderItem(models.Model):
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
+    heating_requested = models.BooleanField(default=False, null=True, blank=True)
     
     # Plan Context (Moved to Item level for mixed carts)
     plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)
@@ -189,6 +195,9 @@ class OrderItem(models.Model):
     pickup_type = models.CharField(max_length=20, choices=PickupType.choices, null=True, blank=True)
     pickup_date = models.DateField(null=True, blank=True)
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
+    
+    status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PENDING, null=True, blank=True)
+    pickup_code = models.CharField(max_length=50, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -247,6 +256,7 @@ class CartItem(models.Model):
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
+    heating_requested = models.BooleanField(default=False, null=True, blank=True)
     
     # Plan Context (Moved to Item level for mixed carts)
     plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)

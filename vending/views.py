@@ -473,13 +473,17 @@ class ConfirmOrderView(APIView):
                 day_of_week=item.get("day_of_week"),
                 week_number=item.get("week_number"),
                 vending_good_uuid=item.get("vending_good_uuid"),
+                heating_requested=item.get("heating_requested", False),
                 # Individual plan context
-                plan_type=item.get("plan_type", order.plan_type),
-                plan_subtype=item.get("plan_subtype", order.plan_subtype),
-                pickup_type=item.get("pickup_type", order.pickup_type),
                 pickup_date=item.get("pickup_date", order.pickup_date),
-                pickup_slot=order.pickup_slot # Slot is usually shared per order
+                pickup_slot_id=item.get("pickup_slot_id") or order.pickup_slot_id,
+                plan_type=item.get("plan_type") or (order.plan_type if order.plan_type != PlanType.START_PLAN else PlanType.ORDER_NOW),
+                plan_subtype=item.get("plan_subtype") or order.plan_subtype or PlanSubType.NONE,
+                pickup_type=item.get("pickup_type") or order.pickup_type,
+                status=OrderStatus.PREPARING if (item.get("plan_type") or order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
             )
+            item_type = item.get("plan_type") or order.plan_type
+            print(f"DEBUG: Order #{order.id} | Item {item.get('menu_item_id')} | Saved Type: {item_type} | Status: {OrderStatus.PREPARING if item_type == PlanType.START_PLAN else OrderStatus.PENDING}")
 
         order.update_total()
         serializer = OrderSerializer(order, context={'request': request})
@@ -563,13 +567,19 @@ class UpdatePickupCodeView(APIView):
 
         try:
             order = Order.objects.get(id=order_id, user=request.user)
-            order.pickup_code = pickup_code
-            # Generate QR code URL using a public API for simplicity
-            order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
-            order.save()
+            if not order.pickup_code:
+                order.pickup_code = pickup_code
+                order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+                order.save()
+
+            # Update only ORDER_NOW / SMART_GRAB items
+            instant_items = order.items.filter(
+                plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]
+            )
+            instant_items.update(status=OrderStatus.READY, pickup_code=pickup_code)
 
             # NEW: Decrement stock for vending items
-            for item in order.items.all():
+            for item in instant_items:
                 if item.vending_good_uuid:
                     stock = VendingMachineStock.objects.filter(vending_good_uuid=item.vending_good_uuid).first()
                     if stock:
@@ -588,6 +598,100 @@ class UpdatePickupCodeView(APIView):
             return Response({"error": "Order not found"}, status=404)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class KitchenOrderItemCompleteView(APIView):
+    """
+    POST /api/vending/kitchen/complete-item/
+    {
+        "order_item_id": 456
+    }
+    Triggered by kitchen manager when meal is put into machine.
+    Calls External Vending API to get pickup code for this specific item.
+    """
+    permission_classes = [permissions.AllowAny] # In production, restrict to Staff/Kitchen Admin
+
+    def post(self, request):
+        order_item_id = request.data.get("order_item_id")
+        if not order_item_id:
+            return Response({"error": "order_item_id required"}, status=400)
+
+        try:
+            item = OrderItem.objects.get(id=order_item_id)
+            if item.status == OrderStatus.READY:
+                return Response({"message": "Item already ready", "pickup_code": item.pickup_code})
+
+            order = item.order
+            serial_number = order.location.serial_number
+
+            if not serial_number:
+                return Response({"error": "Location serial number missing"}, status=400)
+            if not item.vending_good_uuid:
+                return Response({"error": "Item vending good UUID missing"}, status=400)
+
+            # --- 1. Fetch Token from External API ---
+            token_url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
+            token_params = {"userName": "C202405128888", "password": "8888"}
+            
+            token_response = requests.get(token_url, params=token_params, timeout=10)
+            token_data = token_response.json()
+            token = token_data.get("data") or token_data.get("token")
+            
+            if not token:
+                return Response({"error": "Failed to fetch vending token"}, status=502)
+
+            # --- 2. Request Pickup Code ---
+            url = "http://www.hnzczy.cn:8087/commpick/productionpick"
+            headers = {"Authorization": token}
+            
+            uae_tz = pytz.timezone('Asia/Dubai')
+            now_uae = datetime.now(uae_tz)
+            order_time_str = now_uae.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+
+            goods_list = [{
+                "goodsNumber": item.quantity,
+                "goodsPrice": 0.01,
+                "goodsUuid": item.vending_good_uuid,
+            }]
+            
+            if item.heating_requested:
+                goods_list[0]['serviceType'] = 1
+                goods_list[0]['serviceVal'] = "15"
+
+            pick_payload = {
+                "goodsList": goods_list,
+                "goodsNumber": item.quantity,
+                "machineUuid": serial_number,
+                "orderNo": f"{order.id}-{item.id}", # Unique sub-order NO
+                "orderTime": order_time_str,
+                "timeOut": 1,
+                "lock": 0,
+            }
+
+            pick_res = requests.post(url, json=pick_payload, headers=headers, timeout=30)
+            pick_data = pick_res.json()
+
+            if pick_data.get("result") == "200" and pick_data.get("data"):
+                new_code = pick_data["data"]
+                item.pickup_code = new_code
+                item.status = OrderStatus.READY
+                item.save()
+
+                return Response({
+                    "status": "READY",
+                    "pickup_code": new_code,
+                    "message": "Fulfillment successful"
+                })
+            else:
+                return Response({
+                    "error": "Vending API error",
+                    "details": pick_data
+                }, status=502)
+
+        except OrderItem.DoesNotExist:
+            return Response({"error": "OrderItem not found"}, status=404)
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
     
 # -----------------------------------------------------------
 # ORDER HISTORY API
@@ -601,7 +705,8 @@ class UserOrdersView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        orders = Order.objects.filter(user=request.user).order_by('-created_at')
+        # Sort by id descending as well to guarantee order if created_at is identical
+        orders = Order.objects.filter(user=request.user).order_by('-created_at', '-id')
         serializer = OrderSerializer(orders, many=True, context={'request': request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -667,6 +772,7 @@ class CartView(APIView):
                 day_of_week = item.get("day_of_week")
                 week_number = item.get("week_number")
                 vending_good_uuid = item.get("vending_good_uuid")
+                heating_requested = item.get("heating_requested", False)
 
                 if menu_item_id:
                     CartItem.objects.update_or_create(
@@ -674,15 +780,14 @@ class CartView(APIView):
                         menu_item_id=menu_item_id,
                         day_of_week=day_of_week,
                         week_number=week_number,
-                        plan_type=incoming_plan_type,
-                        plan_subtype=incoming_plan_subtype,
-                        defaults={
-                            'quantity': quantity,
-                            'vending_good_uuid': vending_good_uuid,
-                            'pickup_type': cart.pickup_type,
-                            'pickup_date': cart.pickup_date,
-                            'pickup_slot': cart.pickup_slot
-                        }
+                        vending_good_uuid=vending_good_uuid,
+                        heating_requested=heating_requested,
+                        # Save context per item
+                        plan_type=item.get("plan_type", incoming_plan_type),
+                        plan_subtype=item.get("plan_subtype", incoming_plan_subtype),
+                        pickup_type=item.get("pickup_type", cart.pickup_type),
+                        pickup_date=item.get("pickup_date", cart.pickup_date),
+                        pickup_slot_id=item.get("pickup_slot_id") or cart.pickup_slot_id
                     )
 
             cart.update_total()
@@ -868,6 +973,14 @@ class ExternalProductionPickView(APIView):
             # Create a copy of the request data and inject/override the orderTime
             pick_payload = request.data.copy()
             pick_payload['orderTime'] = order_time_str
+            
+            # Add heating parameters if requested
+            if 'goodsList' in pick_payload:
+                for item in pick_payload['goodsList']:
+                    if item.get('heating_requested') is True or item.get('heatingChoice') == 'yes':
+                        item['serviceType'] = 1
+                        item['serviceVal'] = "15"
+            
             
             # --- CLEAR API LOGGING ---
             print("\n" + "="*50)
