@@ -3,8 +3,13 @@ from rest_framework import generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.decorators import login_required, user_passes_test
 from .models import *
 from .serializers import *
+
+def is_catering_staff(user):
+    return user.is_authenticated and (user.is_staff or user.is_superuser)
 
 class EventTypeListView(APIView):
     permission_classes = [IsAuthenticated]  # ✅ Only logged-in users can access
@@ -301,8 +306,11 @@ class CreateCateringOrderView(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class CateringKitchenDashboardView(TemplateView):
+class CateringKitchenDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'catering/kitchen_dashboard.html'
+    
+    def test_func(self):
+        return is_catering_staff(self.request.user)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -310,6 +318,8 @@ class CateringKitchenDashboardView(TemplateView):
         # We'll use API polling for data
         return context
 
+@login_required
+@user_passes_test(is_catering_staff)
 def get_active_catering_orders(request):
     """
     Returns JSON of active orders for the dashboard polling.

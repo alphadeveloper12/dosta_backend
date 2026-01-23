@@ -1,68 +1,169 @@
-{% extends 'kitchen/base.html' %}
-
-{% block content %}
+{% extends 'kitchen/base.html' %} {% block content %}
 <div class="space-y-6">
-    <!-- Header & Date Picker -->
-    <div class="bg-white shadow rounded-lg p-6 flex flex-col md:flex-row justify-between items-center">
-        <div>
-            <h2 class="text-2xl font-bold text-gray-800">📅 Daily Prep Summary</h2>
-            <p class="text-gray-500">
-                Prep for <strong>{{ selected_date|date:"l, F j, Y" }}</strong>
-                ({{ total_orders_count }} items total)
-            </p>
-        </div>
+ <!-- Header & Date Picker -->
+ <div
+  class="bg-white shadow rounded-lg p-6 flex flex-col md:flex-row justify-between items-center">
+  <div>
+   <h2 class="text-2xl font-bold text-gray-800">📅 Daily Prep Manager</h2>
+   <p class="text-gray-500">
+    Managing orders for <strong>{{ selected_date|date:"l, F j, Y" }}</strong>
+   </p>
+   <div class="mt-2 flex space-x-4">
+    <span
+     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+     Pending: {{ pending_count }}
+    </span>
+    <span
+     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+     Ready: {{ ready_count }}
+    </span>
+   </div>
+  </div>
 
-        <form method="GET" action="{% url 'kitchen:daily_orders' %}" class="flex items-center space-x-3 mt-4 md:mt-0">
-            <label for="date" class="text-gray-700 font-medium whitespace-nowrap">Change Date:</label>
-            <input type="date" name="date" id="date" value="{{ date_str }}" onchange="this.form.submit()"
-                class="border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white">
-        </form>
-    </div>
+  <form
+   method="GET"
+   action="{% url 'kitchen:daily_orders' %}"
+   class="flex items-center space-x-3 mt-4 md:mt-0">
+   <label for="date" class="text-gray-700 font-medium whitespace-nowrap"
+    >Change Date:</label
+   >
+   <input
+    type="date"
+    name="date"
+    id="date"
+    value="{{ date_str }}"
+    onchange="this.form.submit()"
+    class="border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" />
+  </form>
+ </div>
 
-    <!-- Grouped by Time Slot -->
-    {% for slot_label, items_aggregated in slots_aggregated.items %}
-    <div class="space-y-4">
-        <div class="flex items-center space-x-4">
-            <h3
-                class="text-xl font-bold text-blue-900 bg-blue-100 px-4 py-1 rounded-full border border-blue-200 shadow-sm">
-                🕒 {{ slot_label }}
-            </h3>
-            <div class="h-px bg-blue-200 flex-grow"></div>
-        </div>
+ <!-- TABS -->
+ <div x-data="{ tab: 'pending' }">
+  <div class="border-b border-gray-200 mb-4">
+   <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+    <button
+     @click="tab = 'pending'"
+     :class="{'border-indigo-500 text-indigo-600': tab === 'pending', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': tab !== 'pending'}"
+     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+     Pending Prep ({{ pending_count }})
+    </button>
+    <button
+     @click="tab = 'ready'"
+     :class="{'border-green-500 text-green-600': tab === 'ready', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': tab !== 'ready'}"
+     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+     Ready / Completed ({{ ready_count }})
+    </button>
+   </nav>
+  </div>
 
-        <!-- Summary Grid for this Slot -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {% for item_name, data in items_aggregated.items %}
-            <div
-                class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                <div class="p-5 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
-                    <h3 class="font-bold text-lg text-gray-800">{{ item_name }}</h3>
-                    <span class="bg-blue-600 text-white text-xl font-black px-4 py-1 rounded-lg shadow-sm">
-                        {{ data.total }}
-                    </span>
-                </div>
-
-                <div class="p-5">
-                    <h4 class="text-xs uppercase tracking-wider text-gray-400 font-bold mb-3">Today's Orders</h4>
-                    <ul class="space-y-2">
-                        {% for user_name, qty in data.users.items %}
-                        <li class="flex justify-between items-center text-sm">
-                            <span class="text-gray-600 font-medium">{{ user_name }}</span>
-                            <span class="bg-gray-100 text-gray-800 px-2 py-0.5 rounded text-xs font-bold">x {{ qty
-                                }}</span>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% empty %}
-    <div class="bg-yellow-50 border-l-4 border-yellow-400 p-8 text-center rounded-lg shadow-sm">
-        <p class="text-yellow-700 text-lg font-medium">No orders scheduled for this date.</p>
-        <p class="text-yellow-600 text-sm mt-1">Try picking a different date or check the weekly plans.</p>
-    </div>
+  <!-- PENDING TAB -->
+  <div
+   x-show="tab === 'pending'"
+   class="bg-white shadow overflow-hidden rounded-md">
+   {% if pending_items %}
+   <ul class="divide-y divide-gray-200">
+    {% for item in pending_items %}
+    <li
+     class="p-4 hover:bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center">
+     <div class="flex-grow">
+      <div class="flex items-center">
+       <span
+        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 mr-2">
+        {{ item.slot_label }}
+       </span>
+       <span class="text-sm font-medium text-gray-900"
+        >{{ item.menu_item.name }}</span
+       >
+       <span class="ml-2 text-sm text-gray-500 font-bold"
+        >x{{ item.quantity }}</span
+       >
+      </div>
+      <div class="mt-1 text-sm text-gray-500">
+       User: <span class="font-medium text-gray-900">{{ item.user_name }}</span>
+       {% if item.plan_type != 'START_PLAN' %}
+       <span class="ml-2 text-xs text-indigo-600 bg-indigo-50 px-1 rounded"
+        >{{ item.plan_type }} / {{ item.plan_subtype }}</span
+       >
+       {% endif %} {% if item.day_of_week %}
+       <span class="ml-2 text-xs text-purple-600 bg-purple-50 px-1 rounded"
+        >Week {{ item.week_number }} - {{ item.day_of_week }}</span
+       >
+       {% endif %}
+      </div>
+     </div>
+     <div class="mt-4 sm:mt-0 ml-0 sm:ml-4 flex-shrink-0">
+      <form
+       method="POST"
+       action="{% url 'kitchen:update_item_status' item.id %}"
+       class="inline">
+       {% csrf_token %}
+       <input type="hidden" name="date_str" value="{{ date_str }}" />
+       <button
+        type="submit"
+        class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none shadow-sm transition-colors">
+        ✅ Mark Ready
+       </button>
+      </form>
+     </div>
+    </li>
     {% endfor %}
+   </ul>
+   {% else %}
+   <div class="p-10 text-center text-gray-500">
+    No pending items for this day. 🎉
+   </div>
+   {% endif %}
+  </div>
+
+  <!-- READY TAB -->
+  <div
+   x-show="tab === 'ready'"
+   class="bg-white shadow overflow-hidden rounded-md"
+   style="display: none">
+   {% if ready_items %}
+   <ul class="divide-y divide-gray-200">
+    {% for item in ready_items %}
+    <li
+     class="p-4 hover:bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center opacity-75">
+     <div class="flex-grow">
+      <div class="flex items-center">
+       <span
+        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 mr-2">
+        {{ item.slot_label }}
+       </span>
+       <span class="text-sm font-medium text-gray-900 line-through"
+        >{{ item.menu_item.name }}</span
+       >
+       <span class="ml-2 text-sm text-gray-500 font-bold"
+        >x{{ item.quantity }}</span
+       >
+      </div>
+      <div class="mt-1 text-sm text-gray-500">User: {{ item.user_name }}</div>
+     </div>
+     <div class="mt-4 sm:mt-0 ml-0 sm:ml-4 flex-shrink-0">
+      <form
+       method="POST"
+       action="{% url 'kitchen:update_item_status' item.id %}"
+       class="inline">
+       {% csrf_token %}
+       <input type="hidden" name="date_str" value="{{ date_str }}" />
+       <button
+        type="submit"
+        class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none shadow-sm transition-colors">
+        ↺ Undo
+       </button>
+      </form>
+     </div>
+    </li>
+    {% endfor %}
+   </ul>
+   {% else %}
+   <div class="p-10 text-center text-gray-500">No completed items yet.</div>
+   {% endif %}
+  </div>
+ </div>
 </div>
+
+<!-- Alpine.js for Tabs (CDN if not present in base, but assuming valid script management) -->
+<script src="//unpkg.com/alpinejs" defer></script>
 {% endblock %}

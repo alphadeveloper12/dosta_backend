@@ -177,7 +177,7 @@ class Order(models.Model):
     @property
     def kitchen_items(self):
         """Returns items that require kitchen preparation and aren't fulfilled yet."""
-        return self.items.filter(plan_type='START_PLAN', pickup_code__isnull=True)
+        return self.items.filter(plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'], pickup_code__isnull=True)
 
 
 class OrderItem(models.Model):
@@ -211,6 +211,13 @@ class OrderItem(models.Model):
         if self.day_of_week:
             return f"{base} ({self.day_of_week})"
         return base
+
+    @property
+    def week_day_display(self):
+        """Helper to display 'Week X - Day' or just 'Day'."""
+        if self.week_number and self.day_of_week:
+            return f"Week {self.week_number} - {self.day_of_week}"
+        return self.day_of_week or ""
 
 
 # -----------------------------------------------------------

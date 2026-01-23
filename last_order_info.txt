@@ -1,0 +1,5 @@
+Order ID: 165
+Status: PENDING
+Order Plan: START_PLAN
+Items: ['ORDER_NOW', 'ORDER_NOW', 'ORDER_NOW', 'ORDER_NOW', 'ORDER_NOW', 'ORDER_NOW', 'ORDER_NOW', 'ORDER_NOW']
+Pickup Code: [None, None, None, None, None, None, None, None]

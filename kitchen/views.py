@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, get_object_or_404, redirect
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
@@ -5,13 +6,19 @@ from django.db.models import Q
 from django.views.decorators.http import require_POST
 from django.contrib import messages
 
+def is_kitchen_admin(user):
+    return user.is_authenticated and (user.is_staff or user.is_superuser)
+
 from django.utils import timezone
 from vending.models import Order, OrderStatus, OrderItem, PlanType, PlanSubType
 
-class DashboardView(ListView):
+class DashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Order
     template_name = 'kitchen/dashboard.html'
     context_object_name = 'orders'
+
+    def test_func(self):
+        return is_kitchen_admin(self.request.user)
 
     def get_queryset(self):
         # Show specific statuses for kitchen, but only if they have non-Order Now items
@@ -21,14 +28,17 @@ class DashboardView(ListView):
                 OrderStatus.PREPARING,
                 OrderStatus.READY
             ],
-            items__plan_type__in=['START_PLAN'],
+            items__plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'],
             items__pickup_code__isnull=True # Only items that still need fulfillment
         ).distinct().order_by('-created_at')
 
-class TrackingView(ListView):
+class TrackingView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Order
     template_name = 'kitchen/tracking.html'
     context_object_name = 'orders'
+    
+    def test_func(self):
+        return is_kitchen_admin(self.request.user)
     ordering = ['-created_at']
 
     def get_queryset(self):
@@ -39,11 +49,16 @@ class TrackingView(ListView):
             qs = qs.filter(status=status_filter)
         return qs
 
-class OrderDetailView(DetailView):
+class OrderDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     model = Order
     template_name = 'kitchen/order_detail.html'
     context_object_name = 'order'
 
+    def test_func(self):
+        return is_kitchen_admin(self.request.user)
+
+@login_required
+@user_passes_test(is_kitchen_admin)
 @require_POST
 def update_order_status(request, pk):
     order = get_object_or_404(Order, pk=pk)
@@ -55,24 +70,57 @@ def update_order_status(request, pk):
     return redirect('kitchen:dashboard')
 
 # -----------------------------------------------------------
+# ITEM STATUS UPDATE (Daily Orders)
+# -----------------------------------------------------------
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def update_item_status(request, pk):
+    item = get_object_or_404(OrderItem, pk=pk)
+    # Toggle 'READY' or 'PENDING'
+    # Check current status found in item context or just use a query param
+    # For now, let's assume we toggle between PENDING and READY
+    
+    current = item.status
+    if current == OrderStatus.READY:
+        item.status = OrderStatus.PENDING
+    else:
+        item.status = OrderStatus.READY
+    
+    item.save()
+    
+    # Check if all items in order are ready, then update order status?
+    # Optional logic:
+    # if not item.order.items.exclude(status=OrderStatus.READY).exists():
+    #     item.order.status = OrderStatus.READY
+    #     item.order.save()
+
+    # Redirect back to daily orders with same date
+    date_str = request.POST.get('date_str')
+    url = reverse('kitchen:daily_orders')
+    if date_str:
+        url += f'?date={date_str}'
+    return redirect(url)
+
+# -----------------------------------------------------------
+# MENU UPLOAD
+# -----------------------------------------------------------
+# -----------------------------------------------------------
 # MENU UPLOAD
 # -----------------------------------------------------------
 from django.http import JsonResponse
-from django.contrib.auth.decorators import login_required, user_passes_test
 import csv
 import io
 import re
 from vending.models import Menu, MenuItem, DayOfWeek, VendingMachineStock
 import requests
 from django.core.files.base import ContentFile
-from django.utils.text import slugify
 
-def is_kitchen_admin(user):
-    # Relaxed for testing: allow any logged-in user
-    return True # user.is_staff or user.is_superuser
 
 # @login_required
 # @user_passes_test(is_kitchen_admin)
+@login_required
+@user_passes_test(is_kitchen_admin)
 def menu_upload_view(request):
     if request.method == 'POST' and request.FILES.get('menu_file'):
         file = request.FILES['menu_file']
@@ -264,6 +312,8 @@ def process_menu_data(data_iter):
                         f.write(f"DEBUG: Image URL unchanged for {item_name}, skipping download.\n")
 
 
+@login_required
+@user_passes_test(is_kitchen_admin)
 def get_active_orders_api(request):
     """
     Returns a list of active orders with full details.
@@ -274,14 +324,17 @@ def get_active_orders_api(request):
     
     orders = Order.objects.filter(
         status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY],
-        items__plan_type__in=['START_PLAN'],
+        items__plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'],
         items__pickup_code__isnull=True
     ).prefetch_related('items__menu_item').distinct().order_by('-created_at')
     
     orders_data = []
     for order in orders:
         # Filter items to only show those that need kitchen preparation
-        kitchen_items = order.items.filter(plan_type='START_PLAN', pickup_code__isnull=True)
+        kitchen_items = order.items.filter(
+            plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'], 
+            pickup_code__isnull=True
+        )
         
         if not kitchen_items.exists():
             continue
@@ -290,7 +343,9 @@ def get_active_orders_api(request):
         for item in kitchen_items[:3]:  # First 3 items like in template
             items_data.append({
                 'name': item.menu_item.name,
-                'quantity': item.quantity
+                'quantity': item.quantity,
+                'week': item.week_number,
+                'day': item.day_of_week
             })
         
         orders_data.append({
@@ -314,6 +369,8 @@ def get_active_orders_api(request):
 
 # @login_required
 # @user_passes_test(is_kitchen_admin)
+@login_required
+@user_passes_test(is_kitchen_admin)
 def vending_prices_view(request):
     not_found_items = []
     updated_items = []
@@ -422,6 +479,8 @@ def vending_prices_view(request):
 # VENDING MACHINE ITEMS (STOCK)
 # -----------------------------------------------------------
 
+@login_required
+@user_passes_test(is_kitchen_admin)
 def vending_machine_items_view(request):
     """
     Fetches items from external vending API and structures them by shelf/slot for a visual UI.
@@ -576,6 +635,8 @@ def vending_machine_items_view(request):
     
     return render(request, 'kitchen/vending_machine_items.html', context)
 
+@login_required
+@user_passes_test(is_kitchen_admin)
 @require_POST
 def update_vending_stock(request):
     """
@@ -602,6 +663,8 @@ def update_vending_stock(request):
 
 # @login_required
 # @user_passes_test(is_kitchen_admin)
+@login_required
+@user_passes_test(is_kitchen_admin)
 def daily_orders_view(request):
     """
     Shows aggregated orders for a specific day.
@@ -621,45 +684,51 @@ def daily_orders_view(request):
     # Query items for this day
     # Condition 1: Immediate orders (Order Now / Smart Grab) scheduled for this date
     # Condition 2: Plan orders for this day of week
+    
+    # We need to capture:
+    # A. Plan items (Weekly/Monthly) matching day_of_week
+    # B. Daily items (Order Now/Smart Grab) matching pickup_date (or created_today if pickup_date is used)
+    
+    # Fetch Items (Sorted by Time, then Name)
     items = OrderItem.objects.filter(
-        Q(plan_type='START_PLAN', plan_subtype__in=[PlanSubType.WEEKLY, PlanSubType.MONTHLY], day_of_week=day_name)
+        (
+            Q(plan_type='START_PLAN', plan_subtype__in=[PlanSubType.WEEKLY, PlanSubType.MONTHLY], day_of_week=day_name)
+        ) | (
+            Q(plan_type__in=['ORDER_NOW', 'SMART_GRAB'], pickup_date=selected_date)
+        )
     ).filter(
-        pickup_code__isnull=True, # Don't show already fulfilled items
+        pickup_code__isnull=True, 
         order__status__in=[
             OrderStatus.CONFIRMED, 
             OrderStatus.PREPARING, 
-            OrderStatus.READY
+            OrderStatus.READY,
+            OrderStatus.PENDING 
         ]
-    ).select_related('menu_item', 'order', 'order__user', 'pickup_slot', 'order__pickup_slot').order_by('pickup_slot__start_time', 'menu_item__name')
+    ).select_related('menu_item', 'order', 'order__user', 'pickup_slot', 'order__pickup_slot').order_by('order__user__username', 'week_number', 'pickup_slot__start_time', 'menu_item__name')
 
-    # Aggregation logic (Group by Slot -> Item)
-    slots_aggregated = {}
+    # Separate into Pending and Ready
+    pending_items = []
+    ready_items = []
+    
     for item in items:
-        # Determine slot label
+        # Determine slot label for display
         slot_obj = item.pickup_slot or item.order.pickup_slot
-        slot_label = slot_obj.label if slot_obj else "Standard Pickup / Unscheduled"
+        item.slot_label = slot_obj.label if slot_obj else "Standard Pickup"
+        item.user_name = f"{item.order.user.first_name} {item.order.user.last_name}".strip() or item.order.user.username
         
-        if slot_label not in slots_aggregated:
-            slots_aggregated[slot_label] = {}
-        
-        name = item.menu_item.name
-        user_obj = item.order.user
-        display_name = f"{user_obj.first_name} {user_obj.last_name}".strip() or user_obj.username
-        
-        if name not in slots_aggregated[slot_label]:
-            slots_aggregated[slot_label][name] = {
-                'total': 0,
-                'users': {}
-            }
-        
-        slots_aggregated[slot_label][name]['total'] += item.quantity
-        slots_aggregated[slot_label][name]['users'][display_name] = slots_aggregated[slot_label][name]['users'].get(display_name, 0) + item.quantity
+        if item.status == OrderStatus.READY:
+            ready_items.append(item)
+        else:
+            pending_items.append(item)
 
     context = {
         'selected_date': selected_date,
         'day_name': day_name,
-        'slots_aggregated': slots_aggregated,
+        'pending_items': pending_items,
+        'ready_items': ready_items,
         'date_str': selected_date.strftime('%Y-%m-%d'),
-        'total_orders_count': items.count()
+        'total_orders_count': items.count(),
+        'pending_count': len(pending_items),
+        'ready_count': len(ready_items)
     }
     return render(request, 'kitchen/daily_orders.html', context)
