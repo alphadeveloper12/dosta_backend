@@ -669,19 +669,20 @@ class CartView(APIView):
                 vending_good_uuid = item.get("vending_good_uuid")
 
                 if menu_item_id:
-                    CartItem.objects.create(
+                    CartItem.objects.update_or_create(
                         cart=cart,
                         menu_item_id=menu_item_id,
-                        quantity=quantity,
                         day_of_week=day_of_week,
                         week_number=week_number,
-                        vending_good_uuid=vending_good_uuid,
-                        # Save context per item
                         plan_type=incoming_plan_type,
                         plan_subtype=incoming_plan_subtype,
-                        pickup_type=cart.pickup_type,
-                        pickup_date=cart.pickup_date,
-                        pickup_slot=cart.pickup_slot
+                        defaults={
+                            'quantity': quantity,
+                            'vending_good_uuid': vending_good_uuid,
+                            'pickup_type': cart.pickup_type,
+                            'pickup_date': cart.pickup_date,
+                            'pickup_slot': cart.pickup_slot
+                        }
                     )
 
             cart.update_total()
