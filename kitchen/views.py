@@ -115,7 +115,10 @@ import re
 from vending.models import Menu, MenuItem, DayOfWeek, VendingMachineStock
 import requests
 from django.core.files.base import ContentFile
+from django.utils.text import slugify
+import logging
 
+logger = logging.getLogger(__name__)
 
 # @login_required
 # @user_passes_test(is_kitchen_admin)
@@ -144,6 +147,10 @@ def menu_upload_view(request):
                 headers = [str(h).strip() if h else f"col_{i}" for i, h in enumerate(rows[0])]
                 data = []
                 for row in rows[1:]:
+                    # Skip completely empty rows
+                    if not any(row):
+                        continue
+
                     row_dict = {}
                     for i, val in enumerate(row):
                         if i < len(headers):
@@ -156,8 +163,7 @@ def menu_upload_view(request):
                 messages.error(request, "Unsupported file format. Please use CSV or Excel.")
                 
         except Exception as e:
-            with open('debug_log.txt', 'a') as f:
-                f.write(f"ERROR: {str(e)}\n")
+            logger.error(f"Error processing file: {e}")
             messages.error(request, f"Error processing file: {str(e)}")
             
     return render(request, 'kitchen/menu_upload.html')
@@ -206,7 +212,7 @@ def process_menu_data(data_iter):
         # Capitalize first letter
         day_raw = day_raw.capitalize()
         if day_raw not in day_map:
-            print(f"DEBUG: Invalid Day: {day_raw}")
+            logger.debug(f"Invalid Day: {day_raw}")
             continue # Skip invalid days
             
         # 3. Get or Create Menu
@@ -223,12 +229,12 @@ def process_menu_data(data_iter):
                 date=None
             )
         
-        print(f"DEBUG: Menu found/created: {menu}")
+        logger.debug(f"Menu found/created: {menu}")
         
         # 4. Create Menu Item
         item_name = row.get('Item', 'Unknown Item')
         if not item_name or item_name == 'Unknown Item':
-             print(f"DEBUG: Missing item name in row: {row}")
+             logger.debug(f"Missing item name in row: {row}")
              continue
              
         # Columns based on user image perception:
