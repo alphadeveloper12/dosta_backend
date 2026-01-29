@@ -18,7 +18,8 @@ from .views import (
     ExternalMachineGoodsView,
     ExternalProductionPickView,
     ExternalUpdateCommodityView,
-    KitchenOrderItemCompleteView
+    KitchenOrderItemCompleteView,
+    PaymentCallbackView
 )
 
 # -----------------------------------------------------------
@@ -56,4 +57,6 @@ urlpatterns = [
     path('external/machine-goods/', ExternalMachineGoodsView.as_view(), name='external-machine-goods'),
     path('external/production-pick/', ExternalProductionPickView.as_view(), name='external-production-pick'),
     path('external/update-commodity/', ExternalUpdateCommodityView.as_view(), name='external-update-commodity'),
+    
+    path('payment/callback/', PaymentCallbackView.as_view(), name='payment-callback'),
 ]

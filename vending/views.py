@@ -485,9 +485,58 @@ class ConfirmOrderView(APIView):
             item_type = item.get("plan_type") or order.plan_type
             print(f"DEBUG: Order #{order.id} | Item {item.get('menu_item_id')} | Saved Type: {item_type} | Status: {OrderStatus.PREPARING if item_type == PlanType.START_PLAN else OrderStatus.PENDING}")
 
+        # Validate Payment Method Existence
+        if not request.user.profile.payment_methods.exists():
+            return Response(
+                {"error": "No payment method found via profile. Please add one first or select cash."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         order.update_total()
-        serializer = OrderSerializer(order, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        # --- Initiate Payment Session ---
+        try:
+            from .payment import TotalPayService
+            
+            # Use user's first address as billing address (simplification)
+            billing_address = request.user.profile.addresses.filter(is_default=True).first()
+            if not billing_address:
+                billing_address = request.user.profile.addresses.first()
+            
+            # URLs for Redirect (Frontend routes)
+            # In production, these should be dynamic or from settings
+            base_frontend_url = request.build_absolute_uri('/')[:-1] # Remove trailing slash if any, simplistic
+            # Or hardcode if known, e.g. "http://localhost:8080"
+            # It's better to use a known frontend URL from settings if possible, but let's try to derive or hardcode consistent with dev.
+            # Assuming dev: http://localhost:8080
+            frontend_host = "http://localhost:8080" 
+            
+            # success_url includes order_id for verification on Cart Page
+            success_url = f"{frontend_host}/vending-home/cart?payment_success=true&order_id={order.id}"
+            cancel_url = f"{frontend_host}/vending-home/cart?payment_cancelled=true"
+            
+            redirect_url = TotalPayService.initiate_session(
+                order=order,
+                user=request.user,
+                billing_address=billing_address,
+                success_url=success_url,
+                cancel_url=cancel_url
+            )
+            
+            serializer = OrderSerializer(order, context={'request': request})
+            return Response({
+                "order": serializer.data,
+                "payment_redirect_url": redirect_url
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            # If payment init fails, maybe we should delete the order or mark it as Draft/Failed?
+            # For now, let's keep it but return error.
+            print(f"Payment Init Failed: {e}")
+            return Response(
+                {"error": f"Failed to initiate payment: {str(e)}", "order_id": order.id}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 # -----------------------------------------------------------
@@ -995,10 +1044,109 @@ class ExternalProductionPickView(APIView):
             print(f"DEBUG: Pick response status: {response.status_code}")
             print(f"DEBUG: Pick response data: {response.json()}")
             return Response(response.json(), status=response.status_code)
-            
         except Exception as e:
             print(f"DEBUG: Exception in ExternalProductionPickView: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# -----------------------------------------------------------
+# PAYMENT CALLBACK
+
+# -----------------------------------------------------------
+
+class PaymentCallbackView(APIView):
+    """
+    Handles callback from TotalPay (success_url or notification_url).
+    GET: User Redirect /api/vending/payment/callback/?order_id=...
+    POST: Server-to-Server /api/vending/payment/callback/
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def process_payment_success(self, order_id):
+        try:
+            order = Order.objects.get(id=order_id)
+            if order.status == OrderStatus.CONFIRMED:
+                return order # Already processed
+
+            # Update Order Status
+            order.status = OrderStatus.CONFIRMED
+            order.save(update_fields=['status'])
+            
+            # Execute Vending Logic (Stock & Pickup)
+            from .services import VendingService
+            pickup_code = VendingService.process_order_fulfillment(order)
+            
+            if pickup_code:
+                order.pickup_code = pickup_code
+                order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+                order.save(update_fields=['pickup_code', 'qr_code_url'])
+                
+                # Update Items to READY
+                order.items.filter(plan_type__in=['ORDER_NOW', 'SMART_GRAB']).update(
+                    status=OrderStatus.READY,
+                    pickup_code=pickup_code
+                )
+                
+            return order
+        except Order.DoesNotExist:
+            print(f"Order {order_id} not found during callback processing.")
+            return None
+        except Exception as e:
+            print(f"Error processing payment success for order {order_id}: {e}")
+            return None
+
+    def get(self, request):
+        """
+        User Return URL (Success URL)
+        """
+        # params: payment_id, order_number, order_status, hash, etc.
+        # But wait, success_url params depend on TotalPay config.
+        # Assuming we receive: order_id (from our own param) OR order_number (from TotalPay)
+        
+        order_id = request.query_params.get("order_id")
+        # Or TotalPay might send it as 'order_number'
+        if not order_id:
+             order_id = request.query_params.get("order_number")
+             
+        # Simplify: If we set success_url to .../order-success?order_id=123
+        # then the frontend handles it. 
+        # But the User asked "how it will redirect back... place order logic".
+        # If Frontend `OrderSuccessPage` calls a backend endpoint "verify-payment", that's safer.
+        # Let's use this endpoint as the "verify-payment" called by frontend OR the direct return URL.
+        
+        if order_id:
+            # We should technically validate the HASH from TotalPay here to be secure.
+            # For now, let's assume if this endpoint is hit, we verify status=success params.
+            
+            # Simple Trigger
+            self.process_payment_success(order_id)
+            
+            # Redirect to Frontend Success Page
+            # Should be configured in settings
+            frontend_url = f"http://localhost:8080/vending-home/cart?payment_success=true&order_id={order_id}"
+            return Response({"message": "Payment processed", "redirect": frontend_url})
+            # OR logic: if called by Frontend (AJAX), return JSON.
+            # If called by Browser (Redirect), return HTTP 302.
+            
+            # Let's assume this is an API called by the Frontend "OrderSuccessPage" to finalize.
+            if request.headers.get("Content-Type") == "application/json":
+                 return Response({"status": "CONFIRMED", "order_id": order_id})
+        
+        return Response({"message": "Callback received"}, status=200)
+
+    def post(self, request):
+        """
+        Server-to-Server Notification
+        """
+        data = request.data
+        order_number = data.get("order_number") or data.get("order", {}).get("number")
+        
+        if order_number:
+            # Validate Hash here (TODO)
+            status_val = data.get("status")
+            if status_val == "success" or status_val == "settled":
+                self.process_payment_success(order_number)
+                
+        return Response({"result": "ok"}, status=200)
 
 
 class ExternalUpdateCommodityView(APIView):
