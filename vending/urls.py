@@ -19,7 +19,8 @@ from .views import (
     ExternalProductionPickView,
     ExternalUpdateCommodityView,
     KitchenOrderItemCompleteView,
-    PaymentCallbackView
+    PaymentCallbackView,
+    InitiatePaymentView
 )
 
 # -----------------------------------------------------------
@@ -59,4 +60,5 @@ urlpatterns = [
     path('external/update-commodity/', ExternalUpdateCommodityView.as_view(), name='external-update-commodity'),
     
     path('payment/callback/', PaymentCallbackView.as_view(), name='payment-callback'),
+    path('payment/initiate/', InitiatePaymentView.as_view(), name='payment-initiate'),
 ]

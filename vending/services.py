@@ -188,3 +188,38 @@ class VendingService:
         
         print(f"Failed to generate pickup code: {pick_resp}")
         return None
+
+    @staticmethod
+    def generate_pickup_code(machine_uuid, order_id, pickup_items, total_qty):
+        """
+        Request a pickup code from the external machine API.
+        """
+        token = VendingService.get_token()
+        if not token:
+            return None
+
+        url = f"{VENDING_API_BASE}/commpick/productionpick"
+        headers = {"Authorization": token, "Content-Type": "application/json"}
+
+        # Use UAE Time (UTC+4)
+        uae_tz = pytz.timezone('Asia/Dubai')
+        now_uae = datetime.now(uae_tz)
+        # Format: 2026-01-13T18:12:33.970Z (Millisecond precision is often required/expected)
+        order_time_str = now_uae.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+
+        pick_payload = {
+            "goodsList": pickup_items,
+            "goodsNumber": total_qty,
+            "machineUuid": machine_uuid,
+            "orderNo": str(order_id),
+            "orderTime": order_time_str,
+            "timeOut": 1,
+            "lock": 0
+        }
+
+        try:
+            resp = requests.post(url, json=pick_payload, headers=headers, timeout=30)
+            return resp.json()
+        except Exception as e:
+            print(f"Error calling production-pick: {e}")
+            return None
