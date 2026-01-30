@@ -642,10 +642,13 @@ class InitiatePaymentView(APIView):
                 cancel_url=cancel_url
             )
 
-            return Response({
+            response_data = {
                 "payment_redirect_url": redirect_url,
-                "cart_id": cart.id
-            }, status=status.HTTP_200_OK)
+            }
+            if cart:
+                response_data["cart_id"] = cart.id
+                
+            return Response(response_data, status=status.HTTP_200_OK)
 
         except Exception as e:
             print(f"Checkout Initialization Failed: {e}")
