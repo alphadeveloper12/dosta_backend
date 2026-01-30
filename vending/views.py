@@ -593,21 +593,27 @@ class InitiatePaymentView(APIView):
             # Prepare Payment Service
             from .payment import TotalPayService
             
-            # Since we don't have an order yet, we use CART-{id} as the reference
-            order_number = f"CART-{cart.id}"
+            # Since we don't have an order yet, we use a numeric-only reference for TotalPay display
+            # 900000 + cart.id makes it look like a real order number but distinguishable.
+            display_order_id = 900000 + cart.id
             
             # Use fixed frontend host for now
             frontend_host = "http://localhost:8080" 
             success_url = f"{frontend_host}/vending-home/cart?payment_success=true&cart_id={cart.id}"
             cancel_url = f"{frontend_host}/vending-home/cart?payment_cancelled=true"
 
-            # Create a mock order object for the payment service (TotalPayService expects .total_amount and .id)
+            # Create a mock order object for the payment service
             class MockOrder:
-                def __init__(self, id_str, amount):
-                    self.id = id_str
+                def __init__(self, id_val, amount, desc):
+                    self.id = id_val
                     self.total_amount = amount
+                    self.description = desc
 
-            mock_order = MockOrder(order_number, cart.total_price)
+            item_count = cart.items.count()
+            item_name = cart.items.first().menu_item.name if item_count > 0 else "Vending Checkout"
+            detailed_desc = f"Dosta Order - {item_name}" if item_count == 1 else f"Dosta Order ({item_count} items)"
+
+            mock_order = MockOrder(display_order_id, cart.total_price, detailed_desc)
             
             redirect_url = TotalPayService.initiate_session(
                 order=mock_order,
@@ -1176,11 +1182,20 @@ class PaymentCallbackView(APIView):
                 
             return order
         except Order.DoesNotExist:
-            # Check if it's a CART ID
-            if str(order_id).startswith("CART-"):
-                cart_id_str = str(order_id).replace("CART-", "")
+            # Check if it's a CART ID (legacy string format or new numeric format)
+            lookup_id = str(order_id)
+            cart_id = None
+
+            if lookup_id.startswith("CART-"):
+                cart_id = lookup_id.replace("CART-", "")
+            elif lookup_id.startswith("900"):
                 try:
-                    cart = Cart.objects.get(id=int(cart_id_str))
+                    cart_id = int(lookup_id) - 900000
+                except: pass
+            
+            if cart_id:
+                try:
+                    cart = Cart.objects.get(id=int(cart_id))
                     # Optionally mark cart as "payment_verified" or similar if we had such a field.
                     # For now, we'll rely on the frontend returning with payment_success=true 
                     # and calling confirm-order.
