@@ -149,7 +149,18 @@ class CateringOrderSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         items_data = validated_data.pop('items')
         user = self.context['request'].user
-        order = CateringOrder.objects.create(user=user, **validated_data)
+        
+        # Check for payment verification flag in the initial data (from request)
+        is_paid = self.initial_data.get('is_payment_verified') is True or \
+                  self.initial_data.get('is_payment_verified') == 'true'
+                  
+        status_val = CateringOrderStatus.CONFIRMED if is_paid else CateringOrderStatus.PENDING
+        
+        order = CateringOrder.objects.create(
+            user=user, 
+            status=status_val,
+            **validated_data
+        )
         
         for item_data in items_data:
             CateringOrderItem.objects.create(order=order, **item_data)

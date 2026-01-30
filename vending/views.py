@@ -582,9 +582,18 @@ class InitiatePaymentView(APIView):
     def post(self, request):
         try:
             user = request.user
-            cart = Cart.objects.filter(user=user, is_checked_out=False).first()
-            if not cart or cart.items.count() == 0:
-                return Response({"error": "Cart is empty"}, status=400)
+            data = request.data
+            
+            # --- Generic Overrides (for Catering, etc.) ---
+            override_amount = data.get("amount")
+            override_desc = data.get("description")
+            is_generic = override_amount is not None
+            
+            cart = None
+            if not is_generic:
+                cart = Cart.objects.filter(user=user, is_checked_out=False).first()
+                if not cart or cart.items.count() == 0:
+                    return Response({"error": "Cart is empty"}, status=400)
 
             # Validate Billing Address
             billing_address = user.profile.addresses.filter(is_default=True).first()
@@ -594,14 +603,27 @@ class InitiatePaymentView(APIView):
             # Prepare Payment Service
             from .payment import TotalPayService
             
-            # Since we don't have an order yet, we use a numeric-only reference for TotalPay display
-            # 900000 + cart.id makes it look like a real order number but distinguishable.
-            display_order_id = 900000 + cart.id
-            
-            # Use fixed frontend host for now
-            frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
-            success_url = f"{frontend_host}/vending-home/cart?payment_success=true&cart_id={cart.id}"
-            cancel_url = f"{frontend_host}/vending-home/cart?payment_cancelled=true"
+            # Numeric reference for display
+            if is_generic:
+                # For generic/catering, we might not have a cart ID. Use a timestamp-based ID or similar.
+                display_order_id = int(datetime.now().timestamp()) % 1000000
+                total_price = float(override_amount)
+                detailed_desc = override_desc or "Dosta Payment"
+                
+                # Custom return URLs for catering
+                frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
+                success_url = data.get("success_url") or f"{frontend_host}/vending-home/cart?payment_success=true"
+                cancel_url = data.get("cancel_url") or f"{frontend_host}/vending-home/cart?payment_cancelled=true"
+            else:
+                display_order_id = 900000 + cart.id
+                total_price = cart.total_price
+                item_count = cart.items.count()
+                item_name = cart.items.first().menu_item.name if item_count > 0 else "Vending Checkout"
+                detailed_desc = f"Dosta Order - {item_name}" if item_count == 1 else f"Dosta Order ({item_count} items)"
+                
+                frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
+                success_url = f"{frontend_host}/vending-home/cart?payment_success=true&cart_id={cart.id}"
+                cancel_url = f"{frontend_host}/vending-home/cart?payment_cancelled=true"
 
             # Create a mock order object for the payment service
             class MockOrder:
@@ -610,11 +632,7 @@ class InitiatePaymentView(APIView):
                     self.total_amount = amount
                     self.description = desc
 
-            item_count = cart.items.count()
-            item_name = cart.items.first().menu_item.name if item_count > 0 else "Vending Checkout"
-            detailed_desc = f"Dosta Order - {item_name}" if item_count == 1 else f"Dosta Order ({item_count} items)"
-
-            mock_order = MockOrder(display_order_id, cart.total_price, detailed_desc)
+            mock_order = MockOrder(display_order_id, total_price, detailed_desc)
             
             redirect_url = TotalPayService.initiate_session(
                 order=mock_order,
