@@ -505,22 +505,25 @@ class ConfirmOrderView(APIView):
              if order.plan_type in [PlanType.ORDER_NOW, PlanType.SMART_GRAB] or \
                 order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).exists():
                  
-                 print(f"🚀 Processing Backend Fulfillment for Order {order.id}")
-                 pickup_code = VendingService.process_order_fulfillment(order)
-                 
-                 if pickup_code:
-                     order.pickup_code = pickup_code
-                     order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
-                     order.save(update_fields=['pickup_code', 'qr_code_url'])
+                 print(f"🚀 Processing Backend Fulfillment for Order {order.id} (Verified Payment Flow)")
+                 try:
+                     pickup_code = VendingService.process_order_fulfillment(order)
                      
-                     # Update Items to READY
-                     order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
-                         status=OrderStatus.READY,
-                         pickup_code=pickup_code
-                     )
-                     print(f"✅ Fulfillment Success. Code: {pickup_code}")
-                 else:
-                     print(f"❌ Fulfillment Failed for Order {order.id}")
+                     if pickup_code:
+                         order.pickup_code = pickup_code
+                         order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+                         order.save(update_fields=['pickup_code', 'qr_code_url'])
+                         
+                         # Update Items to READY
+                         order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
+                             status=OrderStatus.READY,
+                             pickup_code=pickup_code
+                         )
+                         print(f"✅ Fulfillment Success for Order {order.id}. Code: {pickup_code}")
+                     else:
+                         print(f"⚠️ Fulfillment returned no code for Order {order.id}. Check logs for details.")
+                 except Exception as fulfillment_err:
+                     print(f"❌ CRITICAL: Fulfillment Exception for Order {order.id}: {str(fulfillment_err)}")
              
              serializer = OrderSerializer(order, context={'request': request})
              return Response({

@@ -83,110 +83,140 @@ class VendingService:
             return None
 
     @staticmethod
+    def normalize_name(name):
+        import re
+        if not name:
+            return ""
+        return re.sub(r'[^a-zA-Z0-9]', '', str(name)).lower()
+
+    @staticmethod
     def process_order_fulfillment(order):
         """
         1. Fetch fresh stock from machine.
         2. Calculate updates based on order items.
+           - Try to resolve missing vending_good_uuid by name mapping.
         3. Send update to machine.
         4. Generate Pickup Code.
         5. Return Pickup Code.
         """
         machine_uuid = order.location.serial_number
         if not machine_uuid:
-            print(f"Order {order.id} has no machine serial number.")
+            print(f"❌ Order {order.id} has no machine serial number.")
             return None
             
         # --- 1. Fetch Fresh Stock ---
         goods_data = VendingService.fetch_machine_goods(machine_uuid)
         if not goods_data or goods_data.get("result") != "200":
-             print(f"Failed to fetch stock for machine {machine_uuid}")
-             # Proceed to pickup generation anyway? Or partial fail?
-             # If we can't update stock, we might risk double selling, but we should probably try to generate code.
-             pass
-        else:
-            # --- 2. Calculate Stock Updates ---
-            try:
-                shelves = goods_data.get("data", []) # External API structure might differ from my frontend View transform
-                # Wait, ExternalMachineGoodsView transformed the data significantly for Frontend.
-                # I need to work with the RAW external API data here, or the same structure.
-                # `fetch_machine_goods` returns raw JSON from `querycommodityinfo`.
-                # Raw structure usually has `data` as list of spots/goods? 
-                # Let's inspect `ExternalMachineGoodsView` again to see raw handling.
-                # It iterated `api_data.get("data")`.
+             print(f"❌ Failed to fetch stock for machine {machine_uuid}")
+             # We might still try to generate pickup if we have IDs, but usually failure here is fatal for stock sync
+        
+        raw_spots = goods_data.get("data") or [] if goods_data else []
+        
+        # Create a name-to-uuid map for fallbacks
+        name_to_uuids = {} # normalized_name -> list of (uuid, presentNumber)
+        for spot in raw_spots:
+            goods = spot.get("commGoodsResp")
+            if goods and spot.get("presentNumber", 0) > 0:
+                norm_name = VendingService.normalize_name(goods.get("goodsName"))
+                if norm_name:
+                    if norm_name not in name_to_uuids:
+                        name_to_uuids[norm_name] = []
+                    name_to_uuids[norm_name].append({
+                        "uuid": str(goods.get("uuid")),
+                        "presentNumber": spot.get("presentNumber"),
+                        "spot": spot
+                    })
+
+        # --- 2. Calculate Stock Updates & Resolve UUIDs ---
+        usage_map = {} # uuid -> quantity
+        resolved_items = []
+        
+        for item in order.items.all():
+            if item.plan_type in ['ORDER_NOW', 'SMART_GRAB']:
+                item_uuid = item.vending_good_uuid
                 
-                raw_spots = goods_data.get("data") or []
-                
-                # Calculate usage from Order
-                usage_map = {} # uuid -> quantity
-                for item in order.items.all():
-                    if item.plan_type in ['ORDER_NOW', 'SMART_GRAB'] and item.vending_good_uuid:
-                        usage_map[item.vending_good_uuid] = usage_map.get(item.vending_good_uuid, 0) + item.quantity
-                
-                goods_list_to_update = []
-                
-                for spot in raw_spots:
-                    goods = spot.get("commGoodsResp")
-                    if not goods: continue
+                # FALLBACK: If UUID is missing, try to resolve by name
+                if not item_uuid:
+                    norm_item_name = VendingService.normalize_name(item.menu_item.name)
+                    print(f"🔍 Item {item.id} ({item.menu_item.name}) missing UUID. Trying normalization: {norm_item_name}")
                     
-                    goods_uuid = str(goods.get("uuid"))
-                    
-                    if goods_uuid in usage_map and usage_map[goods_uuid] > 0:
-                        needed = usage_map[goods_uuid]
-                        present = spot.get("presentNumber", 0)
-                        
-                        take = min(needed, present)
-                        
-                        if take > 0:
-                            new_quantity = max(0, present - take)
-                            
-                            goods_list_to_update.append({
-                                "arrivalCapacity": spot.get("arrivalCapacity"),
-                                "arrivalName": spot.get("arrivalName"),
-                                "commodityState": 0,
-                                "equipmentUuid": machine_uuid,
-                                "goodsUuid": int(goods_uuid),
-                                "presentNumber": new_quantity,
-                                "salePrice": goods.get("goodsPrice")
-                            })
-                            
-                            usage_map[goods_uuid] -= take
+                    if norm_item_name in name_to_uuids:
+                        # Find spot with most stock or just first
+                        candidates = sorted(name_to_uuids[norm_item_name], key=lambda x: x['presentNumber'], reverse=True)
+                        if candidates:
+                            item_uuid = candidates[0]['uuid']
+                            item.vending_good_uuid = item_uuid
+                            item.save(update_fields=['vending_good_uuid'])
+                            print(f"✅ Resolved UUID for {item.menu_item.name}: {item_uuid}")
                 
-                if goods_list_to_update:
-                    print(f"🔄 Updating Stock for Order {order.id}: {len(goods_list_to_update)} spots")
-                    VendingService.update_stock(machine_uuid, goods_list_to_update)
+                if item_uuid:
+                    usage_map[item_uuid] = usage_map.get(item_uuid, 0) + item.quantity
+                    resolved_items.append(item)
+                else:
+                    print(f"⚠️ Could not resolve UUID for item {item.id}: {item.menu_item.name}")
+
+        goods_list_to_update = []
+        
+        # We need to decrement stock in raw_spots and prepare update payload
+        for spot in raw_spots:
+            goods = spot.get("commGoodsResp")
+            if not goods: continue
+            
+            goods_uuid = str(goods.get("uuid"))
+            
+            if goods_uuid in usage_map and usage_map[goods_uuid] > 0:
+                needed = usage_map[goods_uuid]
+                present = spot.get("presentNumber", 0)
+                
+                take = min(needed, present)
+                
+                if take > 0:
+                    new_quantity = max(0, present - take)
                     
-            except Exception as ex:
-                print(f"Error calculating/updating stock: {ex}")
+                    goods_list_to_update.append({
+                        "arrivalCapacity": spot.get("arrivalCapacity"),
+                        "arrivalName": spot.get("arrivalName"),
+                        "commodityState": 0,
+                        "equipmentUuid": machine_uuid,
+                        "goodsUuid": int(goods_uuid),
+                        "presentNumber": new_quantity,
+                        "salePrice": goods.get("goodsPrice")
+                    })
+                    
+                    usage_map[goods_uuid] -= take
+        
+        if goods_list_to_update:
+            print(f"🔄 Updating Stock for Order {order.id}: {len(goods_list_to_update)} spots")
+            VendingService.update_stock(machine_uuid, goods_list_to_update)
 
         # --- 3. Generate Pickup Code ---
-        # Filter items for pickup
         pickup_items = []
         total_qty = 0
         
-        for item in order.items.all():
-             if item.plan_type in ['ORDER_NOW', 'SMART_GRAB'] and item.vending_good_uuid:
-                 total_qty += item.quantity
-                 pickup_items.append({
-                     "goodsNumber": item.quantity,
-                     "goodsPrice": 0.01,
-                     "goodsUuid": item.vending_good_uuid,
-                     # Add heating service if needed
-                     # "serviceType": 1, "serviceVal": "15" if heating
-                 })
-                 if item.heating_requested:
-                     pickup_items[-1]["serviceType"] = 1
-                     pickup_items[-1]["serviceVal"] = "15"
+        for item in resolved_items:
+             total_qty += item.quantity
+             pickup_items.append({
+                 "goodsNumber": item.quantity,
+                 "goodsPrice": 0.01,
+                 "goodsUuid": item.vending_good_uuid,
+             })
+             if item.heating_requested:
+                 pickup_items[-1]["serviceType"] = 1
+                 pickup_items[-1]["serviceVal"] = "15"
 
         if not pickup_items:
-            print("No items for pickup generation.")
+            print("❌ No valid items for pickup generation.")
             return None
 
+        print(f"🚀 Generating Pickup Code for Order {order.id} ({total_qty} items)...")
         pick_resp = VendingService.generate_pickup_code(machine_uuid, order.id, pickup_items, total_qty)
         
         if pick_resp and pick_resp.get("result") == "200":
-            return pick_resp.get("data")
+            code = pick_resp.get("data")
+            print(f"✅ Pickup Code Generated: {code}")
+            return code
         
-        print(f"Failed to generate pickup code: {pick_resp}")
+        print(f"❌ Failed to generate pickup code: {pick_resp}")
         return None
 
     @staticmethod
