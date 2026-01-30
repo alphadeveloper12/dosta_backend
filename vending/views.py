@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, filters, status
+import os
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -542,7 +543,7 @@ class ConfirmOrderView(APIView):
             # Or hardcode if known, e.g. "http://localhost:8080"
             # It's better to use a known frontend URL from settings if possible, but let's try to derive or hardcode consistent with dev.
             # Assuming dev: http://localhost:8080
-            frontend_host = "http://localhost:8080" 
+            frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
             
             # success_url includes order_id for verification on Cart Page
             success_url = f"{frontend_host}/vending-home/cart?payment_success=true&order_id={order.id}"
@@ -598,7 +599,7 @@ class InitiatePaymentView(APIView):
             display_order_id = 900000 + cart.id
             
             # Use fixed frontend host for now
-            frontend_host = "http://localhost:8080" 
+            frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
             success_url = f"{frontend_host}/vending-home/cart?payment_success=true&cart_id={cart.id}"
             cancel_url = f"{frontend_host}/vending-home/cart?payment_cancelled=true"
 
@@ -1236,7 +1237,8 @@ class PaymentCallbackView(APIView):
             
             # Redirect to Frontend Success Page
             # Should be configured in settings
-            frontend_url = f"http://localhost:8080/vending-home/cart?payment_success=true&order_id={order_id}"
+            frontend_base = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
+            frontend_url = f"{frontend_base}/vending-home/cart?payment_success=true&order_id={order_id}"
             return Response({"message": "Payment processed", "redirect": frontend_url})
             # OR logic: if called by Frontend (AJAX), return JSON.
             # If called by Browser (Redirect), return HTTP 302.
