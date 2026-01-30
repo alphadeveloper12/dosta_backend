@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions, filters, status
+import os
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -494,7 +495,43 @@ class ConfirmOrderView(APIView):
 
         order.update_total()
         
-        # --- Initiate Payment Session ---
+        if data.get("is_payment_verified") is True or data.get("is_payment_verified") == "true":
+            # Skip Payment initiation, we already verified it.
+             order.status = OrderStatus.CONFIRMED
+             order.save(update_fields=['status'])
+             
+             # NEW: Process Vending Fulfillment on Backend (More Reliable)
+             from .services import VendingService
+             if order.plan_type in [PlanType.ORDER_NOW, PlanType.SMART_GRAB] or \
+                order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).exists():
+                 
+                 print(f"🚀 Processing Backend Fulfillment for Order {order.id} (Verified Payment Flow)")
+                 try:
+                     pickup_code = VendingService.process_order_fulfillment(order)
+                     
+                     if pickup_code:
+                         order.pickup_code = pickup_code
+                         order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+                         order.save(update_fields=['pickup_code', 'qr_code_url'])
+                         
+                         # Update Items to READY
+                         order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
+                             status=OrderStatus.READY,
+                             pickup_code=pickup_code
+                         )
+                         print(f"✅ Fulfillment Success for Order {order.id}. Code: {pickup_code}")
+                     else:
+                         print(f"⚠️ Fulfillment returned no code for Order {order.id}. Check logs for details.")
+                 except Exception as fulfillment_err:
+                     print(f"❌ CRITICAL: Fulfillment Exception for Order {order.id}: {str(fulfillment_err)}")
+             
+             serializer = OrderSerializer(order, context={'request': request})
+             return Response({
+                 "order": serializer.data,
+                 "message": "Order created and confirmed."
+             }, status=status.HTTP_201_CREATED)
+
+        # --- Initiate Payment Session (Original Flow) ---
         try:
             from .payment import TotalPayService
             
@@ -509,7 +546,7 @@ class ConfirmOrderView(APIView):
             # Or hardcode if known, e.g. "http://localhost:8080"
             # It's better to use a known frontend URL from settings if possible, but let's try to derive or hardcode consistent with dev.
             # Assuming dev: http://localhost:8080
-            frontend_host = "http://localhost:8080" 
+            frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
             
             # success_url includes order_id for verification on Cart Page
             success_url = f"{frontend_host}/vending-home/cart?payment_success=true&order_id={order.id}"
@@ -537,6 +574,88 @@ class ConfirmOrderView(APIView):
                 {"error": f"Failed to initiate payment: {str(e)}", "order_id": order.id}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class InitiatePaymentView(APIView):
+    """
+    Initiates payment for the current cart without creating an Order record.
+    Returns payment_redirect_url.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        try:
+            user = request.user
+            data = request.data
+            
+            # --- Generic Overrides (for Catering, etc.) ---
+            override_amount = data.get("amount")
+            override_desc = data.get("description")
+            is_generic = override_amount is not None
+            
+            cart = None
+            if not is_generic:
+                cart = Cart.objects.filter(user=user, is_checked_out=False).first()
+                if not cart or cart.items.count() == 0:
+                    return Response({"error": "Cart is empty"}, status=400)
+
+            # Validate Billing Address
+            billing_address = user.profile.addresses.filter(is_default=True).first()
+            if not billing_address:
+                billing_address = user.profile.addresses.first()
+
+            # Prepare Payment Service
+            from .payment import TotalPayService
+            
+            # Numeric reference for display
+            if is_generic:
+                # For generic/catering, we might not have a cart ID. Use a timestamp-based ID or similar.
+                display_order_id = int(datetime.now().timestamp()) % 1000000
+                total_price = float(override_amount)
+                detailed_desc = override_desc or "Dosta Payment"
+                
+                # Custom return URLs for catering
+                frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
+                success_url = data.get("success_url") or f"{frontend_host}/vending-home/cart?payment_success=true"
+                cancel_url = data.get("cancel_url") or f"{frontend_host}/vending-home/cart?payment_cancelled=true"
+            else:
+                display_order_id = 900000 + cart.id
+                total_price = cart.total_price
+                item_count = cart.items.count()
+                item_name = cart.items.first().menu_item.name if item_count > 0 else "Vending Checkout"
+                detailed_desc = f"Dosta Order - {item_name}" if item_count == 1 else f"Dosta Order ({item_count} items)"
+                
+                frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
+                success_url = f"{frontend_host}/vending-home/cart?payment_success=true&cart_id={cart.id}"
+                cancel_url = f"{frontend_host}/vending-home/cart?payment_cancelled=true"
+
+            # Create a mock order object for the payment service
+            class MockOrder:
+                def __init__(self, id_val, amount, desc):
+                    self.id = id_val
+                    self.total_amount = amount
+                    self.description = desc
+
+            mock_order = MockOrder(display_order_id, total_price, detailed_desc)
+            
+            redirect_url = TotalPayService.initiate_session(
+                order=mock_order,
+                user=user,
+                billing_address=billing_address,
+                success_url=success_url,
+                cancel_url=cancel_url
+            )
+
+            response_data = {
+                "payment_redirect_url": redirect_url,
+            }
+            if cart:
+                response_data["cart_id"] = cart.id
+                
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            print(f"Checkout Initialization Failed: {e}")
+            return Response({"error": str(e)}, status=500)
 
 
 # -----------------------------------------------------------
@@ -1088,6 +1207,26 @@ class PaymentCallbackView(APIView):
                 
             return order
         except Order.DoesNotExist:
+            # Check if it's a CART ID (legacy string format or new numeric format)
+            lookup_id = str(order_id)
+            cart_id = None
+
+            if lookup_id.startswith("CART-"):
+                cart_id = lookup_id.replace("CART-", "")
+            elif lookup_id.startswith("900"):
+                try:
+                    cart_id = int(lookup_id) - 900000
+                except: pass
+            
+            if cart_id:
+                try:
+                    cart = Cart.objects.get(id=int(cart_id))
+                    # Optionally mark cart as "payment_verified" or similar if we had such a field.
+                    # For now, we'll rely on the frontend returning with payment_success=true 
+                    # and calling confirm-order.
+                    return None 
+                except:
+                    pass
             print(f"Order {order_id} not found during callback processing.")
             return None
         except Exception as e:
@@ -1122,7 +1261,8 @@ class PaymentCallbackView(APIView):
             
             # Redirect to Frontend Success Page
             # Should be configured in settings
-            frontend_url = f"http://localhost:8080/vending-home/cart?payment_success=true&order_id={order_id}"
+            frontend_base = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
+            frontend_url = f"{frontend_base}/vending-home/cart?payment_success=true&order_id={order_id}"
             return Response({"message": "Payment processed", "redirect": frontend_url})
             # OR logic: if called by Frontend (AJAX), return JSON.
             # If called by Browser (Redirect), return HTTP 302.

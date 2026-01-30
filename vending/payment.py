@@ -34,7 +34,7 @@ class TotalPayService:
         
         # Format amount to 2 decimal places
         amount_str = "{:.2f}".format(float(order.total_amount))
-        description = f"Order #{order.id}"
+        description = getattr(order, 'description', f"Order #{order.id}")
         
         signature = TotalPayService._generate_signature(
             order_number=str(order.id),
