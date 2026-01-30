@@ -1,365 +1,460 @@
 {% extends 'kitchen/base.html' %} {% block content %}
-<div class="flex justify-between items-center mb-8">
- <div>
-  <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight">
-   Kitchen Monitor
-  </h2>
-  <p class="text-gray-500 mt-1">Live order tracking</p>
- </div>
- <div class="flex items-center space-x-4">
-  <!-- Menu Upload Button -->
-  <a
-   href="{% url 'kitchen:menu_upload' %}"
-   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow transition-colors duration-150 flex items-center">
-   <svg
-    class="w-4 h-4 mr-2"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24">
-    <path
-     stroke-linecap="round"
-     stroke-linejoin="round"
-     stroke-width="2"
-     d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
-   </svg>
-   Manage Menu
-  </a>
-  <!-- Daily Prep Button -->
-  <a
-   href="{% url 'kitchen:daily_orders' %}"
-   class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow transition-colors duration-150 flex items-center">
-   <svg
-    class="w-4 h-4 mr-2"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24">
-    <path
-     stroke-linecap="round"
-     stroke-linejoin="round"
-     stroke-width="2"
-     d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-   </svg>
-   Daily Prep Summary
-  </a>
-  <!-- Audio Enable Button -->
-  <button
-   id="enableAudioBtn"
-   class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow transition-colors duration-150 flex items-center">
-   <svg
-    class="w-4 h-4 mr-2"
-    fill="none"
-    stroke="currentColor"
-    viewBox="0 0 24 24">
-    <path
-     stroke-linecap="round"
-     stroke-linejoin="round"
-     stroke-width="2"
-     d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
-   </svg>
-   Enable Sound
-  </button>
+<div class="max-w-8xl mx-auto">
+ <!-- Header Section -->
+ <div
+  class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
+  <div>
+   <h2
+    class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-700 tracking-tight">
+    Active Kitchen Orders
+   </h2>
+   <div class="flex items-center gap-2 mt-2">
+    <span class="relative flex h-3 w-3">
+     <span
+      class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+     <span
+      class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+    </span>
+    <p class="text-slate-500 font-medium">Live Stream • Auto-syncing</p>
+   </div>
+  </div>
 
-  <!-- Test Button (Debug) -->
-  <button
-   onclick="simulateOrder()"
-   class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow transition-colors duration-150 flex items-center">
-   🔔 Test Notification
-  </button>
-
-  <div class="flex items-center">
-   <span class="relative flex h-3 w-3 mr-2">
-    <span
-     class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-   </span>
-   <span class="text-sm font-medium text-gray-600">Live</span>
+  <div class="flex flex-wrap items-center gap-3">
+   <!-- Test Button (Debug) -->
+   <button
+    onclick="simulateOrder()"
+    class="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200"
+    title="Test Notification">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+     <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+    </svg>
+   </button>
   </div>
  </div>
-</div>
 
-<!-- Toast Notification Container -->
-<div id="toast-container" class="fixed top-5 right-5 z-50"></div>
-
-<!-- Cards Grid -->
-<div
- class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
- {% for order in orders %}
+ <!-- Toast Notification Container -->
  <div
-  class="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col h-full border border-gray-100">
-  <!-- Header -->
+  id="toast-container"
+  class="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
+
+ <!-- Order Cards Grid -->
+ <div
+  class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8 auto-rows-fr">
+  {% for order in orders %}
   <div
-   class="p-5 border-b border-gray-50 flex justify-between items-start bg-gray-50/50">
-   <div>
-    <h3 class="text-lg font-bold text-gray-900">Order #{{ order.id }}</h3>
-    <span class="text-xs text-gray-500 flex items-center mt-1">
-     {{ order.created_at|timesince }} ago
+   id="order-card-{{ order.id }}"
+   class="group bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full border border-slate-100 ring-1 ring-slate-900/5 animate-fade-in-up"
+   style="animation-delay: {{ forloop.counter0|add:1|default:0 }}00ms">
+   <!-- Header -->
+   <div
+    class="p-5 border-b border-slate-50 flex justify-between items-start bg-gradient-to-br from-slate-50 to-white">
+    <div>
+     <div class="flex items-center gap-2 mb-1">
+      <span class="text-xs font-bold text-slate-400 uppercase tracking-wider"
+       >Order</span
+      >
+      <h3 class="text-xl font-black text-slate-800">#{{ order.id }}</h3>
+     </div>
+     <span
+      class="text-xs font-medium text-slate-500 flex items-center bg-slate-100 px-2 py-0.5 rounded-md w-fit">
+      <svg
+       class="w-3 h-3 mr-1"
+       fill="none"
+       stroke="currentColor"
+       viewBox="0 0 24 24">
+       <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+      </svg>
+      {{ order.created_at|timesince }} ago
+     </span>
+    </div>
+    <span
+     class="px-3 py-1 rounded-full text-xs font-bold shadow-sm ring-1 ring-inset {% if order.status == 'PENDING' %} bg-amber-50 text-amber-700 ring-amber-600/20 {% elif order.status == 'PREPARING' %} bg-blue-50 text-blue-700 ring-blue-600/20 {% elif order.status == 'READY' %} bg-emerald-50 text-emerald-700 ring-emerald-600/20 {% else %} bg-slate-100 text-slate-600 ring-slate-500/10 {% endif %}">
+     {{ order.get_status_display }}
     </span>
    </div>
-   <span
-    class="px-3 py-1 rounded-full text-xs font-semibold {% if order.status == 'PENDING' %}bg-yellow-100 text-yellow-800 {% elif order.status == 'PREPARING' %}bg-blue-100 text-blue-800 {% elif order.status == 'READY' %}bg-green-100 text-green-800 {% else %}bg-gray-100 text-gray-800{% endif %}">
-    {{ order.get_status_display }}
-   </span>
-  </div>
-  <!-- Body -->
-  <div class="p-5 flex-grow">
-   <div class="mb-4">
+
+   <!-- Body -->
+   <div class="p-4 flex-grow space-y-3">
+    <!-- Pickup Info -->
     <div
-     class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-     Pickup
-    </div>
-    <div class="text-sm text-gray-700">
-     {{ order.pickup_date|default:"Today" }} {% if order.pickup_slot %}
-     <span class="ml-2 text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-xs"
+     class="flex items-center justify-between text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-100">
+     <div class="flex items-center text-slate-500">
+      <svg
+       class="w-4 h-4 mr-2"
+       fill="none"
+       stroke="currentColor"
+       viewBox="0 0 24 24">
+       <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+      </svg>
+      <span>{{ order.pickup_date|default:"Today" }}</span>
+     </div>
+     {% if order.pickup_slot %}
+     <span
+      class="text-indigo-600 font-semibold bg-indigo-50 px-2 py-0.5 rounded-md text-xs"
       >{{ order.pickup_slot.label }}</span
      >
      {% endif %}
     </div>
-   </div>
-   <div>
-    <div
-     class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-     Items ({{ order.kitchen_items.count }})
+
+    <!-- Items List -->
+    <div>
+     <div
+      class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center">
+      <svg
+       class="w-3 h-3 mr-1"
+       fill="none"
+       stroke="currentColor"
+       viewBox="0 0 24 24">
+       <path
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        stroke-width="2"
+        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+      </svg>
+      Items ({{ order.kitchen_items.count }})
+     </div>
+     <ul class="space-y-2">
+      {% for item in order.kitchen_items|slice:":2" %}
+      <li class="flex justify-between items-start text-sm group/item">
+       <div class="flex items-start">
+        <span
+         class="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 mr-2 group-hover/item:bg-indigo-400 transition-colors"></span>
+        <div>
+         <span class="text-slate-700 font-medium leading-snug block"
+          >{{ item.menu_item.name }}</span
+         >
+         {% if item.week_day_display %}
+         <span class="text-xs text-indigo-500 font-medium mt-0.5 block">
+          {{ item.week_day_display }}
+         </span>
+         {% endif %}
+        </div>
+       </div>
+       <span
+        class="font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap text-xs"
+        >x {{ item.quantity }}</span
+       >
+      </li>
+      {% endfor %} {% if order.kitchen_items.count > 2 %}
+      <li class="pl-3.5 text-xs text-indigo-500 font-medium">
+       + {{ order.kitchen_items.count|add:"-2" }} more items...
+      </li>
+      {% endif %}
+     </ul>
     </div>
-    <ul class="space-y-2">
-     {% for item in order.kitchen_items|slice:":3" %}
-     <li class="flex justify-between text-sm text-gray-700">
-      <span class="truncate pr-2">
-       {{ item.menu_item.name }} {% if item.week_day_display %}
-       <span class="text-xs text-indigo-500 block">
-        {{ item.week_day_display }}
-       </span>
-       {% endif %}
-      </span>
-      <span class="font-bold text-gray-900">x{{ item.quantity }}</span>
-     </li>
-     {% endfor %}
-    </ul>
+   </div>
+
+   <!-- Footer -->
+   <div class="p-4 pt-0 mt-auto">
+    <a
+     href="{% url 'kitchen:order_detail' order.id %}"
+     class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:shadow-indigo-200 transition-all duration-200 flex items-center justify-center group/btn text-sm">
+     <span>View Details</span>
+     <svg
+      class="w-3.5 h-3.5 ml-2 group-hover/btn:translate-x-1 transition-transform"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24">
+      <path
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       stroke-width="2"
+       d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
+     </svg>
+    </a>
    </div>
   </div>
-  <!-- Footer -->
-  <div class="p-5 border-t border-gray-50 bg-gray-50/30">
-   <a
-    href="{% url 'kitchen:order_detail' order.id %}"
-    class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-    View Details
-   </a>
+  {% empty %}
+  <div
+   class="col-span-full flex flex-col items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200 text-center">
+   <div class="bg-indigo-50 p-4 rounded-full mb-4">
+    <svg
+     class="w-12 h-12 text-indigo-400"
+     fill="none"
+     stroke="currentColor"
+     viewBox="0 0 24 24">
+     <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+    </svg>
+   </div>
+   <h3 class="text-xl font-bold text-slate-900 mb-1">All Caught Up!</h3>
+   <p class="text-slate-500 max-w-sm mx-auto">
+    There are no active orders in the queue right now. Great job!
+   </p>
   </div>
+  {% endfor %}
  </div>
- {% empty %}
- <div
-  class="col-span-full flex flex-col items-center justify-center py-20 bg-white rounded-xl border-2 border-dashed border-gray-200">
-  <h3 class="text-xl font-medium text-gray-500">No active orders</h3>
- </div>
- {% endfor %}
 </div>
 
 <!-- Sound -->
-<audio
- id="notificationSound"
- src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
- preload="auto"></audio>
+<!-- Logic moved to Sidebar Shell (base.html) -->
 
 <script>
- let knownOrderIds = new Set(
-  "{% for order in orders %}{{ order.id }},{% endfor %}"
-   .split(",")
-   .filter((id) => id)
-   .map(Number),
- );
- const pollInterval = 5000;
- const notificationSound = document.getElementById("notificationSound");
- const enableAudioBtn = document.getElementById("enableAudioBtn");
- let audioEnabled = false;
+  const pollInterval = 5000;
+  let currentOrders = new Map();
 
- // Explicit Audio Enable
- enableAudioBtn.addEventListener("click", () => {
-  notificationSound
-   .play()
-   .then(() => {
-    notificationSound.pause();
-    notificationSound.currentTime = 0;
-    audioEnabled = true;
-    enableAudioBtn.textContent = "Sound Enabled ✅";
-    enableAudioBtn.classList.add("bg-green-100", "text-green-800");
-    enableAudioBtn.classList.remove("bg-gray-200", "text-gray-700");
-    showToast("Audio notifications enabled!", "success");
-   })
-   .catch((err) => {
-    console.error("Audio init failed", err);
-    showToast("Could not enable audio. Check browser settings.", "error");
-   });
- });
+  // Initialize current orders from server-rendered template
+  {% for order in orders %}
+  currentOrders.set({{ order.id }}, "{{ order.status }}");
+  {% endfor %}
+
+  // Use global audio function
+  function playNotification() {
+      if (window.playNotificationSound) {
+          window.playNotificationSound();
+      }
+  }
 
  function showToast(message, type = "info") {
-  const container = document.getElementById("toast-container");
-  const toast = document.createElement("div");
-  const colorClass =
-   type === "success"
-    ? "bg-green-500"
-    : type === "error"
-      ? "bg-red-500"
-      : "bg-blue-600";
+     const container = document.getElementById("toast-container");
+     const toast = document.createElement("div");
 
-  toast.className = `${colorClass} text-white px-6 py-4 rounded-lg shadow-lg mb-3 flex items-center transform transition-all duration-300 translate-x-full`;
-  toast.innerHTML = `
-         <svg class="w-6 h-6 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-         <div>
-             <p class="font-bold">Notification</p>
-             <p class="text-sm">${message}</p>
-         </div>
-     `;
+     const styles = {
+         success: "bg-white border-l-4 border-emerald-500 text-slate-800",
+         error: "bg-white border-l-4 border-red-500 text-slate-800",
+         info: "bg-white border-l-4 border-indigo-500 text-slate-800"
+     };
+     const icons = {
+         success: `<svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+         error: `<svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+         info: `<svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
+     };
 
-  container.appendChild(toast);
+     toast.className = `${styles[type] || styles.info} pointer-events-auto p-4 rounded-lg shadow-xl shadow-slate-200/50 flex items-center gap-4 transform transition-all duration-500 translate-x-32 opacity-0 min-w-[300px] z-[60]`;
+     toast.innerHTML = `
+          <div class="flex-shrink-0">${icons[type] || icons.info}</div>
+          <div class="flex-grow">
+              <p class="font-bold text-sm uppercase tracking-wide opacity-80 mb-0.5">${type}</p>
+              <p class="font-medium">${message}</p>
+          </div>
+          <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-slate-600 transition-colors">
+             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
+      `;
 
-  // Animate in
-  requestAnimationFrame(() => {
-   toast.classList.remove("translate-x-full");
-  });
+     container.appendChild(toast);
 
-  // Remove after 3s
-  setTimeout(() => {
-   toast.classList.add("opacity-0", "translate-x-full");
-   setTimeout(() => toast.remove(), 300);
-  }, 5000);
+     // Animate in
+     requestAnimationFrame(() => {
+         toast.classList.remove("translate-x-32", "opacity-0");
+     });
+
+     // Remove after 5s
+     setTimeout(() => {
+         toast.classList.add("translate-x-32", "opacity-0");
+         setTimeout(() => toast.remove(), 500);
+     }, 5000);
  }
 
  function playNotification() {
-  if (audioEnabled) {
-   notificationSound.play().catch((e) => console.error("Audio play error", e));
-  } else {
-   console.warn("Audio not enabled yet");
-   showToast("New Order! (Enable sound to hear alert)", "info");
-  }
+     if (audioEnabled) {
+         notificationSound.play().catch((e) => console.error("Audio play error", e));
+     } else {
+         console.warn("Audio not enabled yet");
+     }
  }
 
- // Polling Logic
+ // Render Order Card HTML
  function renderOrderCard(order) {
-  // Helper function to get status badge classes
-  const getStatusClasses = (status) => {
-   if (status === "PENDING") return "bg-yellow-100 text-yellow-800";
-   if (status === "PREPARING") return "bg-blue-100 text-blue-800";
-   if (status === "READY") return "bg-green-100 text-green-800";
-   return "bg-gray-100 text-gray-800";
-  };
+     // Helper function to get status badge classes
+     const getStatusClasses = (status) => {
+         if (status === "PENDING") return "bg-amber-50 text-amber-700 ring-amber-600/20";
+         if (status === "PREPARING") return "bg-blue-50 text-blue-700 ring-blue-600/20";
+         if (status === "READY") return "bg-emerald-50 text-emerald-700 ring-emerald-600/20";
+         return "bg-slate-100 text-slate-600 ring-slate-500/10";
+     };
 
-  const pickupSlot = order.pickup_slot
-   ? `<span class="ml-2 text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded text-xs">${order.pickup_slot}</span>`
-   : "";
+     const pickupSlot = order.pickup_slot ?
+         `<span class="text-indigo-600 font-semibold bg-indigo-50 px-2.5 py-1 rounded-lg text-xs">${order.pickup_slot}</span>` :
+         "";
 
-  const itemsHtml = order.items
-   .map(
-    (item) =>
-     `<li class="flex justify-between text-sm text-gray-700">
-     <span class="truncate pr-2">
-       ${item.name}
-       ${item.day ? `<span class="text-xs text-indigo-500 block">${item.week ? `Week ${item.week} - ` : ""}${item.day}</span>` : ""}
-     </span>
-     <span class="font-bold text-gray-900">x${item.quantity}</span>
-    </li>`,
-   )
-   .join("");
+     const itemsHtml = order.items
+         .slice(0, 4)
+         .map(
+             (item) =>
+             `<li class="flex justify-between items-start text-sm group/item">
+              <div class="flex items-start">
+                  <span class="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 mr-2 group-hover/item:bg-indigo-400 transition-colors"></span>
+                  <div>
+                      <span class="text-slate-700 font-medium leading-snug block">${item.name}</span>
+                      ${item.day ? `<span class="text-xs text-indigo-500 font-medium mt-0.5 block">${item.week ? `Week ${item.week} - ` : ""}${item.day}</span>` : ""}
+                  </div>
+              </div>
+              <span class="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded ml-2 whitespace-nowrap">x ${item.quantity}</span>
+          </li>`
+         )
+         .join("");
 
-  return `
-   <div class="bg-white rounded-xl shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden flex flex-col h-full border border-gray-100">
-    <!-- Header -->
-    <div class="p-5 border-b border-gray-50 flex justify-between items-start bg-gray-50/50">
-     <div>
-      <h3 class="text-lg font-bold text-gray-900">Order #${order.id}</h3>
-      <span class="text-xs text-gray-500 flex items-center mt-1">
-       ${order.timesince} ago
-      </span>
-     </div>
-     <span class="px-3 py-1 rounded-full text-xs font-semibold ${getStatusClasses(order.status)}">
-      ${order.status_display}
-     </span>
-    </div>
-    <!-- Body -->
-    <div class="p-5 flex-grow">
-     <div class="mb-4">
-      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-       Pickup
-      </div>
-      <div class="text-sm text-gray-700">
-       ${order.pickup_date} ${pickupSlot}
-      </div>
-     </div>
-     <div>
-      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-       Items (${order.items_count})
-      </div>
-      <ul class="space-y-2">
-       ${itemsHtml}
-      </ul>
-     </div>
-    </div>
-    <!-- Footer -->
-    <div class="p-5 border-t border-gray-50 bg-gray-50/30">
-     <a href="${order.detail_url}" class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg transition-colors">
-      View Details
-     </a>
-    </div>
-   </div>
-  `;
+     const moreItems = order.items.length > 4 ?
+         `<li class="pl-3.5 text-xs text-slate-400 italic">+ ${order.items.length - 4} more items...</li>` : '';
+
+     return `
+         <!-- Header -->
+         <div class="p-5 border-b border-slate-50 flex justify-between items-start bg-gradient-to-br from-slate-50 to-white">
+             <div>
+                 <div class="flex items-center gap-2 mb-1">
+                     <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Order</span>
+                     <h3 class="text-xl font-black text-slate-800">#${order.id}</h3>
+                 </div>
+                 <span class="text-xs font-medium text-slate-500 flex items-center bg-slate-100 px-2 py-0.5 rounded-md w-fit">
+                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                     ${order.timesince} ago
+                 </span>
+             </div>
+             <span class="px-3 py-1 rounded-full text-xs font-bold shadow-sm ring-1 ring-inset ${getStatusClasses(order.status)}">
+                 ${order.status_display}
+             </span>
+         </div>
+
+         <!-- Body -->
+         <div class="p-5 flex-grow space-y-5">
+             <!-- Pickup Info -->
+             <div class="flex items-center justify-between text-sm p-3 bg-slate-50 rounded-xl border border-slate-100">
+                 <div class="flex items-center text-slate-500">
+                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                     <span>${order.pickup_date}</span>
+                 </div>
+                 ${pickupSlot}
+             </div>
+
+             <!-- Items List -->
+             <div>
+                 <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
+                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                     Items (${order.items_count})
+                 </div>
+                 <ul class="space-y-3">
+                     ${itemsHtml}
+                     ${moreItems}
+                 </ul>
+             </div>
+         </div>
+
+         <!-- Footer -->
+         <div class="p-5 pt-0 mt-auto">
+             <a href="${order.detail_url}"
+                 class="w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-sm hover:shadow-indigo-200 transition-all duration-200 flex items-center justify-center group/btn">
+                 <span>View Details</span>
+                 <svg class="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+             </a>
+         </div>
+   `;
  }
 
- function checkForNewOrders() {
-  fetch('{% url "kitchen:active_orders_api" %}')
-   .then((response) => response.json())
-   .then((data) => {
-    const currentIds = new Set(data.orders.map((o) => o.id));
-    let newOrders = [];
+ function syncOrders() {
+     fetch('{% url "kitchen:active_orders_api" %}')
+         .then((response) => response.json())
+         .then((data) => {
+             const fetchedOrdersMap = new Map();
+             const grid = document.querySelector(".grid");
 
-    for (let order of data.orders) {
-     if (!knownOrderIds.has(order.id)) {
-      newOrders.push(order);
-      knownOrderIds.add(order.id);
-     }
-    }
+             // 1. Process active orders
+             data.orders.forEach(order => {
+                 fetchedOrdersMap.set(order.id, order);
 
-    if (newOrders.length > 0) {
-     playNotification();
-     showToast(`${newOrders.length} New Order(s) Received!`, "success");
+                 if (!currentOrders.has(order.id)) {
+                     // NEW ORDER: Add it
+                     currentOrders.set(order.id, order.status);
 
-     // Get the grid container
-     const grid = document.querySelector(".grid");
+                     const tempDiv = document.createElement("div");
+                     tempDiv.className = "group bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full border border-slate-100 ring-1 ring-slate-900/5";
+                     tempDiv.id = `order-card-${order.id}`;
+                     tempDiv.innerHTML = renderOrderCard(order);
 
-     // Remove "No active orders" message if it exists
-     const emptyMessage = grid.querySelector(".col-span-full");
-     if (emptyMessage) {
-      emptyMessage.remove();
-     }
+                     // Animation setup
+                     tempDiv.style.opacity = "0";
+                     tempDiv.style.transform = "scale(0.95)";
 
-     // Prepend new order cards to the grid
-     newOrders.forEach((order) => {
-      const cardHtml = renderOrderCard(order);
-      const tempDiv = document.createElement("div");
-      tempDiv.innerHTML = cardHtml;
-      const cardElement = tempDiv.firstElementChild;
+                     // Remove empty message if present
+                     const emptyMessage = grid.querySelector(".col-span-full");
+                     if (emptyMessage) emptyMessage.remove();
 
-      // Add animation class
-      cardElement.style.opacity = "0";
-      cardElement.style.transform = "scale(0.95)";
+                     grid.insertBefore(tempDiv, grid.firstChild);
 
-      grid.insertBefore(cardElement, grid.firstChild);
+                     // Trigger Play/Notify only for new orders
+                     playNotification();
+                     showToast(`New Order #${order.id} Received!`, "success");
 
-      // Trigger animation
-      setTimeout(() => {
-       cardElement.style.transition = "all 0.3s ease-out";
-       cardElement.style.opacity = "1";
-       cardElement.style.transform = "scale(1)";
-      }, 10);
-     });
-    }
-   })
-   .catch((err) => console.error("Polling error:", err));
+                     // Animate in
+                     setTimeout(() => {
+                          tempDiv.style.opacity = "1";
+                          tempDiv.style.transform = "scale(1)";
+                     }, 50);
+
+                 } else if (currentOrders.get(order.id) !== order.status) {
+                     // UPDATE STATUS: Order exists but status changed
+                     currentOrders.set(order.id, order.status);
+                     const card = document.getElementById(`order-card-${order.id}`);
+                     if (card) {
+                         card.innerHTML = renderOrderCard(order);
+                         // Flash effect
+                         card.classList.add("ring-2", "ring-indigo-400");
+                         setTimeout(() => card.classList.remove("ring-2", "ring-indigo-400"), 1000);
+                     }
+                 }
+             });
+
+             // 2. Remove orders that are no longer active
+             currentOrders.forEach((status, id) => {
+                 if (!fetchedOrdersMap.has(id)) {
+                     currentOrders.delete(id);
+                     const card = document.getElementById(`order-card-${id}`);
+                     if (card) {
+                         // Animate out
+                         card.style.opacity = "0";
+                         card.style.transform = "scale(0.9)";
+                         setTimeout(() => card.remove(), 300);
+                     }
+                 }
+             });
+
+             // 3. Show empty state if no orders
+             if (currentOrders.size === 0 && !grid.querySelector(".col-span-full")) {
+                  const emptyDiv = document.createElement("div");
+                  emptyDiv.className = "col-span-full flex flex-col items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200 text-center";
+                  emptyDiv.innerHTML = `
+                     <div class="bg-indigo-50 p-4 rounded-full mb-4">
+                         <svg class="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                     </div>
+                     <h3 class="text-xl font-bold text-slate-900 mb-1">All Caught Up!</h3>
+                     <p class="text-slate-500 max-w-sm mx-auto">There are no active orders in the queue right now. Great job!</p>
+                  `;
+                  grid.appendChild(emptyDiv);
+             }
+         })
+         .catch((err) => console.error("Sync error:", err));
  }
+
+ // Add IDs to existing initial cards
+ document.querySelectorAll('.grid > div').forEach(div => {
+     const title = div.querySelector('h3');
+     if (title && title.textContent.includes('#')) {
+          const id = title.textContent.replace('#', '').trim();
+          if (!div.id) div.id = `order-card-${id}`;
+     }
+ });
 
  // Test Function
  window.simulateOrder = function () {
-  playNotification();
-  showToast("Test Notification: New Order #000", "success");
+     playNotification();
+     showToast("Test Notification: New Order #000", "success");
  };
 
- setInterval(checkForNewOrders, pollInterval);
+ setInterval(syncOrders, pollInterval);
 </script>
 {% endblock %}

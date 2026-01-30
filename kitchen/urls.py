@@ -3,7 +3,7 @@ from . import views
 
 app_name = 'kitchen'
 
-from catering.views import CateringKitchenDashboardView
+from catering.views import CateringKitchenDashboardView, CateringOrderDetailView
 
 urlpatterns = [
     path('', views.DashboardView.as_view(), name='dashboard'),
@@ -20,4 +20,9 @@ urlpatterns = [
     
     # Catering Dashboard
     path('catering/', CateringKitchenDashboardView.as_view(), name='catering_dashboard'),
+    path('catering/order/<int:pk>/', CateringOrderDetailView.as_view(), name='catering_order_detail'),
+
+    # Master Items Management
+    path('master-items/vending/', views.VendingMasterListView.as_view(), name='vending_master_list'),
+    path('master-items/catering/', views.CateringMasterListView.as_view(), name='catering_master_list'),
 ]

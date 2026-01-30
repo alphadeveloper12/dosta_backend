@@ -55,8 +55,34 @@ class Menu(models.Model):
         return f"Week {self.week_number} - {self.day_of_week}"
 
 
+class MasterItem(models.Model):
+    """
+    Unique representation of an item, independent of menu scheduling.
+    Used to normalize data so updates (name, macros, image) propagate.
+    """
+    name = models.CharField(max_length=255, unique=True, db_index=True)
+    description = models.TextField(blank=True, null=True)
+    ingredients = models.TextField(blank=True, null=True)
+    calories = models.PositiveIntegerField(default=0, help_text="kcal")
+    protein = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
+    carbs = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
+    fats = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
+    heating = models.BooleanField(default=False)
+    image_source_url = models.URLField(max_length=500, blank=True, null=True)
+    image = models.ImageField(upload_to='menu_images/', blank=True, null=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
 class MenuItem(models.Model):
     menu = models.ForeignKey(Menu, related_name='items', on_delete=models.CASCADE)
+    master_item = models.ForeignKey(MasterItem, related_name='menu_items', on_delete=models.PROTECT, null=True, blank=True)
+    
+    # Denormalized fields (kept for backward compatibility with existing views/scripts)
     name = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField()
@@ -348,3 +374,89 @@ class VendingMachineStock(models.Model):
 
     def __str__(self):
         return f"{self.goods_name} ({self.quantity})"
+
+# -----------------------------------------------------------
+# SIGNALS FOR DATA SYNC
+# -----------------------------------------------------------
+
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=MasterItem)
+def propagate_master_changes(sender, instance, created, **kwargs):
+    """
+    When MasterItem is updated (e.g. fixed typo in name), 
+    update all linked MenuItem instances to match.
+    """
+    if created:
+        return # New item, no children to update yet
+        
+    instance.menu_items.update(
+        name=instance.name,
+        description=instance.description,
+        ingredients=instance.ingredients,
+        calories=instance.calories,
+        protein=instance.protein,
+        carbs=instance.carbs,
+        fats=instance.fats,
+        heating=instance.heating,
+        # We don't necessarily overwrite image/source_url if they are blank in Master
+        # but for full sync we often should. Let's do partial updates if not blank.
+    )
+
+    # Handle nullable fields cleaner
+    if instance.image:
+        instance.menu_items.update(image=instance.image)
+    if instance.image_source_url:
+        instance.menu_items.update(image_source_url=instance.image_source_url)
+
+
+@receiver(pre_save, sender=MenuItem)
+def link_or_create_master_item(sender, instance, **kwargs):
+    """
+    When a MenuItem is about to be saved:
+    1. If it has no MasterItem, try to find one by name.
+    2. If found, link it and sync data FROM Master TO Item (Master is source of truth).
+    3. If not found, create a new MasterItem using this Item's data.
+    4. If it has a MasterItem, ensure the Item's data matches the Master (prevent divergence).
+    """
+    if not instance.name:
+        return
+
+    # Normalize name for lookup
+    clean_name = instance.name.strip()
+    
+    if not instance.master_item:
+        # Try to find existing
+        master = MasterItem.objects.filter(name__iexact=clean_name).first()
+        if master:
+            instance.master_item = master
+            # Sync to match Master
+            instance.name = master.name
+            instance.description = master.description or instance.description
+            instance.ingredients = master.ingredients or instance.ingredients
+            instance.calories = master.calories if master.calories > 0 else instance.calories
+            # ... sync other fields if needed, but 'name' is most critical
+        else:
+            # Create new Master (Auto-creation strategy)
+            # Only if this seems to be a valid item (has price etc)
+            master = MasterItem.objects.create(
+                name=clean_name,
+                description=instance.description,
+                ingredients=instance.ingredients,
+                calories=instance.calories,
+                protein=instance.protein,
+                carbs=instance.carbs,
+                fats=instance.fats,
+                heating=instance.heating,
+                image=instance.image,
+                image_source_url=instance.image_source_url
+            )
+            instance.master_item = master
+    
+    # If already linked (or just linked above), ensure compliance
+    # This enforces "Master Name rules all"
+    if instance.master_item:
+        if instance.name != instance.master_item.name:
+             instance.name = instance.master_item.name
+

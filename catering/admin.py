@@ -24,18 +24,7 @@ class AmericanMenuAdmin(admin.ModelAdmin):
     inlines = [AmericanMenuItemInline]
 safe_register(AmericanMenu, AmericanMenuAdmin)
 
-class AmericanMenuItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'menu')
-    list_filter = ('menu', 'category')
-    search_fields = ('name',)
-safe_register(AmericanMenuItem, AmericanMenuItemAdmin)
 
-@admin.register(MenuItem)
-class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'cuisine', 'course')
-    list_filter = ('cuisine', 'course')
-    search_fields = ('name',)
-    filter_horizontal = ('budget_options',)
 
 class CateringPlanServiceStyleInline(admin.TabularInline):
     model = CateringPlan.service_styles.through
@@ -163,24 +152,58 @@ class CoffeeBreakRotationAdmin(admin.ModelAdmin):
     search_fields = ('name', 'description')
     inlines = [CoffeeBreakItemInline]
 
+from .models import CateringMasterItem, CanapeItem
+
+@admin.register(CateringMasterItem)
+class CateringMasterItemAdmin(admin.ModelAdmin):
+    list_display = ("name", "description", "created_at")
+    search_fields = ("name", "description")
+    ordering = ("name",)
+
 @admin.register(CoffeeBreakItem)
 class CoffeeBreakItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'rotation')
+    list_display = ('name', 'master_item', 'category', 'rotation')
     list_filter = ('rotation', 'category')
-    search_fields = ('name',)
+    search_fields = ('name', 'master_item__name')
+    autocomplete_fields = ['master_item']
 
 @admin.register(PlatterItem)
 class PlatterItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'description')
-    search_fields = ('name',)
+    list_display = ('name', 'master_item', 'description')
+    search_fields = ('name', 'master_item__name')
+    autocomplete_fields = ['master_item']
 
 @admin.register(BoxedMealItem)
 class BoxedMealItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category')
+    list_display = ('name', 'master_item', 'category')
     list_filter = ('category',)
-    search_fields = ('name',)
+    search_fields = ('name', 'master_item__name')
+    autocomplete_fields = ['master_item']
 
 @admin.register(LiveStationItem)
 class LiveStationItemAdmin(admin.ModelAdmin):
-    list_display = ('name', 'price')
-    search_fields = ('name',)
+    list_display = ('name', 'master_item', 'price')
+    search_fields = ('name', 'master_item__name')
+    autocomplete_fields = ['master_item']
+
+@admin.register(CanapeItem)
+class CanapeItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'master_item', 'category')
+    list_filter = ('category',)
+    search_fields = ('name', 'master_item__name')
+    autocomplete_fields = ['master_item']
+
+@admin.register(AmericanMenuItem)
+class AmericanMenuItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'master_item', 'category', 'menu')
+    list_filter = ('menu', 'category')
+    search_fields = ('name', 'master_item__name')
+    autocomplete_fields = ['master_item']
+    
+@admin.register(MenuItem)
+class MenuItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'master_item', 'cuisine', 'course')
+    list_filter = ('cuisine', 'course')
+    search_fields = ('name', 'master_item__name')
+    filter_horizontal = ('budget_options',)
+    autocomplete_fields = ['master_item']

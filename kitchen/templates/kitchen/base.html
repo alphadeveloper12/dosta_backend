@@ -1,42 +1,445 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
+ <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kitchen Dashboard - Dosta</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter -->
+  <link
+   href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+   rel="stylesheet" />
+  <style>
+   body {
+    font-family: "Inter", sans-serif;
+   }
+   /* Custom Scrollbar for Sidebar */
+   .sidebar-scroll::-webkit-scrollbar {
+    width: 4px;
+   }
+   .sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+   }
+   .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 4px;
+   }
+  </style>
+ </head>
 
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Kitchen Dashboard - Dosta</title>
-    <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <meta http-equiv="refresh" content="60" />
-    <!-- Refresh every 60 seconds -->
-</head>
+ <body class="bg-slate-50 min-h-screen text-slate-900 overflow-hidden">
+  <div class="flex h-screen w-full">
+   <!-- LEFT SIDEBAR -->
+   <aside
+    class="w-64 bg-white border-r border-slate-200 text-slate-600 flex-shrink-0 flex flex-col shadow-xl shadow-slate-200/50 z-50 relative">
+    <!-- Brand -->
+    <div class="h-20 flex items-center px-6 border-b border-slate-50">
+     <div
+      class="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center text-white font-bold mr-3 flex-shrink-0 shadow-lg shadow-slate-900/20">
+      <span class="text-xl">D</span>
+     </div>
+     <div>
+      <h1 class="font-bold text-lg text-slate-900 tracking-tight leading-tight">
+       Dosta Kitchen
+      </h1>
+      <span
+       class="text-[10px] text-slate-400 font-bold tracking-widest uppercase"
+       >Operations OS</span
+      >
+     </div>
+    </div>
 
-<body class="bg-gray-100 font-sans leading-normal tracking-normal">
-    <nav class="bg-blue-800 p-4 shadow-lg">
-        <div class="container mx-auto flex justify-between items-center text-white">
-            <h1 class="font-bold text-xl">
-                <a href="{% url 'kitchen:dashboard' %}">👨‍🍳 Kitchen Dashboard</a>
-            </h1>
-            <div>
-                <a href="{% url 'kitchen:dashboard' %}" class="hover:text-blue-300 mr-4">Orders</a>
-                <a href="{% url 'kitchen:tracking_dashboard' %}" class="hover:text-blue-300 mr-4">Tracking</a>
-                <a href="{% url 'kitchen:daily_orders' %}" class="hover:text-blue-300 mr-4 underline font-bold">Daily
-                    Orders</a>
-                <a href="{% url 'kitchen:vending_machine_items' %}" class="hover:text-blue-300 mr-4">Vending Items</a>
-                <a href="{% url 'kitchen:catering_dashboard' %}" class="hover:text-amber-300 font-bold">Catering
-                    👨‍🍳</a>
-            </div>
-        </div>
+    <!-- Navigation -->
+    <nav class="flex-1 overflow-y-auto sidebar-scroll py-6 px-3 space-y-1">
+     <p
+      class="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-1">
+      Dashboards
+     </p>
+
+     <a
+      href="{% url 'kitchen:dashboard' %}"
+      class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium{% endif %}">
+      {% if request.resolver_match.url_name == 'dashboard' %}
+      <div
+       class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+      {% endif %}
+      <span
+       class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'dashboard' %}bg-white text-indigo-600 shadow-sm{% else %}bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-slate-600{% endif %} transition-all">
+       <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+       </svg>
+      </span>
+      <span>Active Orders</span>
+     </a>
+
+     <a
+      href="{% url 'kitchen:tracking_dashboard' %}"
+      class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'tracking_dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium{% endif %}">
+      {% if request.resolver_match.url_name == 'tracking_dashboard' %}
+      <div
+       class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+      {% endif %}
+      <span
+       class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'tracking_dashboard' %}bg-white text-indigo-600 shadow-sm{% else %}bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-slate-600{% endif %} transition-all">
+       <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+       </svg>
+      </span>
+      <span>Tracking Board</span>
+     </a>
+
+     <a
+      href="{% url 'kitchen:catering_dashboard' %}"
+      class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'catering_dashboard' %}bg-amber-50 text-amber-700 font-bold{% else %}hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium{% endif %}">
+      {% if request.resolver_match.url_name == 'catering_dashboard' %}
+      <div
+       class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-amber-600 rounded-r-full"></div>
+      {% endif %}
+      <span
+       class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'catering_dashboard' %}bg-white text-amber-600 shadow-sm{% else %}bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-slate-600{% endif %} transition-all">
+       <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+       </svg>
+      </span>
+      <span>Catering Command</span>
+     </a>
+
+     <p
+      class="px-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 mt-6">
+      Management
+     </p>
+
+     <a
+      href="{% url 'kitchen:daily_orders' %}"
+      class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'daily_orders' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium{% endif %}">
+      {% if request.resolver_match.url_name == 'daily_orders' %}
+      <div
+       class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+      {% endif %}
+      <span
+       class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'daily_orders' %}bg-white text-indigo-600 shadow-sm{% else %}bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-slate-600{% endif %} transition-all">
+       <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+       </svg>
+      </span>
+      <span>Daily Prep List</span>
+     </a>
+
+     <a
+      href="{% url 'kitchen:menu_upload' %}"
+      class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'menu_upload' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium{% endif %}">
+      {% if request.resolver_match.url_name == 'menu_upload' %}
+      <div
+       class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+      {% endif %}
+      <span
+       class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'menu_upload' %}bg-white text-indigo-600 shadow-sm{% else %}bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-slate-600{% endif %} transition-all">
+       <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+       </svg>
+      </span>
+      <span>Manage Menu</span>
+     </a>
+
+     <a
+      href="{% url 'kitchen:vending_machine_items' %}"
+      class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'vending_machine_items' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium{% endif %}">
+      {% if request.resolver_match.url_name == 'vending_machine_items' %}
+      <div
+       class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+      {% endif %}
+      <span
+       class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'vending_machine_items' %}bg-white text-indigo-600 shadow-sm{% else %}bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-slate-600{% endif %} transition-all">
+       <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+       </svg>
+      </span>
+      <span>Vending Stock</span>
+     </a>
+     <a
+      href="{% url 'kitchen:vending_master_list' %}"
+      class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'vending_master_list' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium{% endif %}">
+      {% if request.resolver_match.url_name == 'vending_master_list' %}
+      <div
+       class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+      {% endif %}
+      <span
+       class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'vending_master_list' %}bg-white text-indigo-600 shadow-sm{% else %}bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-slate-600{% endif %} transition-all">
+       <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path>
+       </svg>
+      </span>
+      <span>Vending Master Items</span>
+     </a>
+
+     <a
+      href="{% url 'kitchen:catering_master_list' %}"
+      class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'catering_master_list' %}bg-emerald-50 text-emerald-700 font-bold{% else %}hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-medium{% endif %}">
+      {% if request.resolver_match.url_name == 'catering_master_list' %}
+      <div
+       class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-emerald-600 rounded-r-full"></div>
+      {% endif %}
+      <span
+       class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'catering_master_list' %}bg-white text-emerald-600 shadow-sm{% else %}bg-slate-50 text-slate-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-slate-600{% endif %} transition-all">
+       <svg
+        class="w-4 h-4"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+       </svg>
+      </span>
+      <span>Catering Master Items</span>
+     </a>
     </nav>
 
-    <div class="container mx-auto mt-8 p-4">
-        {% if messages %} {% for message in messages %}
-        <div class="bg-{{ message.tags }}-100 border border-{{ message.tags }}-400 text-{{ message.tags }}-700 px-4 py-3 rounded relative mb-4"
-            role="alert">
-            <span class="block sm:inline">{{ message }}</span>
-        </div>
-        {% endfor %} {% endif %} {% block content %} {% endblock %}
-    </div>
-</body>
+    <!-- Bottom Actions (User + Sound) -->
+    <div class="p-5 border-t border-slate-100 bg-slate-50/50">
+     <!-- Sound Toggle -->
+     <button
+      id="globalAudioToggle"
+      class="w-full flex items-center justify-between px-3 py-2 mb-6 rounded-lg bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm group/sound">
+      <span id="audioText" class="font-bold text-xs" style="font-size: 11px"
+       >Enable Sound</span
+      >
+      <div class="flex items-center">
+       <svg
+        id="audioIconOn"
+        class="w-4 h-4 text-emerald-500 hidden"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"></path>
+       </svg>
+       <svg
+        id="audioIconOff"
+        class="w-4 h-4 text-slate-400 group-hover/sound:text-slate-500"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15zM17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"></path>
+       </svg>
+      </div>
+     </button>
 
+     <div class="flex items-center mb-4">
+      <div
+       class="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-md ring-2 ring-indigo-100 mr-3">
+       {{ request.user.username|slice:":1"|upper }}
+      </div>
+      <div class="min-w-0">
+       <p class="text-xs font-bold text-slate-900 truncate">
+        {{ request.user.username }}
+       </p>
+       <p
+        class="text-[10px] text-slate-500 font-medium uppercase tracking-wide">
+        Admin
+       </p>
+      </div>
+     </div>
+
+     <a
+      href="{% url 'admin:logout' %}"
+      class="flex items-center justify-center w-full px-4 py-2 border border-red-200 text-red-600 rounded-lg text-xs font-bold hover:bg-red-50 hover:border-red-300 transition-colors uppercase tracking-wide"
+      >Logout</a
+     >
+    </div>
+   </aside>
+
+   <!-- MAIN CONTENT AREA -->
+   <main class="flex-1 overflow-y-auto bg-slate-50 relative">
+    <!-- Top Gradient Accent -->
+    <div
+     class="absolute top-0 left-0 right-0 h-48 bg-gradient-to-b from-indigo-50/50 to-transparent pointer-events-none"></div>
+
+    <div class="container mx-auto px-8 py-8 relative z-10 w-full max-w-latest">
+     {% if messages %}
+     <div class="max-w-4xl mx-auto mb-8">
+      {% for message in messages %}
+      <div
+       class="{% if message.tags == 'success' %}bg-emerald-50 border-emerald-200 text-emerald-800{% elif message.tags == 'error' %}bg-red-50 border-red-200 text-red-800{% else %}bg-blue-50 border-blue-200 text-blue-800{% endif %} border px-4 py-3 rounded-lg shadow-sm flex items-center mb-3"
+       role="alert">
+       <span class="block sm:inline">{{ message }}</span>
+      </div>
+      {% endfor %}
+     </div>
+     {% endif %} {% block content %}
+     <!-- Page content will be injected here -->
+     {% endblock %}
+    </div>
+   </main>
+  </div>
+
+  <!-- GLOBAL AUDIO LOGIC -->
+  <script>
+   // Global Audio Context State
+   window.kitchenAudioContext = null;
+   window.isAudioEnabled =
+    localStorage.getItem("kitchenAudioEnabled") === "true";
+
+   const audioToggleBtn = document.getElementById("globalAudioToggle");
+   const audioText = document.getElementById("audioText");
+   const iconOn = document.getElementById("audioIconOn");
+   const iconOff = document.getElementById("audioIconOff");
+
+   function updateAudioUI() {
+    if (window.isAudioEnabled) {
+     audioText.textContent = "Sound Active";
+     audioText.classList.add("text-emerald-400");
+     iconOn.classList.remove("hidden");
+     iconOff.classList.add("hidden");
+     audioToggleBtn.classList.add("border-emerald-500/30", "bg-emerald-500/10");
+    } else {
+     audioText.textContent = "Enable Sound";
+     audioText.classList.remove("text-emerald-400");
+     iconOn.classList.add("hidden");
+     iconOff.classList.remove("hidden");
+     audioToggleBtn.classList.remove(
+      "border-emerald-500/30",
+      "bg-emerald-500/10",
+     );
+    }
+   }
+
+   async function initAudio() {
+    if (!window.kitchenAudioContext) {
+     window.kitchenAudioContext = new (
+      window.AudioContext || window.webkitAudioContext
+     )();
+    }
+
+    if (window.kitchenAudioContext.state === "suspended") {
+     await window.kitchenAudioContext.resume();
+    }
+
+    // Silent buffer play to unlock iOS/Autoplay
+    const buffer = window.kitchenAudioContext.createBuffer(1, 1, 22050);
+    const source = window.kitchenAudioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(window.kitchenAudioContext.destination);
+    source.start(0);
+
+    window.isAudioEnabled = true;
+    localStorage.setItem("kitchenAudioEnabled", "true");
+    updateAudioUI();
+
+    // Play test sound for confirmation
+    setTimeout(() => {
+     if (window.playNotificationSound) window.playNotificationSound();
+    }, 100);
+   }
+
+   audioToggleBtn.addEventListener("click", () => {
+    if (window.isAudioEnabled) {
+     // User wants to disable
+     window.isAudioEnabled = false;
+     localStorage.setItem("kitchenAudioEnabled", "false");
+     updateAudioUI();
+    } else {
+     // User wants to enable
+     initAudio();
+    }
+   });
+
+   // Initialize UI on load
+   if (window.isAudioEnabled) {
+    // We can't auto-resume context without interaction, but we can show "On" state
+    // and resume on next click if needed, or prompt user.
+    // For now, let's show state but wait for click if context is missing.
+    updateAudioUI();
+   }
+
+   // EXPOSED GLOBAL FUNCTION
+   window.playNotificationSound = function () {
+    if (!window.isAudioEnabled || !window.kitchenAudioContext) return;
+
+    // Simple generic 'ding' synthesis
+    const ctx = window.kitchenAudioContext;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
+
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+   };
+  </script>
+ </body>
 </html>

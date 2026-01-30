@@ -294,7 +294,7 @@ class CanapeItemListView(APIView):
 
 # ========== CATERING ORDER VENDOR API ==========
 
-from django.views.generic import TemplateView
+from django.views.generic import TemplateView, DetailView
 
 class CreateCateringOrderView(APIView):
     permission_classes = [IsAuthenticated]
@@ -318,6 +318,14 @@ class CateringKitchenDashboardView(LoginRequiredMixin, UserPassesTestMixin, Temp
         # We'll use API polling for data
         return context
 
+class CateringOrderDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
+    model = CateringOrder
+    template_name = 'catering/order_detail.html'
+    context_object_name = 'order'
+
+    def test_func(self):
+        return is_catering_staff(self.request.user)
+
 @login_required
 @user_passes_test(is_catering_staff)
 def get_active_catering_orders(request):
@@ -326,6 +334,7 @@ def get_active_catering_orders(request):
     """
     from django.http import JsonResponse
     from django.utils.timesince import timesince
+    from django.urls import reverse
     
     orders = CateringOrder.objects.filter(
         status__in=[
@@ -361,7 +370,8 @@ def get_active_catering_orders(request):
             'total_amount': float(order.total_amount),
             'created_at': order.created_at.isoformat(),
             'timesince': timesince(order.created_at),
-            'items': items_data
+            'items': items_data,
+            'detail_url': reverse('kitchen:catering_order_detail', args=[order.id])
         })
         
     return JsonResponse({'orders': data})

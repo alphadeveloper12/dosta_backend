@@ -27,12 +27,22 @@ class MenuAdmin(admin.ModelAdmin):
     inlines = [MenuItemInline]
 
 
+from .models import MasterItem
+
+@admin.register(MasterItem)
+class MasterItemAdmin(admin.ModelAdmin):
+    list_display = ("name", "calories", "heating", "created_at")
+    search_fields = ("name", "description")
+    ordering = ("name",)
+
+
 @admin.register(MenuItem)
 class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ("name", "price", "menu", "offer")
-    search_fields = ("name",)
+    list_display = ("name", "master_item", "price", "menu", "offer")
+    search_fields = ("name", "master_item__name")
     list_filter = ("menu__day_of_week",)
     ordering = ("name",)
+    autocomplete_fields = ["master_item"] # Enable searching for master items
 
 
 @admin.register(Offer)

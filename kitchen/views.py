@@ -1,5 +1,7 @@
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.shortcuts import render, get_object_or_404, redirect
+from django.urls import reverse
+
 from django.views.generic import ListView, DetailView
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.db.models import Q
@@ -346,7 +348,7 @@ def get_active_orders_api(request):
             continue
 
         items_data = []
-        for item in kitchen_items[:3]:  # First 3 items like in template
+        for item in kitchen_items[:5]:  # Return up to 5 items for the dashboard
             items_data.append({
                 'name': item.menu_item.name,
                 'quantity': item.quantity,
@@ -738,3 +740,80 @@ def daily_orders_view(request):
         'ready_count': len(ready_items)
     }
     return render(request, 'kitchen/daily_orders.html', context)
+
+# ==========================================
+# MASTER ITEMS MANAGEMENT (VENDING & CATERING)
+# ==========================================
+from vending.models import MasterItem as VendingMasterItem
+from catering.models import CateringMasterItem
+from django.views.generic import ListView
+
+class VendingMasterListView(LoginRequiredMixin, ListView):
+    model = VendingMasterItem
+    template_name = 'kitchen/master_items_vending.html'
+    context_object_name = 'items'
+    ordering = ['name']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        query = self.request.GET.get('q')
+        if query:
+            queryset = queryset.filter(name__icontains=query)
+        return queryset
+
+    def post(self, request, *args, **kwargs):
+        # Quick inline update handler
+        item_id = request.POST.get('item_id')
+        new_name = request.POST.get('name')
+        new_desc = request.POST.get('description')
+        
+        if item_id and new_name:
+            try:
+                item = VendingMasterItem.objects.get(id=item_id)
+                item.name = new_name
+                if new_desc is not None:
+                    item.description = new_desc
+                if 'image' in request.FILES:
+                    item.image = request.FILES['image']
+                
+                item.save() # This triggers the signal to update all MenuItems!
+                messages.success(request, f"Updated '{item.name}' successfully.")
+            except Exception as e:
+                messages.error(request, f"Error updating item: {e}")
+        
+        return redirect('kitchen:vending_master_list')
+
+class CateringMasterListView(LoginRequiredMixin, ListView):
+    model = CateringMasterItem
+    template_name = 'kitchen/master_items_catering.html'
+    context_object_name = 'items'
+    ordering = ['name']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        query = self.request.GET.get('q')
+        if query:
+            queryset = queryset.filter(name__icontains=query)
+        return queryset
+
+    def post(self, request, *args, **kwargs):
+        # Quick inline update handler
+        item_id = request.POST.get('item_id')
+        new_name = request.POST.get('name')
+        new_desc = request.POST.get('description')
+        
+        if item_id and new_name:
+            try:
+                item = CateringMasterItem.objects.get(id=item_id)
+                item.name = new_name
+                if new_desc is not None:
+                    item.description = new_desc
+                if 'image' in request.FILES:
+                    item.image = request.FILES['image']
+                
+                item.save() # This triggers the signal!
+                messages.success(request, f"Updated '{item.name}' successfully.")
+            except Exception as e:
+                messages.error(request, f"Error updating item: {e}")
+        
+        return redirect('kitchen:catering_master_list')

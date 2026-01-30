@@ -113,6 +113,23 @@ class FixedCateringMenu(models.Model):
     def __str__(self):
         return f"{self.name} - {self.cuisine.name} ({self.budget_option.label})"
 
+class CateringMasterItem(models.Model):
+    """
+    Unified Master Item for all Catering services.
+    "Change once, update everywhere."
+    """
+    name = models.CharField(max_length=255, unique=True, db_index=True)
+    description = models.TextField(blank=True, null=True)
+    image = models.FileField(upload_to='master_catering_images/', blank=True, null=True)
+    
+    # Nutritional / Extra info could be added here later
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
 # ========== USER-SIDE MODEL (Catering Planning Form) ==========
 
 class CateringPlan(models.Model):
@@ -138,6 +155,7 @@ class CateringPlan(models.Model):
 
 
 class MenuItem(models.Model):
+    master_item = models.ForeignKey(CateringMasterItem, related_name='menu_items', on_delete=models.PROTECT, null=True, blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     image = models.FileField(upload_to='menu_items/', blank=True, null=True)
@@ -160,6 +178,7 @@ class CoffeeBreakRotation(models.Model):
         return self.name
 
 class CoffeeBreakItem(models.Model):
+    master_item = models.ForeignKey(CateringMasterItem, related_name='coffee_items', on_delete=models.PROTECT, null=True, blank=True)
     rotation = models.ForeignKey(CoffeeBreakRotation, related_name='items', on_delete=models.CASCADE)
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=100) # Salads, Sandwiches, etc.
@@ -169,6 +188,7 @@ class CoffeeBreakItem(models.Model):
         return self.name
 
 class PlatterItem(models.Model):
+    master_item = models.ForeignKey(CateringMasterItem, related_name='platter_items', on_delete=models.PROTECT, null=True, blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     image = models.FileField(upload_to='platter_items/', blank=True)
@@ -183,6 +203,7 @@ class BoxedMealItem(models.Model):
         ('Mains', 'Mains'),
         ('Soft Drink', 'Soft Drink'),
     ]
+    master_item = models.ForeignKey(CateringMasterItem, related_name='boxed_items', on_delete=models.PROTECT, null=True, blank=True)
     name = models.CharField(max_length=200)
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
     image = models.FileField(upload_to='boxed_meals/', blank=True)
@@ -191,6 +212,7 @@ class BoxedMealItem(models.Model):
         return self.name
 
 class LiveStationItem(models.Model):
+    master_item = models.ForeignKey(CateringMasterItem, related_name='live_station_items', on_delete=models.PROTECT, null=True, blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True, null=True, default="Dummy description")
     price = models.DecimalField(max_digits=10, decimal_places=2) # Per Person
@@ -209,6 +231,7 @@ class AmericanMenu(models.Model):
         return self.name
 
 class AmericanMenuItem(models.Model):
+    master_item = models.ForeignKey(CateringMasterItem, related_name='american_items', on_delete=models.PROTECT, null=True, blank=True)
     menu = models.ForeignKey(AmericanMenu, related_name='items', on_delete=models.CASCADE)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
@@ -228,6 +251,7 @@ class CanapeItem(models.Model):
         ('Cold Beverages', 'Cold Beverages'),
         ('Hot Beverages', 'Hot Beverages'),
     ]
+    master_item = models.ForeignKey(CateringMasterItem, related_name='canape_items', on_delete=models.PROTECT, null=True, blank=True)
     name = models.CharField(max_length=200)
     description = models.TextField(blank=True)
     category = models.CharField(max_length=50, choices=CATEGORY_CHOICES)
@@ -283,3 +307,91 @@ class CateringOrderItem(models.Model):
     
     def __str__(self):
         return f"{self.name} x {self.quantity} ({self.order.order_id})"
+
+# -----------------------------------------------------------
+# CATERING SIGNALS
+# -----------------------------------------------------------
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
+
+# 1. Update CHILDREN when MASTER changes
+@receiver(post_save, sender=CateringMasterItem)
+def propagate_catering_master_changes(sender, instance, created, **kwargs):
+    if created: return
+
+    # Helper to update fields if they exist on the child model
+    def update_children(files_queryset):
+        if not files_queryset.exists():
+            return
+            
+        model = files_queryset.model
+        updates = {'name': instance.name}
+        
+        # Only update description if the model has it
+        if any(f.name == 'description' for f in model._meta.fields):
+            updates['description'] = instance.description
+            
+        # Only update image if the model has it and master has one
+        if instance.image and any(f.name == 'image' for f in model._meta.fields):
+            updates['image'] = instance.image
+            
+        files_queryset.update(**updates)
+
+    update_children(instance.menu_items.all())
+    update_children(instance.coffee_items.all())
+    # ... rest is same
+    update_children(instance.platter_items.all())
+    update_children(instance.boxed_items.all())
+    update_children(instance.live_station_items.all())
+    update_children(instance.american_items.all())
+    update_children(instance.canape_items.all())
+
+# 2. Link/Create MASTER when CHILD is saved
+# We need a generic handler or one for each model. One for each is safer/clearer.
+
+def generic_link_catering_master(instance):
+    if not instance.name: return
+    clean_name = instance.name.strip()
+    
+    if not instance.master_item:
+        master = CateringMasterItem.objects.filter(name__iexact=clean_name).first()
+        if master:
+            instance.master_item = master
+            instance.name = master.name
+            if hasattr(instance, 'description'):
+                instance.description = master.description or instance.description
+        else:
+            # Create new Master
+            desc = getattr(instance, 'description', '')
+            img = getattr(instance, 'image', None)
+            master = CateringMasterItem.objects.create(
+                name=clean_name,
+                description=desc,
+                image=img
+            )
+            instance.master_item = master
+            
+    # Sync if linked
+    if instance.master_item and instance.name != instance.master_item.name:
+        instance.name = instance.master_item.name
+
+@receiver(pre_save, sender=MenuItem)
+def link_menu_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+
+@receiver(pre_save, sender=CoffeeBreakItem)
+def link_coffee_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+
+@receiver(pre_save, sender=PlatterItem)
+def link_platter_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+
+@receiver(pre_save, sender=BoxedMealItem)
+def link_boxed_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+
+@receiver(pre_save, sender=LiveStationItem)
+def link_live_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+
+@receiver(pre_save, sender=AmericanMenuItem)
+def link_american_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+
+@receiver(pre_save, sender=CanapeItem)
+def link_canape_item(sender, instance, **kwargs): generic_link_catering_master(instance)

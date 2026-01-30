@@ -1,169 +1,308 @@
 {% extends 'kitchen/base.html' %} {% block content %}
-<div class="space-y-6">
- <!-- Header & Date Picker -->
+
+<div
+ class="max-w-5xl mx-auto pb-12 animate-fade-in-up"
+ x-data="{ tab: 'pending' }">
+ <!-- Header Card -->
  <div
-  class="bg-white shadow rounded-lg p-6 flex flex-col md:flex-row justify-between items-center">
-  <div>
-   <h2 class="text-2xl font-bold text-gray-800">📅 Daily Prep Manager</h2>
-   <p class="text-gray-500">
-    Managing orders for <strong>{{ selected_date|date:"l, F j, Y" }}</strong>
-   </p>
-   <div class="mt-2 flex space-x-4">
-    <span
-     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-     Pending: {{ pending_count }}
-    </span>
-    <span
-     class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-     Ready: {{ ready_count }}
-    </span>
+  class="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden mb-8">
+  <div class="p-8 sm:p-10 bg-gradient-to-br from-white to-slate-50 relative">
+   <div
+    class="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 relative z-10">
+    <div>
+     <div class="flex items-center gap-2 mb-3">
+      <span
+       class="inline-flex items-center justify-center w-8 h-8 rounded-full bg-indigo-100 text-indigo-600">
+       <svg
+        class="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+       </svg>
+      </span>
+      <span class="text-sm font-bold text-indigo-600 uppercase tracking-wider"
+       >Prep Station</span
+      >
+     </div>
+     <h2 class="text-4xl font-black text-slate-900 tracking-tight mb-2">
+      Daily Overview
+     </h2>
+     <p class="text-slate-500 font-medium text-lg">
+      Managing prep for
+      <span class="text-slate-900 font-bold border-b-2 border-indigo-200"
+       >{{ selected_date|date:"l, F j" }}</span
+      >
+     </p>
+    </div>
+
+    <!-- Date Picker & Stats -->
+    <div class="flex flex-col items-end gap-4 w-full md:w-auto">
+     <form
+      method="GET"
+      action="{% url 'kitchen:daily_orders' %}"
+      class="flex items-center bg-white rounded-xl shadow-sm border border-slate-200 p-1.5 w-full md:w-auto">
+      <div class="pl-3 pr-2 text-slate-400">
+       <svg
+        class="w-5 h-5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+       </svg>
+      </div>
+      <input
+       type="date"
+       name="date"
+       value="{{ date_str }}"
+       onchange="this.form.submit()"
+       class="block w-full border-0 p-2 text-slate-900 placeholder-slate-400 focus:ring-0 font-bold bg-transparent cursor-pointer hover:text-indigo-600 transition-colors" />
+     </form>
+
+     <div class="flex gap-2">
+      <div
+       class="flex flex-col items-center bg-amber-50 rounded-xl px-4 py-2 border border-amber-100 min-w-[5rem]">
+       <span class="text-2xl font-black text-amber-600 leading-none"
+        >{{ pending_count }}</span
+       >
+       <span
+        class="text-xs font-bold text-amber-800/60 uppercase tracking-wide mt-1"
+        >Pending</span
+       >
+      </div>
+      <div
+       class="flex flex-col items-center bg-emerald-50 rounded-xl px-4 py-2 border border-emerald-100 min-w-[5rem]">
+       <span class="text-2xl font-black text-emerald-600 leading-none"
+        >{{ ready_count }}</span
+       >
+       <span
+        class="text-xs font-bold text-emerald-800/60 uppercase tracking-wide mt-1"
+        >Ready</span
+       >
+      </div>
+     </div>
+    </div>
    </div>
   </div>
 
-  <form
-   method="GET"
-   action="{% url 'kitchen:daily_orders' %}"
-   class="flex items-center space-x-3 mt-4 md:mt-0">
-   <label for="date" class="text-gray-700 font-medium whitespace-nowrap"
-    >Change Date:</label
-   >
-   <input
-    type="date"
-    name="date"
-    id="date"
-    value="{{ date_str }}"
-    onchange="this.form.submit()"
-    class="border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white" />
-  </form>
- </div>
-
- <!-- TABS -->
- <div x-data="{ tab: 'pending' }">
-  <div class="border-b border-gray-200 mb-4">
-   <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+  <!-- Segmented Tab Control -->
+  <div class="px-8 pb-8 bg-white border-t border-slate-50 pt-6">
+   <div class="flex p-1 bg-slate-100 rounded-xl">
     <button
      @click="tab = 'pending'"
-     :class="{'border-indigo-500 text-indigo-600': tab === 'pending', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': tab !== 'pending'}"
-     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
-     Pending Prep ({{ pending_count }})
+     class="flex-1 py-3 px-4 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2"
+     :class="{'bg-white text-slate-900 shadow-sm ring-1 ring-black/5': tab === 'pending', 'text-slate-500 hover:text-slate-700': tab !== 'pending'}">
+     <span>Pending Prep</span>
+     <span
+      class="bg-slate-900 text-white text-xs px-2 py-0.5 rounded-full"
+      x-show="tab === 'pending'"
+      >{{ pending_count }}</span
+     >
     </button>
     <button
      @click="tab = 'ready'"
-     :class="{'border-green-500 text-green-600': tab === 'ready', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': tab !== 'ready'}"
-     class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
-     Ready / Completed ({{ ready_count }})
+     class="flex-1 py-3 px-4 rounded-lg text-sm font-bold transition-all duration-200 flex items-center justify-center gap-2"
+     :class="{'bg-white text-slate-900 shadow-sm ring-1 ring-black/5': tab === 'ready', 'text-slate-500 hover:text-slate-700': tab !== 'ready'}">
+     <span>Completed</span>
+     <span
+      class="bg-emerald-500 text-white text-xs px-2 py-0.5 rounded-full"
+      x-show="tab === 'ready'"
+      >{{ ready_count }}</span
+     >
     </button>
-   </nav>
-  </div>
-
-  <!-- PENDING TAB -->
-  <div
-   x-show="tab === 'pending'"
-   class="bg-white shadow overflow-hidden rounded-md">
-   {% if pending_items %}
-   <ul class="divide-y divide-gray-200">
-    {% for item in pending_items %}
-    <li
-     class="p-4 hover:bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center">
-     <div class="flex-grow">
-      <div class="flex items-center">
-       <span
-        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 mr-2">
-        {{ item.slot_label }}
-       </span>
-       <span class="text-sm font-medium text-gray-900"
-        >{{ item.menu_item.name }}</span
-       >
-       <span class="ml-2 text-sm text-gray-500 font-bold"
-        >x{{ item.quantity }}</span
-       >
-      </div>
-      <div class="mt-1 text-sm text-gray-500">
-       User: <span class="font-medium text-gray-900">{{ item.user_name }}</span>
-       {% if item.plan_type != 'START_PLAN' %}
-       <span class="ml-2 text-xs text-indigo-600 bg-indigo-50 px-1 rounded"
-        >{{ item.plan_type }} / {{ item.plan_subtype }}</span
-       >
-       {% endif %} {% if item.day_of_week %}
-       <span class="ml-2 text-xs text-purple-600 bg-purple-50 px-1 rounded"
-        >Week {{ item.week_number }} - {{ item.day_of_week }}</span
-       >
-       {% endif %}
-      </div>
-     </div>
-     <div class="mt-4 sm:mt-0 ml-0 sm:ml-4 flex-shrink-0">
-      <form
-       method="POST"
-       action="{% url 'kitchen:update_item_status' item.id %}"
-       class="inline">
-       {% csrf_token %}
-       <input type="hidden" name="date_str" value="{{ date_str }}" />
-       <button
-        type="submit"
-        class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none shadow-sm transition-colors">
-        ✅ Mark Ready
-       </button>
-      </form>
-     </div>
-    </li>
-    {% endfor %}
-   </ul>
-   {% else %}
-   <div class="p-10 text-center text-gray-500">
-    No pending items for this day. 🎉
    </div>
-   {% endif %}
   </div>
+ </div>
 
-  <!-- READY TAB -->
-  <div
-   x-show="tab === 'ready'"
-   class="bg-white shadow overflow-hidden rounded-md"
-   style="display: none">
-   {% if ready_items %}
-   <ul class="divide-y divide-gray-200">
-    {% for item in ready_items %}
-    <li
-     class="p-4 hover:bg-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center opacity-75">
-     <div class="flex-grow">
-      <div class="flex items-center">
-       <span
-        class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 mr-2">
-        {{ item.slot_label }}
-       </span>
-       <span class="text-sm font-medium text-gray-900 line-through"
-        >{{ item.menu_item.name }}</span
-       >
-       <span class="ml-2 text-sm text-gray-500 font-bold"
-        >x{{ item.quantity }}</span
-       >
+ <!-- PENDING TAB -->
+ <div
+  x-show="tab === 'pending'"
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-end="opacity-100 translate-y-0">
+  {% if pending_items %}
+  <ul class="space-y-4">
+   {% for item in pending_items %}
+   <li
+    class="group bg-white rounded-2xl p-5 shadow-sm border border-slate-100 hover:shadow-md hover:border-slate-200 transition-all duration-200 flex flex-col sm:flex-row gap-5 items-start sm:items-center relative overflow-hidden">
+    <!-- Status Bar -->
+    <div
+     class="absolute left-0 top-0 bottom-0 w-1.5 bg-amber-400 group-hover:bg-amber-500 transition-colors"></div>
+
+    <div class="flex-grow pl-3">
+     <div class="flex flex-wrap items-center gap-3 mb-2">
+      <span
+       class="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200">
+       {{ item.slot_label }}
+      </span>
+      {% if item.day_of_week %}
+      <span
+       class="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold bg-purple-50 text-purple-700 border border-purple-100">
+       Week {{ item.week_number }} • {{ item.day_of_week }}
+      </span>
+      {% endif %}
+     </div>
+
+     <div class="flex items-baseline gap-3">
+      <h3 class="text-xl font-bold text-slate-900">
+       {{ item.menu_item.name }}
+      </h3>
+      <span class="text-lg font-medium text-slate-400"
+       >x{{ item.quantity }}</span
+      >
+     </div>
+
+     <div class="mt-2 text-sm font-medium text-slate-400 flex items-center">
+      <div
+       class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-600 mr-2">
+       {{ item.user_name|make_list|first|upper }}
       </div>
-      <div class="mt-1 text-sm text-gray-500">User: {{ item.user_name }}</div>
+      {{ item.user_name }}
      </div>
-     <div class="mt-4 sm:mt-0 ml-0 sm:ml-4 flex-shrink-0">
-      <form
-       method="POST"
-       action="{% url 'kitchen:update_item_status' item.id %}"
-       class="inline">
-       {% csrf_token %}
-       <input type="hidden" name="date_str" value="{{ date_str }}" />
-       <button
-        type="submit"
-        class="inline-flex items-center px-3 py-2 border border-gray-300 text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none shadow-sm transition-colors">
-        ↺ Undo
-       </button>
-      </form>
-     </div>
-    </li>
-    {% endfor %}
-   </ul>
-   {% else %}
-   <div class="p-10 text-center text-gray-500">No completed items yet.</div>
-   {% endif %}
+    </div>
+
+    <div class="flex-shrink-0 w-full sm:w-auto">
+     <form
+      method="POST"
+      action="{% url 'kitchen:update_item_status' item.id %}">
+      {% csrf_token %}
+      <input type="hidden" name="date_str" value="{{ date_str }}" />
+      <button
+       type="submit"
+       class="w-full sm:w-auto inline-flex items-center justify-center px-6 py-3 bg-slate-900 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-slate-200 hover:shadow-emerald-200 transform transition-all duration-200 active:scale-95 group-submit">
+       <span class="mr-2 group-hover:hidden">Mark Ready</span>
+       <span class="mr-2 hidden group-hover:inline">Confirm?</span>
+       <svg
+        class="w-5 h-5 group-hover:animate-bounce"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M5 13l4 4L19 7"></path>
+       </svg>
+      </button>
+     </form>
+    </div>
+   </li>
+   {% endfor %}
+  </ul>
+  {% else %}
+  <div
+   class="bg-white rounded-3xl p-16 text-center shadow-sm border border-slate-100 border-dashed">
+   <div
+    class="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-6">
+    <svg
+     class="w-10 h-10 text-emerald-500"
+     fill="none"
+     stroke="currentColor"
+     viewBox="0 0 24 24">
+     <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+    </svg>
+   </div>
+   <h3 class="text-2xl font-bold text-slate-900 mb-2">All Caught Up!</h3>
+   <p class="text-slate-500 max-w-sm mx-auto">
+    There are no pending prep items for this date. Great job!
+   </p>
   </div>
+  {% endif %}
+ </div>
+
+ <!-- READY TAB -->
+ <div
+  x-show="tab === 'ready'"
+  style="display: none"
+  x-transition:enter="transition ease-out duration-200"
+  x-transition:enter-start="opacity-0 translate-y-2"
+  x-transition:enter-end="opacity-100 translate-y-0">
+  {% if ready_items %}
+  <ul class="space-y-4">
+   {% for item in ready_items %}
+   <li
+    class="bg-slate-50 rounded-2xl p-5 border border-slate-100 flex flex-col sm:flex-row gap-5 items-start sm:items-center relative overflow-hidden opacity-75 hover:opacity-100 transition-opacity">
+    <div class="flex-grow pl-1">
+     <div class="flex items-center gap-3">
+      <span
+       class="inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">
+       Completed
+      </span>
+      <h3
+       class="text-lg font-bold text-slate-700 line-through decoration-slate-400">
+       {{ item.menu_item.name }}
+      </h3>
+      <span class="text-base font-medium text-slate-400"
+       >x{{ item.quantity }}</span
+      >
+     </div>
+     <div class="mt-1 text-sm text-slate-400 pl-1">
+      User: {{ item.user_name }}
+     </div>
+    </div>
+    <div class="flex-shrink-0">
+     <form
+      method="POST"
+      action="{% url 'kitchen:update_item_status' item.id %}">
+      {% csrf_token %}
+      <input type="hidden" name="date_str" value="{{ date_str }}" />
+      <button
+       type="submit"
+       class="text-sm font-bold text-slate-400 hover:text-indigo-600 flex items-center px-4 py-2 hover:bg-white rounded-lg transition-all">
+       <svg
+        class="w-4 h-4 mr-1.5"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24">
+        <path
+         stroke-linecap="round"
+         stroke-linejoin="round"
+         stroke-width="2"
+         d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+       </svg>
+       Undo
+      </button>
+     </form>
+    </div>
+   </li>
+   {% endfor %}
+  </ul>
+  {% else %}
+  <div class="py-16 text-center text-slate-400 font-medium">
+   No completed items yet today.
+  </div>
+  {% endif %}
  </div>
 </div>
 
-<!-- Alpine.js for Tabs (CDN if not present in base, but assuming valid script management) -->
+<!-- Alpine.js -->
 <script src="//unpkg.com/alpinejs" defer></script>
+<style>
+ @keyframes fadeInUp {
+  from {
+   opacity: 0;
+   transform: translateY(10px);
+  }
+  to {
+   opacity: 1;
+   transform: translateY(0);
+  }
+ }
+ .animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out forwards;
+ }
+</style>
+
 {% endblock %}

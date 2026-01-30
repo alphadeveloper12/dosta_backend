@@ -1,0 +1,223 @@
+{% extends 'kitchen/base.html' %} {% block content %}
+<div class="max-w-7xl mx-auto">
+ <!-- Header -->
+ <div
+  class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+  <div>
+   <h2
+    class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-900 to-emerald-700">
+    Catering Master Items
+   </h2>
+   <p class="text-slate-500 mt-1">
+    Unified catering menu items. Updates propagate to all service styles.
+   </p>
+  </div>
+
+  <!-- Search Form -->
+  <form method="GET" class="relative group">
+   <div
+    class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+    <svg
+     class="h-5 w-5 text-slate-400 group-focus-within:text-emerald-500 transition-colors"
+     fill="none"
+     stroke="currentColor"
+     viewBox="0 0 24 24">
+     <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+    </svg>
+   </div>
+   <input
+    type="text"
+    name="q"
+    value="{{ request.GET.q|default:'' }}"
+    class="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm shadow-sm transition-all hover:shadow-md"
+    placeholder="Search items..."
+    autocapitalize="off" />
+  </form>
+ </div>
+
+ <!-- Items Grid -->
+ <div
+  class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+  {% for item in items %}
+  <div
+   class="bg-white rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-all overflow-hidden group">
+   <!-- Image Area -->
+   <div class="h-48 bg-slate-100 relative overflow-hidden group">
+    {% if item.image %}
+    <img
+     src="{{ item.image.url }}"
+     alt="{{ item.name }}"
+     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+    {% else %}
+    <div class="w-full h-full flex items-center justify-center text-slate-300">
+     <svg
+      class="w-12 h-12"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24">
+      <path
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       stroke-width="2"
+       d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+     </svg>
+    </div>
+    {% endif %}
+
+    <!-- Quick Edit Overlay -->
+    <div
+     class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+     <button
+      onclick="openEditModal('{{ item.id }}', '{{ item.name|escapejs }}', '{{ item.description|escapejs }}')"
+      class="bg-white text-slate-900 px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-emerald-50 transition-colors">
+      Edit Item
+     </button>
+    </div>
+   </div>
+
+   <!-- Content -->
+   <div class="p-4">
+    <h3 class="font-bold text-slate-900 mb-1 truncate" title="{{ item.name }}">
+     {{ item.name }}
+    </h3>
+    <p class="text-xs text-slate-500 line-clamp-2 min-h-[2.5em]">
+     {{ item.description|default:"No description" }}
+    </p>
+
+    <div class="mt-4 flex items-center justify-between text-xs text-slate-400">
+     <span>Updated: {{ item.updated_at|date:"M d" }}</span>
+    </div>
+   </div>
+  </div>
+  {% endfor %}
+ </div>
+</div>
+
+<!-- Edit Modal -->
+<div
+ id="editModal"
+ class="fixed inset-0 z-50 hidden"
+ aria-labelledby="modal-title"
+ role="dialog"
+ aria-modal="true">
+ <div
+  class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity opacity-0"
+  id="modalBackdrop"></div>
+
+ <div class="fixed inset-0 z-10 overflow-y-auto">
+  <div
+   class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+   <div
+    class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+    id="modalPanel">
+    <form method="POST" enctype="multipart/form-data" class="p-6">
+     {% csrf_token %}
+     <input type="hidden" name="item_id" id="editItemId" />
+
+     <div class="mb-5">
+      <h3 class="text-xl font-bold text-slate-900" id="modal-title">
+       Edit Catering Master Item
+      </h3>
+      <p class="text-sm text-slate-500">
+       Changes will apply to ALL catering menus using this item.
+      </p>
+     </div>
+
+     <div class="space-y-4">
+      <div>
+       <label class="block text-sm font-medium text-slate-700 mb-1"
+        >Item Name</label
+       >
+       <input
+        type="text"
+        name="name"
+        id="editItemName"
+        required
+        class="w-full rounded-lg border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 shadow-sm" />
+      </div>
+
+      <div>
+       <label class="block text-sm font-medium text-slate-700 mb-1"
+        >Description</label
+       >
+       <textarea
+        name="description"
+        id="editItemDesc"
+        rows="3"
+        class="w-full rounded-lg border-slate-200 focus:border-emerald-500 focus:ring-emerald-500 shadow-sm"></textarea>
+      </div>
+
+      <div>
+       <label class="block text-sm font-medium text-slate-700 mb-1"
+        >Update Image</label
+       >
+       <input
+        type="file"
+        name="image"
+        accept="image/*"
+        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100" />
+      </div>
+     </div>
+
+     <div class="mt-8 flex justify-end gap-3">
+      <button
+       type="button"
+       onclick="closeEditModal()"
+       class="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50">
+       Cancel
+      </button>
+      <button
+       type="submit"
+       class="px-4 py-2 text-sm font-bold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-sm shadow-emerald-200">
+       Save Changes
+      </button>
+     </div>
+    </form>
+   </div>
+  </div>
+ </div>
+</div>
+
+<script>
+ const modal = document.getElementById("editModal");
+ const backdrop = document.getElementById("modalBackdrop");
+ const panel = document.getElementById("modalPanel");
+
+ function openEditModal(id, name, desc) {
+  document.getElementById("editItemId").value = id;
+  document.getElementById("editItemName").value = name;
+  document.getElementById("editItemDesc").value = desc || "";
+
+  modal.classList.remove("hidden");
+  // Animate in
+  requestAnimationFrame(() => {
+   backdrop.classList.remove("opacity-0");
+   panel.classList.remove(
+    "opacity-0",
+    "translate-y-4",
+    "sm:translate-y-0",
+    "sm:scale-95",
+   );
+  });
+ }
+
+ function closeEditModal() {
+  // Animate out
+  backdrop.classList.add("opacity-0");
+  panel.classList.add(
+   "opacity-0",
+   "translate-y-4",
+   "sm:translate-y-0",
+   "sm:scale-95",
+  );
+
+  setTimeout(() => {
+   modal.classList.add("hidden");
+  }, 300);
+ }
+</script>
+{% endblock %}
