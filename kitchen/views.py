@@ -817,3 +817,91 @@ class CateringMasterListView(LoginRequiredMixin, ListView):
                 messages.error(request, f"Error updating item: {e}")
         
         return redirect('kitchen:catering_master_list')
+
+# -----------------------------------------------------------
+# SYNC MASTER ITEMS (Maintenance Tools)
+# -----------------------------------------------------------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def sync_vending_master_items(request):
+    """
+    Iterates through all Vending MenuItems and saves them.
+    This triggers the 'pre_save' signal to link/create MasterItems.
+    """
+    from vending.models import MenuItem
+    
+    count = 0
+    items = MenuItem.objects.all()
+    for item in items:
+        # Just saving triggers the signal
+        item.save()
+        count += 1
+        
+    messages.success(request, f"Successfully synced {count} Vending items to Master list.")
+    return redirect('kitchen:vending_master_list')
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def sync_catering_master_items(request):
+    """
+    Iterates through all Catering Items (all types) and saves them.
+    This triggers the 'pre_save' signal to link/create CateringMasterItems.
+    """
+    from catering.models import (
+        MenuItem as CateringMenuItem,
+        CoffeeBreakItem,
+        PlatterItem,
+        BoxedMealItem,
+        LiveStationItem,
+        AmericanMenuItem,
+        CanapeItem
+    )
+    
+    total_count = 0
+    
+    # 1. Standard Menu Items
+    items = CateringMenuItem.objects.all()
+    for item in items:
+        item.save()
+        total_count += 1
+        
+    # 2. Coffee Break
+    items = CoffeeBreakItem.objects.all()
+    for item in items:
+        item.save()
+        total_count += 1
+
+    # 3. Platters
+    items = PlatterItem.objects.all()
+    for item in items:
+        item.save()
+        total_count += 1
+
+    # 4. Boxed Meals
+    items = BoxedMealItem.objects.all()
+    for item in items:
+        item.save()
+        total_count += 1
+
+    # 5. Live Stations
+    items = LiveStationItem.objects.all()
+    for item in items:
+        item.save()
+        total_count += 1
+
+    # 6. American Menu
+    items = AmericanMenuItem.objects.all()
+    for item in items:
+        item.save()
+        total_count += 1
+
+    # 7. Canapes
+    items = CanapeItem.objects.all()
+    for item in items:
+        item.save()
+        total_count += 1
+        
+    messages.success(request, f"Successfully synced {total_count} Catering items to Master list.")
+    return redirect('kitchen:catering_master_list')
