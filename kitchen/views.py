@@ -905,3 +905,17 @@ def sync_catering_master_items(request):
         
     messages.success(request, f"Successfully synced {total_count} Catering items to Master list.")
     return redirect('kitchen:catering_master_list')
+
+
+# -----------------------------------------------------------
+# AUTH / LOGOUT
+# -----------------------------------------------------------
+from django.contrib.auth import logout
+
+def kitchen_logout_view(request):
+    """
+    Logs out the user and redirects to the admin login page.
+    """
+    logout(request)
+    messages.info(request, "You have been logged out.")
+    return redirect('/admin/login/')

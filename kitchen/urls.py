@@ -27,4 +27,7 @@ urlpatterns = [
     path('master-items/vending/sync/', views.sync_vending_master_items, name='sync_vending_master'),
     path('master-items/catering/', views.CateringMasterListView.as_view(), name='catering_master_list'),
     path('master-items/catering/sync/', views.sync_catering_master_items, name='sync_catering_master'),
+    
+    # Logout
+    path('logout/', views.kitchen_logout_view, name='logout'),
 ]
