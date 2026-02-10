@@ -1144,12 +1144,18 @@ class ExternalProductionPickView(APIView):
             pick_payload['lock'] = 1
             pick_payload['timeOut'] = 24
             
-            # Add heating parameters if requested
+            # Add heating parameters if requested and calculate total goodsNumber
+            total_quantity = 0
             if 'goodsList' in pick_payload:
                 for item in pick_payload['goodsList']:
+                    qty = item.get('goodsNumber', 1)
+                    total_quantity += qty
+                    
                     if item.get('heating_requested') is True or item.get('heatingChoice') == 'yes':
                         item['serviceType'] = 1
                         item['serviceVal'] = "15"
+            
+            pick_payload['goodsNumber'] = total_quantity
             
             
             # --- CLEAR API LOGGING ---
