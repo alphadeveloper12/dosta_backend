@@ -1058,8 +1058,16 @@ class ExternalMachineGoodsView(APIView):
                 slots = api_data.get("data") or []
                 shelves = {}
                 
+                # Diagnostic: Count total slots per product to help debug discrepancies
+                product_slot_counts = {}
+                for slot in slots:
+                    g = slot.get("commGoodsResp")
+                    if g:
+                        u = str(g.get("uuid"))
+                        product_slot_counts[u] = product_slot_counts.get(u, 0) + 1
+                print(f"DEBUG: Product occurrences in catalog: {product_slot_counts}")
+                
                 # Sort slots by shelf and spot number to ensure consistent locking order
-                # (Assuming modityTierSeq is shelf level and modityTierNum or arrivalName is spot level)
                 sorted_slots = sorted(slots, key=lambda x: (x.get("modityTierSeq", 0), x.get("modityTierNum", 0)))
                 
                 for slot in sorted_slots:
@@ -1082,9 +1090,12 @@ class ExternalMachineGoodsView(APIView):
                         
                         # Apply sequential locking
                         is_slot_locked = False
-                        if lock_counts.get(uuid_str, 0) > 0:
+                        budget = lock_counts.get(uuid_str, 0)
+                        if budget > 0:
                             is_slot_locked = True
                             lock_counts[uuid_str] -= 1
+                        
+                        print(f"DEBUG: Slot Processing - UUID: {uuid_str}, Spot: {slot.get('arrivalName')}, Budget Remaining: {lock_counts.get(uuid_str, 0)}, Locked: {is_slot_locked}")
                             
                         slot_data["goods"] = {
                             "uuid": uuid_str,
@@ -1100,11 +1111,13 @@ class ExternalMachineGoodsView(APIView):
                         
                     shelves[shelf_index].append(slot_data)
                 
-                # Sort shelves by index
+                # Assemble unique goods for the 'goodsList' / catalog
                 sorted_shelves = []
                 unique_goods = {}
+                # Track if a product has ANY unlocked slots
+                has_unlocked_slot = {}
+                
                 for idx in sorted(shelves.keys()):
-                    # Sort spots within shelf by modityTierNum
                     spots = sorted(shelves[idx], key=lambda x: x.get("modityTierNum", 0))
                     sorted_shelves.append({
                         "shelfIndex": idx,
@@ -1114,9 +1127,17 @@ class ExternalMachineGoodsView(APIView):
                     
                     for spot in spots:
                         if spot["goods"]:
-                            uuid = spot["goods"]["uuid"]
-                            if uuid not in unique_goods:
-                                unique_goods[uuid] = spot["goods"]
+                            u = spot["goods"]["uuid"]
+                            if u not in unique_goods:
+                                unique_goods[u] = spot["goods"].copy()
+                                has_unlocked_slot[u] = not spot["goods"]["locked"]
+                            else:
+                                if not spot["goods"]["locked"]:
+                                    has_unlocked_slot[u] = True
+                
+                # Apply the catalog-level lock status: Locked only if NO slots are unlocked
+                for u, item in unique_goods.items():
+                    item["locked"] = not has_unlocked_slot.get(u, False)
                 
                 transformed_data = {
                     "result": "200",
