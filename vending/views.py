@@ -1033,6 +1033,7 @@ class ExternalMachineGoodsView(APIView):
                 stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
                 stock_res = requests.get(stock_url, params={"machineUuid": params.get("machineUuid")}, headers=headers, timeout=30)
                 stock_data = stock_res.json()
+                print(f"DEBUG: Stock response data: {stock_data}")
                 if stock_data.get("result") == "200" and stock_data.get("data"):
                     # The stock API returns a list of items. 
                     # We need to identify which ones are locked.
