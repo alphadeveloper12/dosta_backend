@@ -1040,8 +1040,10 @@ class ExternalMachineGoodsView(APIView):
                     # Assuming 'lock' or 'isLocked' field exists, or based on some other logic.
                     # Based on User request: "if any gooduuid is locked in this api response add parameter locked for that particular good"
                     for stock_item in stock_data["data"]:
-                        # Typically lock is 1 if locked, 0 if not.
-                        if stock_item.get("lock") == 1 or stock_item.get("locked") is True:
+                        # Check lockInventory: if items are locked, add to locked_uuids
+                        # Based on your log: 'lockInventory': 2, 'availableInventory': 0
+                        lock_inventory = stock_item.get("lockInventory") or 0
+                        if lock_inventory > 0:
                             locked_uuids.append(str(stock_item.get("goodsUuid")))
                 print(f"DEBUG: Locked UUIDs identified: {locked_uuids}")
             except Exception as stock_err:
