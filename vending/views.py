@@ -1141,6 +1141,8 @@ class ExternalProductionPickView(APIView):
             # Create a copy of the request data and inject/override the orderTime
             pick_payload = request.data.copy()
             pick_payload['orderTime'] = order_time_str
+            pick_payload['lock'] = 1
+            pick_payload['timeOut'] = 24
             
             # Add heating parameters if requested
             if 'goodsList' in pick_payload:
