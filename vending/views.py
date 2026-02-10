@@ -1028,31 +1028,28 @@ class ExternalMachineGoodsView(APIView):
             api_data = response.json()
             
             # 3. Fetch Stock / Lock Information
-            locked_uuids = []
+            lock_counts = {}
             try:
                 stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
                 stock_res = requests.get(stock_url, params={"machineUuid": params.get("machineUuid")}, headers=headers, timeout=30)
                 stock_data = stock_res.json()
                 print(f"DEBUG: Stock response data: {stock_data}")
                 if stock_data.get("result") == "200" and stock_data.get("data"):
-                    # The stock API returns a list of items. 
-                    # We need to identify which ones are locked.
-                    # Assuming 'lock' or 'isLocked' field exists, or based on some other logic.
-                    # Based on User request: "if any gooduuid is locked in this api response add parameter locked for that particular good"
                     for stock_item in stock_data["data"]:
-                        g_uuid = stock_item.get("goodsUuid")
+                        g_uuid = str(stock_item.get("goodsUuid"))
                         inv = stock_item.get("inventory") or 0
                         avail = stock_item.get("availableInventory") or 0
                         lock = stock_item.get("lockInventory") or 0
                         
-                        # Logic: Mark as locked if lockInventory > 0 OR if there's stock but none available
-                        is_locked = (lock > 0) or (inv > 0 and avail == 0)
+                        # Logic: Number of items to lock
+                        # Either explicitly locked, or the part of inventory that isn't available
+                        count_to_lock = max(lock, inv - avail)
                         
-                        print(f"DEBUG: Stock Check - UUID: {g_uuid}, Inv: {inv}, Avail: {avail}, Lock: {lock} -> Locked: {is_locked}")
-                        
-                        if is_locked:
-                            locked_uuids.append(str(g_uuid))
-                print(f"DEBUG: Final List of Locked UUIDs: {locked_uuids}")
+                        if count_to_lock > 0:
+                            lock_counts[g_uuid] = count_to_lock
+                            
+                        print(f"DEBUG: Stock Check - UUID: {g_uuid}, Inv: {inv}, Avail: {avail}, Lock: {lock} -> Count to Lock: {count_to_lock}")
+                print(f"DEBUG: Final Lock Counts: {lock_counts}")
             except Exception as stock_err:
                 print(f"DEBUG: Could not fetch stock info: {stock_err}")
 
@@ -1061,7 +1058,11 @@ class ExternalMachineGoodsView(APIView):
                 slots = api_data.get("data") or []
                 shelves = {}
                 
-                for slot in slots:
+                # Sort slots by shelf and spot number to ensure consistent locking order
+                # (Assuming modityTierSeq is shelf level and modityTierNum or arrivalName is spot level)
+                sorted_slots = sorted(slots, key=lambda x: (x.get("modityTierSeq", 0), x.get("modityTierNum", 0)))
+                
+                for slot in sorted_slots:
                     goods = slot.get("commGoodsResp")
                     shelf_index = slot.get("modityTierSeq", 0)
                     
@@ -1078,6 +1079,13 @@ class ExternalMachineGoodsView(APIView):
                     
                     if goods:
                         uuid_str = str(goods.get("uuid"))
+                        
+                        # Apply sequential locking
+                        is_slot_locked = False
+                        if lock_counts.get(uuid_str, 0) > 0:
+                            is_slot_locked = True
+                            lock_counts[uuid_str] -= 1
+                            
                         slot_data["goods"] = {
                             "uuid": uuid_str,
                             "goodsName": goods.get("goodsName"),
@@ -1085,7 +1093,7 @@ class ExternalMachineGoodsView(APIView):
                             "goodsUrl": goods.get("goodsUrl"),
                             "goodsCode": goods.get("goodsCode"),
                             "goodsDesc": goods.get("goodsDesc"),
-                            "locked": uuid_str in locked_uuids
+                            "locked": is_slot_locked
                         }
                     else:
                         slot_data["goods"] = None
