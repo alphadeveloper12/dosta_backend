@@ -1027,8 +1027,26 @@ class ExternalMachineGoodsView(APIView):
             response = requests.get(goods_url, params=params, headers=headers, timeout=30)
             api_data = response.json()
             
+            # 3. Fetch Stock / Lock Information
+            locked_uuids = []
+            try:
+                stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
+                stock_res = requests.get(stock_url, params={"machineUuid": params.get("machineUuid")}, headers=headers, timeout=30)
+                stock_data = stock_res.json()
+                if stock_data.get("result") == "200" and stock_data.get("data"):
+                    # The stock API returns a list of items. 
+                    # We need to identify which ones are locked.
+                    # Assuming 'lock' or 'isLocked' field exists, or based on some other logic.
+                    # Based on User request: "if any gooduuid is locked in this api response add parameter locked for that particular good"
+                    for stock_item in stock_data["data"]:
+                        # Typically lock is 1 if locked, 0 if not.
+                        if stock_item.get("lock") == 1 or stock_item.get("locked") is True:
+                            locked_uuids.append(str(stock_item.get("goodsUuid")))
+                print(f"DEBUG: Locked UUIDs identified: {locked_uuids}")
+            except Exception as stock_err:
+                print(f"DEBUG: Could not fetch stock info: {stock_err}")
+
             # Transform the response to match the structure the frontend expects
-            # (Grouped by shelf/tier, including all slots)
             if api_data.get("result") == "200" and "data" in api_data:
                 slots = api_data.get("data") or []
                 shelves = {}
@@ -1049,13 +1067,15 @@ class ExternalMachineGoodsView(APIView):
                     }
                     
                     if goods:
+                        uuid_str = str(goods.get("uuid"))
                         slot_data["goods"] = {
-                            "uuid": str(goods.get("uuid")),
+                            "uuid": uuid_str,
                             "goodsName": goods.get("goodsName"),
                             "goodsPrice": goods.get("goodsPrice"),
                             "goodsUrl": goods.get("goodsUrl"),
                             "goodsCode": goods.get("goodsCode"),
                             "goodsDesc": goods.get("goodsDesc"),
+                            "locked": uuid_str in locked_uuids
                         }
                     else:
                         slot_data["goods"] = None
