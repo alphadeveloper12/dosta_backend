@@ -52,6 +52,14 @@ class ServiceStylePrivateListView(APIView):
         serializer = ServiceStylePrivateSerializer(service_styles, many=True)
         return Response(serializer.data)
     
+class ServiceStylePrivateChefListView(APIView):
+    permission_classes = [IsAuthenticated]  # ✅ Only authenticated users can access
+
+    def get(self, request):
+        service_styles = ServiceStylePrivateChef.objects.all()
+        serializer = ServiceStylePrivateChefSerializer(service_styles, many=True)
+        return Response(serializer.data)
+    
 class CuisineListView(APIView):
     permission_classes = [IsAuthenticated]  # Only authenticated users can access this endpoint
 
@@ -64,11 +72,14 @@ class CuisineListView(APIView):
         if service_style_id:
             try:
                 service_style_id = int(service_style_id)
-                # Check if it's a corporate event or private event to decide which model to filter
+                # Check event type to decide which service style model to filter by
                 if 'corporate' in event_type:
                     cuisines = cuisines.filter(service_styles__id=service_style_id)
+                elif 'private chef' in event_type or 'private_chef' in event_type:
+                    cuisines = cuisines.filter(service_styles_private_chef__id=service_style_id)
                 else: 
-                     cuisines = cuisines.filter(service_styles_private__id=service_style_id)
+                    # Private event (not chef)
+                    cuisines = cuisines.filter(service_styles_private__id=service_style_id)
             except ValueError:
                 pass
 
@@ -161,11 +172,15 @@ class PaxListView(APIView):
         pax_options = Pax.objects.all()
         service_style_id = request.query_params.get('service_style_id')
         is_private = request.query_params.get('is_private', 'false').lower() == 'true'
+        is_private_chef = request.query_params.get('is_private_chef', 'false').lower() == 'true'
         
         if service_style_id:
             try:
                 service_style_id = int(service_style_id)
-                if is_private:
+                if is_private_chef:
+                     # Filter by private chef service style M2M
+                     pax_options = pax_options.filter(service_styles_private_chef__id=service_style_id)
+                elif is_private:
                      # Filter by private service style M2M
                      pax_options = pax_options.filter(service_styles_private__id=service_style_id)
                 else:
@@ -177,6 +192,7 @@ class PaxListView(APIView):
         serializer = PaxSerializer(pax_options, many=True)
         return Response(serializer.data)
     
+    
 class BudgetOptionListView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -185,10 +201,14 @@ class BudgetOptionListView(APIView):
         
         service_style_id = request.query_params.get('service_style_id')
         is_private = request.query_params.get('is_private', 'false').lower() == 'true'
+        is_private_chef = request.query_params.get('is_private_chef', 'false').lower() == 'true'
 
         if service_style_id:
             try:
-                if is_private:
+                if is_private_chef:
+                    style = ServiceStylePrivateChef.objects.get(id=service_style_id)
+                    budget_options = budget_options.filter(service_styles_private_chef__id=service_style_id)
+                elif is_private:
                     style = ServiceStylePrivate.objects.get(id=service_style_id)
                     budget_options = budget_options.filter(service_styles_private__id=service_style_id)
                 else:
@@ -203,7 +223,7 @@ class BudgetOptionListView(APIView):
                     if not cuisine_ids:
                          budget_options = budget_options.none()
 
-            except (ValueError, ServiceStyle.DoesNotExist, ServiceStylePrivate.DoesNotExist):
+            except (ValueError, ServiceStyle.DoesNotExist, ServiceStylePrivate.DoesNotExist, ServiceStylePrivateChef.DoesNotExist):
                 # FAIL SAFE: If service style ID is invalid or lookup fails, return NONE instead of ALL.
                 budget_options = budget_options.none()
         

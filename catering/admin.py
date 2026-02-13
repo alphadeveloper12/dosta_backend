@@ -1,6 +1,6 @@
 from django.contrib import admin
 from .models import (
-    EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, Cuisine,
+    EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, ServiceStylePrivateChef, Cuisine,
     Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
     CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem,
     FixedCateringMenu, AmericanMenu, AmericanMenuItem
@@ -78,6 +78,12 @@ class ServiceStylePrivateAdmin(admin.ModelAdmin):
     filter_horizontal = ('cuisines', 'budget_options')
 safe_register(ServiceStylePrivate, ServiceStylePrivateAdmin)
 
+class ServiceStylePrivateChefAdmin(admin.ModelAdmin):
+    list_display = ('name', 'min_pax', 'description')
+    search_fields = ('name', 'description')
+    filter_horizontal = ('cuisines', 'budget_options')
+safe_register(ServiceStylePrivateChef, ServiceStylePrivateChefAdmin)
+
 @admin.register(Cuisine)
 class CuisineAdmin(admin.ModelAdmin):
     list_display = ('name',)
@@ -109,7 +115,7 @@ class BudgetOptionAdmin(admin.ModelAdmin):
 class PaxAdmin(admin.ModelAdmin):
     list_display = ('label', 'number')
     search_fields = ('label', 'number')
-    filter_horizontal = ('service_styles', 'service_styles_private')
+    filter_horizontal = ('service_styles', 'service_styles_private', 'service_styles_private_chef')
     list_filter = ('service_styles',)
 
 @admin.register(CateringPlan)

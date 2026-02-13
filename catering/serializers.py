@@ -46,6 +46,11 @@ class ServiceStylePrivateSerializer(serializers.ModelSerializer):
         model = ServiceStylePrivate
         fields = ['id', 'name', 'min_pax']
 
+class ServiceStylePrivateChefSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ServiceStylePrivateChef
+        fields = ['id', 'name', 'description', 'min_pax']
+
 class CuisineSerializer(serializers.ModelSerializer):
     # Use SerializerMethodField to create the dynamic image URL
     image_url = serializers.SerializerMethodField()

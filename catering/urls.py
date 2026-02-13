@@ -7,6 +7,7 @@ urlpatterns = [
     path('event-names/', EventNameListView.as_view(), name='event-name-list'),
     path('service-styles/', ServiceStyleListView.as_view(), name='service-style-list'),
     path('service-styles-private/', ServiceStylePrivateListView.as_view(), name='service-style-private-list'),
+    path('service-styles-private-chef/', ServiceStylePrivateChefListView.as_view(), name='service-style-private-chef-list'),
     path('cuisines/', CuisineListView.as_view(), name='cuisine-list'),
     path('courses/', CourseListView.as_view(), name='course-list'),
     path('menu-items/', MenuItemListView.as_view(), name='menu-item-list'),
