@@ -395,3 +395,70 @@ def get_active_catering_orders(request):
         })
         
     return JsonResponse({'orders': data})
+
+
+# ========== RAMADAN MENU API ==========
+
+class RamadanMenuListView(APIView):
+    """
+    List all Ramadan menus with optional filtering by service_style and budget_option.
+    Query params:
+        - service_style_id: Filter by service style (e.g., Iftar Menu, Sohour Menu)
+        - budget_option_id: Filter by budget option
+        - is_active: Filter by active status (default: true)
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request):
+        menus = RamadanMenu.objects.all().prefetch_related(
+            'menu_courses__course',
+            'menu_courses__items__master_item'
+        )
+        
+        # Filter by service style
+        service_style_id = request.query_params.get('service_style_id')
+        if service_style_id:
+            try:
+                menus = menus.filter(service_style__id=int(service_style_id))
+            except ValueError:
+                pass
+        
+        # Filter by budget option
+        budget_option_id = request.query_params.get('budget_option_id')
+        if budget_option_id:
+            try:
+                menus = menus.filter(budget_option__id=int(budget_option_id))
+            except ValueError:
+                pass
+        
+        # Filter by active status (default: only active menus)
+        is_active = request.query_params.get('is_active', 'true').lower()
+        if is_active == 'true':
+            menus = menus.filter(is_active=True)
+        elif is_active == 'false':
+            menus = menus.filter(is_active=False)
+        
+        serializer = RamadanMenuListSerializer(menus, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+class RamadanMenuDetailView(APIView):
+    """
+    Get detailed information about a specific Ramadan menu including all courses and items.
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, menu_id):
+        try:
+            menu = RamadanMenu.objects.prefetch_related(
+                'menu_courses__course',
+                'menu_courses__items__master_item'
+            ).get(id=menu_id)
+            
+            serializer = RamadanMenuSerializer(menu, context={'request': request})
+            return Response(serializer.data)
+        except RamadanMenu.DoesNotExist:
+            return Response(
+                {'error': 'Menu not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )

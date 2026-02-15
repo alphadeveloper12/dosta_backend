@@ -3,7 +3,7 @@ from .models import (
     EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, ServiceStylePrivateChef, Cuisine,
     Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
     CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem,
-    FixedCateringMenu, AmericanMenu, AmericanMenuItem
+    FixedCateringMenu, AmericanMenu, AmericanMenuItem, RamadanMenu, RamadanMenuCourse, RamadanMenuItem
 )
 
 # Helper to safely register/unregister
@@ -213,3 +213,65 @@ class MenuItemAdmin(admin.ModelAdmin):
     search_fields = ('name', 'master_item__name')
     filter_horizontal = ('budget_options',)
     autocomplete_fields = ['master_item']
+
+# ========== RAMADAN MENU ADMIN ==========
+
+class RamadanMenuItemInline(admin.TabularInline):
+    model = RamadanMenuItem
+    extra = 1
+    autocomplete_fields = ['master_item']
+    fields = ('master_item', 'name', 'quantity', 'display_order')
+    readonly_fields = ('name',)
+
+class RamadanMenuCourseInline(admin.TabularInline):
+    model = RamadanMenuCourse
+    extra = 1
+    fields = ('course', 'display_order')
+    show_change_link = True
+
+@admin.register(RamadanMenu)
+class RamadanMenuAdmin(admin.ModelAdmin):
+    list_display = ('name', 'service_style', 'budget_option', 'is_active', 'created_at')
+    list_filter = ('service_style', 'budget_option', 'is_active')
+    search_fields = ('name', 'description')
+    inlines = [RamadanMenuCourseInline]
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        ('Menu Information', {
+            'fields': ('name', 'description', 'is_active')
+        }),
+        ('Service Configuration', {
+            'fields': ('service_style', 'budget_option')
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+@admin.register(RamadanMenuCourse)
+class RamadanMenuCourseAdmin(admin.ModelAdmin):
+    list_display = ('menu', 'course', 'display_order')
+    list_filter = ('menu__service_style', 'course')
+    search_fields = ('menu__name', 'course__name')
+    inlines = [RamadanMenuItemInline]
+    fields = ('menu', 'course', 'display_order')
+
+@admin.register(RamadanMenuItem)
+class RamadanMenuItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'master_item', 'get_menu', 'get_course', 'quantity', 'display_order')
+    list_filter = ('menu_course__menu__service_style', 'menu_course__course')
+    search_fields = ('name', 'master_item__name', 'menu_course__menu__name')
+    autocomplete_fields = ['master_item']
+    readonly_fields = ('name', 'description', 'image')
+    
+    def get_menu(self, obj):
+        return obj.menu_course.menu.name
+    get_menu.short_description = 'Menu'
+    get_menu.admin_order_field = 'menu_course__menu__name'
+    
+    def get_course(self, obj):
+        return obj.menu_course.course.name
+    get_course.short_description = 'Course'
+    get_course.admin_order_field = 'menu_course__course__name'
+

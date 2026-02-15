@@ -272,6 +272,100 @@ class CanapeItem(models.Model):
     def __str__(self):
         return self.name
 
+# ========== RAMADAN MENU SYSTEM (Iftar & Sohour) ==========
+
+class RamadanMenu(models.Model):
+    """
+    Dynamic menu for Ramadan service styles (Iftar Menu, Sohour Menu).
+    Each menu is linked to a specific service style and budget option.
+    Multiple menus can exist for the same service style/budget combination.
+    """
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True)
+    service_style = models.ForeignKey(
+        ServiceStyle, 
+        on_delete=models.CASCADE, 
+        related_name='ramadan_menus',
+        help_text="Select Iftar Menu or Sohour Menu"
+    )
+    budget_option = models.ForeignKey(
+        BudgetOption, 
+        on_delete=models.CASCADE, 
+        related_name='ramadan_menus'
+    )
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['service_style', 'budget_option', 'name']
+        verbose_name = 'Ramadan Menu'
+        verbose_name_plural = 'Ramadan Menus'
+    
+    def __str__(self):
+        return f"{self.name} - {self.service_style.name} ({self.budget_option.label})"
+
+
+class RamadanMenuCourse(models.Model):
+    """
+    Junction table linking a RamadanMenu to Courses.
+    Allows ordering of courses within a menu.
+    """
+    menu = models.ForeignKey(
+        RamadanMenu, 
+        on_delete=models.CASCADE, 
+        related_name='menu_courses'
+    )
+    course = models.ForeignKey(
+        Course, 
+        on_delete=models.CASCADE, 
+        related_name='ramadan_menu_courses'
+    )
+    display_order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ['menu', 'display_order', 'course']
+        unique_together = ['menu', 'course']
+        verbose_name = 'Ramadan Menu Course'
+        verbose_name_plural = 'Ramadan Menu Courses'
+    
+    def __str__(self):
+        return f"{self.menu.name} - {self.course.name}"
+
+
+class RamadanMenuItem(models.Model):
+    """
+    Links catering master items to courses within a Ramadan menu.
+    Allows multiple items per course with ordering.
+    """
+    menu_course = models.ForeignKey(
+        RamadanMenuCourse, 
+        on_delete=models.CASCADE, 
+        related_name='items'
+    )
+    master_item = models.ForeignKey(
+        CateringMasterItem, 
+        on_delete=models.PROTECT, 
+        related_name='ramadan_menu_items'
+    )
+    name = models.CharField(max_length=200)  # Synced from master_item
+    description = models.TextField(blank=True, null=True)  # Synced from master_item
+    image = models.FileField(upload_to='ramadan_menu_items/', blank=True, null=True)  # Synced from master_item
+    quantity = models.PositiveIntegerField(
+        default=1,
+        help_text="Number of servings or pieces"
+    )
+    display_order = models.PositiveIntegerField(default=0)
+    
+    class Meta:
+        ordering = ['menu_course', 'display_order', 'name']
+        verbose_name = 'Ramadan Menu Item'
+        verbose_name_plural = 'Ramadan Menu Items'
+    
+    def __str__(self):
+        return f"{self.name} ({self.menu_course.menu.name})"
+
+
 # ========== ORDER SYSTEM ==========
 
 class CateringOrderStatus(models.TextChoices):
@@ -357,6 +451,8 @@ def propagate_catering_master_changes(sender, instance, created, **kwargs):
     update_children(instance.live_station_items.all())
     update_children(instance.american_items.all())
     update_children(instance.canape_items.all())
+    update_children(instance.ramadan_menu_items.all())
+
 
 # 2. Link/Create MASTER when CHILD is saved
 # We need a generic handler or one for each model. One for each is safer/clearer.
@@ -407,3 +503,7 @@ def link_american_item(sender, instance, **kwargs): generic_link_catering_master
 
 @receiver(pre_save, sender=CanapeItem)
 def link_canape_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+
+@receiver(pre_save, sender=RamadanMenuItem)
+def link_ramadan_menu_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+

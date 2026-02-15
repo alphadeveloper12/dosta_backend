@@ -25,4 +25,8 @@ urlpatterns = [
     path('orders/create/', CreateCateringOrderView.as_view(), name='create-catering-order'),
     # path('kitchen/dashboard/', CateringKitchenDashboardView.as_view(), name='catering-kitchen-dashboard'), # Moved to kitchen app
     path('kitchen/active-orders/', get_active_catering_orders, name='active-catering-orders-api'),
+    # Ramadan Menus (Iftar & Sohour)
+    path('ramadan-menus/', RamadanMenuListView.as_view(), name='ramadan-menu-list'),
+    path('ramadan-menus/<int:menu_id>/', RamadanMenuDetailView.as_view(), name='ramadan-menu-detail'),
 ]
+
