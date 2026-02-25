@@ -336,4 +336,23 @@ class RamadanMenuListSerializer(serializers.ModelSerializer):
     def get_courses_count(self, obj):
         return obj.menu_courses.count()
 
+# ========== IFTAR BOX MENU SERIALIZERS ==========
+
+class IftarBoxMenuSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    budget_option = BudgetOptionSerializer(read_only=True)
+
+    class Meta:
+        model = IftarBoxMenu
+        fields = ['id', 'name', 'budget_option', 'image_url']
+
+    def get_image_url(self, obj):
+        if obj.image:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.image.url)
+            return obj.image.url
+        return None
+
+
 

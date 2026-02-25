@@ -3,7 +3,8 @@ from .models import (
     EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, ServiceStylePrivateChef, Cuisine,
     Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
     CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem,
-    FixedCateringMenu, AmericanMenu, AmericanMenuItem, RamadanMenu, RamadanMenuCourse, RamadanMenuItem
+    FixedCateringMenu, AmericanMenu, AmericanMenuItem, RamadanMenu, RamadanMenuCourse, RamadanMenuItem,
+    IftarBoxMenu
 )
 
 # Helper to safely register/unregister
@@ -274,4 +275,13 @@ class RamadanMenuItemAdmin(admin.ModelAdmin):
         return obj.menu_course.course.name
     get_course.short_description = 'Course'
     get_course.admin_order_field = 'menu_course__course__name'
+
+# ========== IFTAR BOX MENU ADMIN ==========
+
+@admin.register(IftarBoxMenu)
+class IftarBoxMenuAdmin(admin.ModelAdmin):
+    list_display = ('name', 'budget_option', 'is_active', 'created_at')
+    list_filter = ('budget_option', 'is_active')
+    search_fields = ('name',)
+    readonly_fields = ('created_at', 'updated_at')
 

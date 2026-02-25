@@ -28,5 +28,8 @@ urlpatterns = [
     # Ramadan Menus (Iftar & Sohour)
     path('ramadan-menus/', RamadanMenuListView.as_view(), name='ramadan-menu-list'),
     path('ramadan-menus/<int:menu_id>/', RamadanMenuDetailView.as_view(), name='ramadan-menu-detail'),
+    # Iftar Box Menus
+    path('iftar-box-menus/', IftarBoxMenuListView.as_view(), name='iftar-box-menu-list'),
+
 ]
 

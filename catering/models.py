@@ -507,3 +507,28 @@ def link_canape_item(sender, instance, **kwargs): generic_link_catering_master(i
 @receiver(pre_save, sender=RamadanMenuItem)
 def link_ramadan_menu_item(sender, instance, **kwargs): generic_link_catering_master(instance)
 
+# ========== IFTAR BOXES MENU SYSTEM ==========
+
+class IftarBoxMenu(models.Model):
+    """
+    Menu for Iftar Boxes service style.
+    Each menu is linked to a budget option and specifies an image only.
+    """
+    name = models.CharField(max_length=200, blank=True, null=True, help_text="Optional name for this Iftar Box Menu")
+    budget_option = models.ForeignKey(
+        BudgetOption, 
+        on_delete=models.CASCADE, 
+        related_name='iftar_box_menus'
+    )
+    image = models.FileField(upload_to='iftar_box_menus/', help_text="Upload the image containing the Iftar Box Menu")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['budget_option', 'name']
+        verbose_name = 'Iftar Box Menu'
+        verbose_name_plural = 'Iftar Box Menus'
+    
+    def __str__(self):
+        return f"{self.name or 'Iftar Box Menu'} - {self.budget_option.label}"

@@ -7,6 +7,8 @@ from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.contrib.auth.decorators import login_required, user_passes_test
 from .models import *
 from .serializers import *
+from .serializers import IftarBoxMenuSerializer
+
 
 def is_catering_staff(user):
     return user.is_authenticated and (user.is_staff or user.is_superuser)
@@ -462,3 +464,34 @@ class RamadanMenuDetailView(APIView):
                 {'error': 'Menu not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
+
+# ========== IFTAR BOX MENU API ==========
+
+class IftarBoxMenuListView(APIView):
+    """
+    List Iftar Box Menus with optional filtering by budget_option.
+    Query params:
+        - budget_option_id: Filter by budget option
+        - is_active: Filter by active status (default: true)
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        menus = IftarBoxMenu.objects.all()
+
+        budget_option_id = request.query_params.get('budget_option_id')
+        if budget_option_id:
+            try:
+                menus = menus.filter(budget_option__id=int(budget_option_id))
+            except ValueError:
+                pass
+
+        is_active = request.query_params.get('is_active', 'true').lower()
+        if is_active == 'true':
+            menus = menus.filter(is_active=True)
+        elif is_active == 'false':
+            menus = menus.filter(is_active=False)
+
+        serializer = IftarBoxMenuSerializer(menus, many=True, context={'request': request})
+        return Response(serializer.data)
+
