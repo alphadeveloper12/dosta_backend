@@ -10,3 +10,4 @@ openpyxl
 django-allauth
 dj-rest-auth
 cryptography
+openai
