@@ -11,8 +11,14 @@ from django.contrib import messages
 def is_kitchen_admin(user):
     return user.is_authenticated and (user.is_staff or user.is_superuser)
 
+import os
+import requests
+import csv
+import io
 from django.utils import timezone
 from vending.models import Order, OrderStatus, OrderItem, PlanType, PlanSubType
+from ai_agents.models import AgentActivity, AgentInteractionLog
+from django.http import JsonResponse
 
 class DashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Order
@@ -919,3 +925,131 @@ def kitchen_logout_view(request):
     logout(request)
     messages.info(request, "You have been logged out.")
     return redirect('/admin/login/')
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def agent_dashboard_api(request):
+    """
+    JSON API for the Agent Dashboard.
+    """
+    from ai_agents.models import CustomerInquiry, CustomerServiceTicket, AgentActivity, AgentInteractionLog, WhatsAppDevice
+    
+    # Fetch real inquiries from DB (Sales Agent)
+    recent_inquiries = CustomerInquiry.objects.all().order_by('-timestamp')[:50]
+    inquiries = [{
+        "Name": inquiry.name,
+        "Email": inquiry.email,
+        "Phone": inquiry.phone,
+        "Preference": inquiry.preference,
+        "Date": inquiry.event_date,
+        "Time": inquiry.event_time,
+        "Number of People": inquiry.people_count,
+        "Venue": inquiry.venue,
+        "timestamp": inquiry.timestamp.strftime("%Y-%m-%d %H:%M")
+    } for inquiry in recent_inquiries]
+
+    # Fetch real tickets from DB (CS Agent)
+    recent_tickets = CustomerServiceTicket.objects.all().order_by('-timestamp')[:30]
+    tickets = [{
+        "phone": ticket.phone,
+        "subject": ticket.subject,
+        "message": ticket.message,
+        "status": ticket.status,
+        "timestamp": ticket.timestamp.strftime("%Y-%m-%d %H:%M")
+    } for ticket in recent_tickets]
+
+    # Define the base layout of agents
+    agent_defs = [
+        {"id": "sales", "name": "Sales Agent", "color": "blue"},
+        {"id": "customer_service", "name": "Customer Service", "color": "green"},
+        {"id": "lead_gen", "name": "Lead Generation", "color": "amber"},
+        {"id": "marketing", "name": "Marketing Agent", "color": "purple"},
+        {"id": "accounting", "name": "Accounting Assistant", "color": "slate"},
+    ]
+    
+    agents = []
+    for adef in agent_defs:
+        # Fetch real activity or use defaults if not yet active
+        activity = AgentActivity.objects.filter(agent_id=adef['id']).first()
+        agents.append({
+            "id": adef['id'],
+            "name": adef['name'],
+            "status": activity.status if activity else "Active",
+            "is_paused": activity.is_paused if activity else False,
+            "last_activity": activity.last_task if activity and activity.last_task else "Standing by...",
+            "color": adef['color'],
+            "updated_at": activity.updated_at.strftime("%H:%M") if activity else None
+        })
+        
+    # Fetch recent transcripts
+    recent_logs = AgentInteractionLog.objects.all()[:20]
+    transcripts = [{
+        "agent_id": log.agent_id,
+        "user_message": log.user_message,
+        "ai_response": log.ai_response,
+        "timestamp": log.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    } for log in recent_logs]
+
+    # Fetch recent scraped leads
+    from ai_agents.models import ScrapedLead
+    from django.db.models import Count
+    
+    # Calculate global stats for all leads in the database
+    lead_stats_query = ScrapedLead.objects.values('status').annotate(total=Count('status'))
+    lead_stats = {
+        'New': 0,
+        'Contacted': 0,
+        'Failed': 0
+    }
+    for item in lead_stats_query:
+        lead_stats[item['status']] = item['total']
+
+    recent_leads = ScrapedLead.objects.all().order_by('-date_scraped')[:150]
+    leads = [{
+        "company_name": lead.company_name,
+        "phone_number": lead.phone_number,
+        "status": lead.status,
+        "source": lead.source,
+        "date_scraped": lead.date_scraped.strftime("%Y-%m-%d %H:%M")
+    } for lead in recent_leads]
+
+    # Fetch WhatsApp Gateway status
+    device, _ = WhatsAppDevice.objects.get_or_create(id=1)
+    whatsapp_gateway = {
+        "status": device.status,
+        "phone_number": device.phone_number,
+        "qr_code": device.qr_code,
+        "updated_at": device.updated_at.strftime("%Y-%m-%d %H:%M") if device.updated_at else None
+    }
+
+    # Fetch Latest Marketing Report
+    from ai_agents.models import MarketingReport
+    latest_marketing_report = MarketingReport.objects.order_by('-created_at').first()
+    marketing_data = None
+    if latest_marketing_report:
+        marketing_data = {
+            "date": latest_marketing_report.date.strftime("%b %d, %Y"),
+            "meta_spend": str(latest_marketing_report.meta_spend),
+            "google_spend": str(latest_marketing_report.google_spend),
+            "ai_analysis": latest_marketing_report.ai_analysis_text
+        }
+
+    return JsonResponse({
+        'inquiries': inquiries,
+        'tickets': tickets,
+        'agents': agents,
+        'transcripts': transcripts,
+        'leads': leads,
+        'lead_stats': lead_stats,
+        'whatsapp_gateway': whatsapp_gateway,
+        'maton_configured': bool(os.getenv('MATON_API_KEY')),
+        'marketing_report': marketing_data,
+    })
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def agent_dashboard_view(request):
+    """
+    Shell view for the Agent Dashboard.
+    """
+    return render(request, 'kitchen/agent_dashboard.html')

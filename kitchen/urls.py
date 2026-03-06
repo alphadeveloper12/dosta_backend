@@ -17,6 +17,8 @@ urlpatterns = [
     path('vending-machine-items/', views.vending_machine_items_view, name='vending_machine_items'),
     path('update-vending-stock/', views.update_vending_stock, name='update_vending_stock'),
     path('daily-orders/', views.daily_orders_view, name='daily_orders'),
+    path('agents/', views.agent_dashboard_view, name='agent_dashboard'),
+    path('agents/api/', views.agent_dashboard_api, name='agent_dashboard_api'),
     
     # Catering Dashboard
     path('catering/', CateringKitchenDashboardView.as_view(), name='catering_dashboard'),
