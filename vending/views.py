@@ -296,6 +296,8 @@ class PlanTypeOptionsView(APIView):
     """
     Returns all plan types and next step indicator.
     """
+    permission_classes = [permissions.AllowAny]
+
     def get(self, request):
         data = {
             "options": [
@@ -315,6 +317,8 @@ class PickupOptionsView(APIView):
     """
     Returns pickup types and available time slots for a given location.
     """
+    permission_classes = [permissions.AllowAny]
+
     def get(self, request):
         location_id = request.query_params.get("location_id")
         if not location_id:
@@ -345,6 +349,8 @@ class MenuByTypeView(APIView):
     /api/menu/<plan_type>/?day=Monday
     For ORDER_NOW and SMART_GRAB → daily menus
     """
+    permission_classes = [permissions.AllowAny]
+
     def get(self, request, plan_type):
         day = request.query_params.get("day")
         qs = Menu.objects.all()
@@ -368,6 +374,8 @@ class PlanOptionsView(APIView):
     """
     Returns weekly/monthly subtypes for 'Start a Plan'
     """
+    permission_classes = [permissions.AllowAny]
+
     def get(self, request):
         return Response({
             "plan_subtypes": [
@@ -383,6 +391,8 @@ class PlanMenuView(APIView):
     /api/menu/plan/<subtype>/
     Fetches menu structure based on Weekly or Monthly plan.
     """
+    permission_classes = [permissions.AllowAny]
+
     def get(self, request, subtype):
         if subtype == "WEEKLY":
             week_data = {}
@@ -777,7 +787,7 @@ class KitchenOrderItemCompleteView(APIView):
     Triggered by kitchen manager when meal is put into machine.
     Calls External Vending API to get pickup code for this specific item.
     """
-    permission_classes = [permissions.AllowAny] # In production, restrict to Staff/Kitchen Admin
+    permission_classes = [permissions.IsAuthenticated] # Restricted to Staff/Kitchen Admin
 
     def post(self, request):
         order_item_id = request.data.get("order_item_id")
@@ -976,7 +986,7 @@ class ExternalCheckUserView(APIView):
     Proxies request to:
     http://www.hnzczy.cn:8087/apiusers/checkusername
     """
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         url = "http://www.hnzczy.cn:8087/apiusers/checkusername"
@@ -996,7 +1006,7 @@ class ExternalMachineGoodsView(APIView):
     Proxies request to:
     http://www.hnzczy.cn:8087/customgoods/querymachinegoods
     """
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         # 1. Fetch Token from External API
@@ -1165,7 +1175,7 @@ class ExternalProductionPickView(APIView):
     Proxies request to:
     http://www.hnzczy.cn:8087/commpick/productionpick
     """
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
         # 1. Fetch Token from External API
@@ -1361,7 +1371,7 @@ class ExternalUpdateCommodityView(APIView):
     Proxies request to:
     PUT http://www.hnzczy.cn:8087/commodityinfo/updatecommodityinfolist
     """
-    permission_classes = [permissions.AllowAny]
+    permission_classes = [permissions.IsAuthenticated]
 
     def put(self, request):
         # 1. Fetch Token from External API
