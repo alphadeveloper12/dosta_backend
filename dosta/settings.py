@@ -85,6 +85,8 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React or frontend dev server
     "http://127.0.0.1:3000",
+    "http://localhost:5173",  # Vite dev server
+    "http://127.0.0.1:5173",  # Vite dev server
     "http://127.0.0.1:5500",  # if using VS Code live server
     "http://192.168.100.58:8080",  # if using VS Code live server
     
