@@ -14,6 +14,7 @@ def is_catering_staff(user):
     return user.is_authenticated and (user.is_staff or user.is_superuser)
 
 class EventTypeListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]  # ✅ Only logged-in users can access
 
     def get(self, request):
@@ -23,6 +24,7 @@ class EventTypeListView(APIView):
 
 
 class ProviderTypeListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]  # ✅ Only logged-in users
 
     def get(self, request):
@@ -31,6 +33,7 @@ class ProviderTypeListView(APIView):
         return Response(serializer.data)
     
 class EventNameListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -39,6 +42,7 @@ class EventNameListView(APIView):
         return Response(serializer.data)
     
 class ServiceStyleListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]  # ✅ Only authenticated users can access
 
     def get(self, request):
@@ -55,6 +59,7 @@ class ServiceStylePrivateListView(APIView):
         return Response(serializer.data)
     
 class ServiceStylePrivateChefListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]  # ✅ Only authenticated users can access
 
     def get(self, request):
@@ -63,6 +68,7 @@ class ServiceStylePrivateChefListView(APIView):
         return Response(serializer.data)
     
 class CuisineListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]  # Only authenticated users can access this endpoint
 
     def get(self, request):
@@ -91,6 +97,7 @@ class CuisineListView(APIView):
         return Response(serializer.data)
     
 class CourseListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]  # Only authenticated users can access this endpoint
 
     def get(self, request):
@@ -118,6 +125,7 @@ class CourseListView(APIView):
         return Response(serializer.data)
 
 class MenuItemListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -160,6 +168,7 @@ class MenuItemListView(APIView):
         return Response(serializer.data)
 
 class LocationListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]  # Ensure only authenticated users can access the API
 
     def get(self, request):
@@ -168,6 +177,7 @@ class LocationListView(APIView):
         return Response(serializer.data)
 
 class PaxListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -196,6 +206,7 @@ class PaxListView(APIView):
     
     
 class BudgetOptionListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -244,6 +255,7 @@ class BudgetOptionListView(APIView):
         return Response(serializer.data)
 
 class CoffeeBreakRotationListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -252,6 +264,7 @@ class CoffeeBreakRotationListView(APIView):
         return Response(serializer.data)
 
 class PlatterItemListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -260,6 +273,7 @@ class PlatterItemListView(APIView):
         return Response(serializer.data)
 
 class BoxedMealItemListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -268,6 +282,7 @@ class BoxedMealItemListView(APIView):
         return Response(serializer.data)
 
 class LiveStationItemListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -276,6 +291,7 @@ class LiveStationItemListView(APIView):
         return Response(serializer.data)
 
 class FixedCateringMenuListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -303,10 +319,12 @@ class FixedCateringMenuListView(APIView):
 
 class AmericanMenuListView(generics.ListAPIView):
     serializer_class = AmericanMenuSerializer
+    authentication_classes = []
     permission_classes = [AllowAny]
     queryset = AmericanMenu.objects.all().prefetch_related('items')
 
 class CanapeItemListView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
@@ -319,6 +337,7 @@ class CanapeItemListView(APIView):
 from django.views.generic import TemplateView, DetailView
 
 class CreateCateringOrderView(APIView):
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def post(self, request):
@@ -409,6 +428,7 @@ class RamadanMenuListView(APIView):
         - budget_option_id: Filter by budget option
         - is_active: Filter by active status (default: true)
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     def get(self, request):
@@ -448,6 +468,7 @@ class RamadanMenuDetailView(APIView):
     """
     Get detailed information about a specific Ramadan menu including all courses and items.
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
     
     def get(self, request, menu_id):
@@ -474,6 +495,7 @@ class IftarBoxMenuListView(APIView):
         - budget_option_id: Filter by budget option
         - is_active: Filter by active status (default: true)
     """
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     def get(self, request):
