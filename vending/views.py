@@ -351,6 +351,7 @@ class MenuByTypeView(APIView):
     /api/menu/<plan_type>/?day=Monday
     For ORDER_NOW and SMART_GRAB → daily menus
     """
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, plan_type):
