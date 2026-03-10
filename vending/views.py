@@ -590,7 +590,7 @@ class InitiatePaymentView(APIView):
     Initiates payment for the current cart without creating an Order record.
     Returns payment_redirect_url.
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def post(self, request):
         try:
@@ -604,14 +604,37 @@ class InitiatePaymentView(APIView):
             
             cart = None
             if not is_generic:
+                if not user.is_authenticated:
+                    return Response({"error": "Authentication required for vending checkout"}, status=401)
                 cart = Cart.objects.filter(user=user, is_checked_out=False).first()
                 if not cart or cart.items.count() == 0:
                     return Response({"error": "Cart is empty"}, status=400)
 
             # Validate Billing Address
-            billing_address = user.profile.addresses.filter(is_default=True).first()
-            if not billing_address:
-                billing_address = user.profile.addresses.first()
+            billing_address = None
+            if user.is_authenticated:
+                billing_address = user.profile.addresses.filter(is_default=True).first()
+                if not billing_address:
+                    billing_address = user.profile.addresses.first()
+            
+            # For anonymous/generic, we use data fallbacks or default
+            customer_name = data.get("customer_name")
+            customer_email = data.get("customer_email")
+            customer_phone = data.get("customer_phone")
+
+            if not user.is_authenticated:
+                # Create a minimal user-like object for the service
+                class GuestUser:
+                    def __init__(self, name, email, phone):
+                        self.username = name or "Guest"
+                        self.email = email or "guest@dosta.ae"
+                        self.is_authenticated = False
+                        class Profile:
+                            def __init__(self, name, phone):
+                                self.full_name = name
+                                self.phone_number = phone
+                        self.profile = Profile(name, phone)
+                user = GuestUser(customer_name, customer_email, customer_phone)
 
             # Prepare Payment Service
             from .payment import TotalPayService
@@ -1006,7 +1029,7 @@ class ExternalMachineGoodsView(APIView):
     Proxies request to:
     http://www.hnzczy.cn:8087/customgoods/querymachinegoods
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.AllowAny]
 
     def get(self, request):
         # 1. Fetch Token from External API
