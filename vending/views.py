@@ -394,6 +394,7 @@ class PlanMenuView(APIView):
     /api/menu/plan/<subtype>/
     Fetches menu structure based on Weekly or Monthly plan.
     """
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, subtype):
