@@ -296,6 +296,7 @@ class PlanTypeOptionsView(APIView):
     """
     Returns all plan types and next step indicator.
     """
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
@@ -317,6 +318,7 @@ class PickupOptionsView(APIView):
     """
     Returns pickup types and available time slots for a given location.
     """
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
@@ -1029,6 +1031,7 @@ class ExternalMachineGoodsView(APIView):
     Proxies request to:
     http://www.hnzczy.cn:8087/customgoods/querymachinegoods
     """
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
