@@ -376,6 +376,7 @@ class PlanOptionsView(APIView):
     """
     Returns weekly/monthly subtypes for 'Start a Plan'
     """
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def get(self, request):
