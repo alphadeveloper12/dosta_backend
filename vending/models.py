@@ -215,6 +215,7 @@ class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
     menu_item = models.ForeignKey(MenuItem, related_name="order_items", on_delete=models.PROTECT, null=True, blank=True)
     sweets_item = models.ForeignKey('catering.SweetsItem', related_name="order_items", on_delete=models.PROTECT, null=True, blank=True)
+    sweets_variation = models.ForeignKey('catering.SweetsItemVariation', related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
@@ -286,7 +287,8 @@ class Cart(models.Model):
             if item.menu_item:
                 total += item.menu_item.price * item.quantity
             elif item.sweets_item:
-                total += item.sweets_item.price * item.quantity
+                price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
+                total += price * item.quantity
         self.total_price = total
         self.save(update_fields=["total_price"])
 
@@ -295,6 +297,7 @@ class CartItem(models.Model):
     cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
     menu_item = models.ForeignKey(MenuItem, related_name="cart_items", on_delete=models.PROTECT, null=True, blank=True)
     sweets_item = models.ForeignKey('catering.SweetsItem', related_name="cart_items", on_delete=models.PROTECT, null=True, blank=True)
+    sweets_variation = models.ForeignKey('catering.SweetsItemVariation', related_name="cart_items", on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     
     # Item context (for weekly/monthly plans)
@@ -313,9 +316,14 @@ class CartItem(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("cart", "menu_item", "sweets_item", "plan_type", "plan_subtype", "day_of_week", "week_number")
+        unique_together = ("cart", "menu_item", "sweets_item", "sweets_variation", "plan_type", "plan_subtype", "day_of_week", "week_number")
 
     def __str__(self):
+        if self.sweets_item:
+            name = self.sweets_item.name
+            if self.sweets_variation:
+                name = f"{name} ({self.sweets_variation.weight})"
+            return f"{name} x {self.quantity}"
         return f"{self.menu_item.name} x {self.quantity}"
 
     @property
@@ -323,7 +331,8 @@ class CartItem(models.Model):
         if self.menu_item:
             return self.menu_item.price * self.quantity
         if self.sweets_item:
-            return self.sweets_item.price * self.quantity
+            price = self.sweets_variation.price if self.sweets_variation else self.sweets_item.price
+            return price * self.quantity
         return 0
 
 

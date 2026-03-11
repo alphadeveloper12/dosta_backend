@@ -116,21 +116,27 @@ class OrderItemSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         if not instance.menu_item and instance.sweets_item:
             sweets = instance.sweets_item
+            variation = instance.sweets_variation
             request = self.context.get('request')
             image_url = None
             image = sweets.image or (sweets.master_item.image if sweets.master_item else None)
             if image:
                 image_url = request.build_absolute_uri(image.url) if request else image.url
             
+            name = f"{sweets.name} ({variation.weight})" if variation else sweets.name
+            price = str(variation.price) if variation else str(sweets.price)
+            
             data['menu_item'] = {
                 'id': sweets.id,
-                'name': sweets.name,
-                'price': str(sweets.price),
+                'name': name,
+                'price': price,
                 'description': sweets.master_item.description if sweets.master_item else (sweets.description or ''),
                 'image_url': image_url,
                 'heating': 'no',
                 'offers': []
             }
+            if variation:
+                data['variation_id'] = variation.id
         return data
 
 
@@ -183,21 +189,27 @@ class CartItemSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         if not instance.menu_item and instance.sweets_item:
             sweets = instance.sweets_item
+            variation = instance.sweets_variation
             request = self.context.get('request')
             image_url = None
             image = sweets.image or (sweets.master_item.image if sweets.master_item else None)
             if image:
                 image_url = request.build_absolute_uri(image.url) if request else image.url
             
+            name = f"{sweets.name} ({variation.weight})" if variation else sweets.name
+            price = str(variation.price) if variation else str(sweets.price)
+            
             data['menu_item'] = {
                 'id': sweets.id,
-                'name': sweets.name,
-                'price': str(sweets.price),
+                'name': name,
+                'price': price,
                 'description': sweets.master_item.description if sweets.master_item else (sweets.description or ''),
                 'image_url': image_url,
                 'heating': 'no',
                 'offers': []
             }
+            if variation:
+                data['variation_id'] = variation.id
         return data
 
 

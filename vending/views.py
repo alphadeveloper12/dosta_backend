@@ -508,6 +508,8 @@ class ConfirmOrderView(APIView):
 
             if item_plan_type == "SWEETS":
                 item_kwargs["sweets_item_id"] = item["menu_item_id"]
+                if item.get("variation_id"):
+                    item_kwargs["sweets_variation_id"] = item["variation_id"]
             else:
                 item_kwargs["menu_item_id"] = item["menu_item_id"]
 
@@ -1030,8 +1032,11 @@ class CartView(APIView):
                     }
 
                     if plan_type == "SWEETS":
+                        variation_id = item.get("variation_id")
+                        create_kwargs["sweets_variation_id"] = variation_id
                         CartItem.objects.update_or_create(
                             sweets_item_id=menu_item_id,
+                            sweets_variation_id=variation_id,
                             defaults=create_kwargs,
                             cart=cart,
                             plan_type=plan_type,
