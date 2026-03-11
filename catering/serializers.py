@@ -255,6 +255,19 @@ class CanapeItemSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.image.url)
         return None
 
+class SweetsItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SweetsItem
+        fields = ['id', 'name', 'description', 'price', 'image_url']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
 
 # ========== RAMADAN MENU SERIALIZERS ==========
 

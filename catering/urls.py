@@ -21,6 +21,7 @@ urlpatterns = [
     path('fixed-menus/', FixedCateringMenuListView.as_view(), name='fixed-menu-list'),
     path('american-menus/', AmericanMenuListView.as_view(), name='american-menu-list'),
     path('canape-items/', CanapeItemListView.as_view(), name='canape-item-list'),
+    path('sweets-menu/', SweetsItemListView.as_view(), name='sweets-item-list'),
     # Catering Orders
     path('orders/create/', CreateCateringOrderView.as_view(), name='create-catering-order'),
     # path('kitchen/dashboard/', CateringKitchenDashboardView.as_view(), name='catering-kitchen-dashboard'), # Moved to kitchen app

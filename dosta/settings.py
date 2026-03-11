@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
     'dj_rest_auth',
     'dj_rest_auth.registration',
+    'ai_agents',
 ]
 
 MIDDLEWARE = [

@@ -112,6 +112,27 @@ class OrderItemSerializer(serializers.ModelSerializer):
             'plan_type', 'plan_subtype'
         ]
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not instance.menu_item and instance.sweets_item:
+            sweets = instance.sweets_item
+            request = self.context.get('request')
+            image_url = None
+            image = sweets.image or (sweets.master_item.image if sweets.master_item else None)
+            if image:
+                image_url = request.build_absolute_uri(image.url) if request else image.url
+            
+            data['menu_item'] = {
+                'id': sweets.id,
+                'name': sweets.name,
+                'price': str(sweets.price),
+                'description': sweets.master_item.description if sweets.master_item else (sweets.description or ''),
+                'image_url': image_url,
+                'heating': 'no',
+                'offers': []
+            }
+        return data
+
 
 class OrderSerializer(serializers.ModelSerializer):
     items = OrderItemSerializer(many=True, read_only=True)
@@ -157,6 +178,27 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     def get_subtotal(self, obj):
         return obj.subtotal
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not instance.menu_item and instance.sweets_item:
+            sweets = instance.sweets_item
+            request = self.context.get('request')
+            image_url = None
+            image = sweets.image or (sweets.master_item.image if sweets.master_item else None)
+            if image:
+                image_url = request.build_absolute_uri(image.url) if request else image.url
+            
+            data['menu_item'] = {
+                'id': sweets.id,
+                'name': sweets.name,
+                'price': str(sweets.price),
+                'description': sweets.master_item.description if sweets.master_item else (sweets.description or ''),
+                'image_url': image_url,
+                'heating': 'no',
+                'offers': []
+            }
+        return data
 
 
 class CartSerializer(serializers.ModelSerializer):

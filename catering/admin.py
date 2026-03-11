@@ -4,7 +4,7 @@ from .models import (
     Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
     CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem,
     FixedCateringMenu, AmericanMenu, AmericanMenuItem, RamadanMenu, RamadanMenuCourse, RamadanMenuItem,
-    IftarBoxMenu
+    IftarBoxMenu, SweetsItem
 )
 
 # Helper to safely register/unregister
@@ -284,4 +284,13 @@ class IftarBoxMenuAdmin(admin.ModelAdmin):
     list_filter = ('budget_option', 'is_active')
     search_fields = ('name',)
     readonly_fields = ('created_at', 'updated_at')
+
+# ========== SWEETS ITEM ADMIN ==========
+
+@admin.register(SweetsItem)
+class SweetsItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'master_item', 'price')
+    search_fields = ('name', 'master_item__name')
+    autocomplete_fields = ['master_item']
+
 
