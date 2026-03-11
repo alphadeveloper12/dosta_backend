@@ -4,7 +4,7 @@ from .models import (
     Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
     CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem,
     FixedCateringMenu, AmericanMenu, AmericanMenuItem, RamadanMenu, RamadanMenuCourse, RamadanMenuItem,
-    IftarBoxMenu, SweetsItem
+    IftarBoxMenu, SweetsItem, SweetsItemVariation
 )
 
 # Helper to safely register/unregister
@@ -287,10 +287,15 @@ class IftarBoxMenuAdmin(admin.ModelAdmin):
 
 # ========== SWEETS ITEM ADMIN ==========
 
+class SweetsItemVariationInline(admin.TabularInline):
+    model = SweetsItemVariation
+    extra = 1
+
 @admin.register(SweetsItem)
 class SweetsItemAdmin(admin.ModelAdmin):
     list_display = ('name', 'master_item', 'price')
     search_fields = ('name', 'master_item__name')
     autocomplete_fields = ['master_item']
+    inlines = [SweetsItemVariationInline]
 
 

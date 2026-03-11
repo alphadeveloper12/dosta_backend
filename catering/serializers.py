@@ -255,12 +255,18 @@ class CanapeItemSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.image.url)
         return None
 
+class SweetsItemVariationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SweetsItemVariation
+        fields = ['id', 'weight', 'price']
+
 class SweetsItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
+    variations = SweetsItemVariationSerializer(many=True, read_only=True)
 
     class Meta:
         model = SweetsItem
-        fields = ['id', 'name', 'description', 'price', 'image_url']
+        fields = ['id', 'name', 'description', 'price', 'image_url', 'variations']
 
     def get_image_url(self, obj):
         request = self.context.get('request')

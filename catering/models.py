@@ -282,6 +282,14 @@ class SweetsItem(models.Model):
     def __str__(self):
         return self.name
 
+class SweetsItemVariation(models.Model):
+    sweets_item = models.ForeignKey(SweetsItem, related_name='variations', on_delete=models.CASCADE)
+    weight = models.CharField(max_length=50, help_text="e.g., 1kg, 0.5kg, 250g")
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.sweets_item.name} - {self.weight} ({self.price} AED)"
+
 # ========== RAMADAN MENU SYSTEM (Iftar & Sohour) ==========
 
 class RamadanMenu(models.Model):
