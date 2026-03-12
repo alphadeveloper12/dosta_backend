@@ -337,7 +337,7 @@ class SweetsItemListView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        items = SweetsItem.objects.all()
+        items = SweetsItem.objects.prefetch_related('images', 'variations').all()
         serializer = SweetsItemSerializer(items, many=True, context={'request': request})
         return Response(serializer.data)
 

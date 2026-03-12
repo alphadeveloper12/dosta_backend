@@ -282,6 +282,18 @@ class SweetsItem(models.Model):
     def __str__(self):
         return self.name
 
+class SweetsItemImage(models.Model):
+    sweets_item = models.ForeignKey(SweetsItem, related_name='images', on_delete=models.CASCADE)
+    image = models.FileField(upload_to='sweets_items/')
+    alt_text = models.CharField(max_length=200, blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"{self.sweets_item.name} - Image {self.order}"
+
 class SweetsItemVariation(models.Model):
     sweets_item = models.ForeignKey(SweetsItem, related_name='variations', on_delete=models.CASCADE)
     weight = models.CharField(max_length=50, help_text="e.g., 1kg, 0.5kg, 250g")
