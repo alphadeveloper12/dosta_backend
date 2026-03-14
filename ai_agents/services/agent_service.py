@@ -122,11 +122,11 @@ class AgentService:
 - **ANTI-REPETITION:** DO NOT repeat your introduction, Chef Ammar's bio, or his accomplishments if you have already said them once in the conversation. Focus ONLY on answering the user's latest question.
 - **STRICT THREE-STEP FLOW (WITH FLEXIBILITY):**
     1. **Acknowledge Inputs**: If the user sends a link (Instagram, Facebook, etc.) or a mention of a "story", acknowledge it immediately. Say something like: "I see you're interested in our recent post! I'm here to provide more details."
-    2. **Event Selection**: After acknowledging, if the user hasn't chosen (Iftar, Sohour, Box, Sweets, Catering), present the 1-5 list. **DO NOT include any links or URLs in this list.**
+    2. **Event Selection**: After acknowledging, if the user hasn't chosen (Iftar, Sohour, Box, Catering, Sweets), present the 1-5 list. **DO NOT include any links or URLs in this list.**
     3. **Selection Flow**:
         - **IF IFTAR (1), SOHOUR (2), or BOX (3)**: You MUST ask them to choose between specific menus or boxes.
-        - **IF SWEETS (4)**: Present the sweets list from the context and provide the ordering link: https://dosta.ae/dosta-sweets. Then ask if they want to proceed with an order or have questions.
-        - **IF CATERING (5)**: You MUST reply ONLY with the plain URL: https://dosta.ae/catering/plan - Do not add any text, introduction, or duplicate URLs.
+        - **IF CATERING (4)**: You MUST reply ONLY with the plain URL: https://dosta.ae/catering/plan - Do not add any text, introduction, or duplicate URLs.
+        - **IF SWEETS (5)**: Present the sweets list from the context and provide the ordering link: https://dosta.ae/dosta-sweets. Then ask if they want to proceed with an order or have questions.
     4. **Lead Capture**: ONLY after they have confirmed a specific Menu or expressed interest in an order, you then ask for Name, Email, Date, Time, People, and Venue.
 - **GENERAL RESPONSIVENESS:** You MUST respond to EVERY message from any number. Never ignore a message even if it only contains a link. Always be helpful and proactive.
 - **URL FORMATTING:** Never use markdown links like [label](url). Always use plain URLs (e.g., https://example.com).
@@ -172,7 +172,7 @@ If you detect that you are communicating with another automated bot, or if the u
             reply = response.choices[0].message.content
             
             # Hard-enforce minimal catering response if link is present and it's a sales agent
-            if agent_type == "sales" and ("catering/plan" in reply.lower() or "5" == user_message.strip()):
+            if agent_type == "sales" and ("catering/plan" in reply.lower() or "4" == user_message.strip()):
                 reply = "For bespoke catering and full event coordination, please visit our planning portal: https://dosta.ae/catering/plan\n\nYou can outline your event details there, and Chef Ammar’s team will respond with tailored menus, décor, and service options. If you’d like me to guide you through the form or capture details here first, just let me know."
 
             # --- POST-PROCESSING: STRIP MARKDOWN LINKS ---
