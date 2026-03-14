@@ -255,6 +255,39 @@ class CanapeItemSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.image.url)
         return None
 
+class SweetsItemVariationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SweetsItemVariation
+        fields = ['id', 'weight', 'price']
+
+class SweetsItemImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SweetsItemImage
+        fields = ['id', 'image_url', 'alt_text', 'order']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
+class SweetsItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    images = SweetsItemImageSerializer(many=True, read_only=True)
+    variations = SweetsItemVariationSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = SweetsItem
+        fields = ['id', 'name', 'description', 'price', 'image_url', 'images', 'variations']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        return None
+
 
 # ========== RAMADAN MENU SERIALIZERS ==========
 

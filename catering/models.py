@@ -272,6 +272,36 @@ class CanapeItem(models.Model):
     def __str__(self):
         return self.name
 
+class SweetsItem(models.Model):
+    master_item = models.ForeignKey(CateringMasterItem, related_name='sweets_items', on_delete=models.PROTECT, null=True, blank=True)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True, default="Dummy description")
+    price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    image = models.FileField(upload_to='sweets_items/', blank=True)
+    
+    def __str__(self):
+        return self.name
+
+class SweetsItemImage(models.Model):
+    sweets_item = models.ForeignKey(SweetsItem, related_name='images', on_delete=models.CASCADE)
+    image = models.FileField(upload_to='sweets_items/')
+    alt_text = models.CharField(max_length=200, blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"{self.sweets_item.name} - Image {self.order}"
+
+class SweetsItemVariation(models.Model):
+    sweets_item = models.ForeignKey(SweetsItem, related_name='variations', on_delete=models.CASCADE)
+    weight = models.CharField(max_length=50, help_text="e.g., 1kg, 0.5kg, 250g")
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.sweets_item.name} - {self.weight} ({self.price} AED)"
+
 # ========== RAMADAN MENU SYSTEM (Iftar & Sohour) ==========
 
 class RamadanMenu(models.Model):
@@ -452,6 +482,7 @@ def propagate_catering_master_changes(sender, instance, created, **kwargs):
     update_children(instance.american_items.all())
     update_children(instance.canape_items.all())
     update_children(instance.ramadan_menu_items.all())
+    update_children(instance.sweets_items.all())
 
 
 # 2. Link/Create MASTER when CHILD is saved
@@ -506,6 +537,9 @@ def link_canape_item(sender, instance, **kwargs): generic_link_catering_master(i
 
 @receiver(pre_save, sender=RamadanMenuItem)
 def link_ramadan_menu_item(sender, instance, **kwargs): generic_link_catering_master(instance)
+
+@receiver(pre_save, sender=SweetsItem)
+def link_sweets_item(sender, instance, **kwargs): generic_link_catering_master(instance)
 
 # ========== IFTAR BOXES MENU SYSTEM ==========
 

@@ -469,35 +469,51 @@ class ConfirmOrderView(APIView):
     def post(self, request):
         data = request.data
 
+        loc_id = data.get("location_id")
+        valid_loc_id = loc_id if loc_id and VendingLocation.objects.filter(id=loc_id).exists() else None
+
+        slot_id = data.get("pickup_slot_id")
+        valid_slot_id = slot_id if slot_id and PickupTimeSlot.objects.filter(id=slot_id).exists() else None
+
         order = Order.objects.create(
             user=request.user,
-            location_id=data.get("location_id"),
+            location_id=valid_loc_id,
             plan_type=data.get("plan_type"),
             plan_subtype=data.get("plan_subtype", "NONE"),
             pickup_type=data.get("pickup_type"),
             pickup_date=data.get("pickup_date"),
-            pickup_slot_id=data.get("pickup_slot_id"),
+            pickup_slot_id=valid_slot_id,
             status=OrderStatus.PENDING,
             current_step=6
         )
 
         for item in data.get("items", []):
-            OrderItem.objects.create(
-                order=order,
-                menu_item_id=item["menu_item_id"],
-                quantity=item.get("quantity", 1),
-                day_of_week=item.get("day_of_week"),
-                week_number=item.get("week_number"),
-                vending_good_uuid=item.get("vending_good_uuid"),
-                heating_requested=item.get("heating_requested", False),
-                # Individual plan context
-                pickup_date=item.get("pickup_date", order.pickup_date),
-                pickup_slot_id=item.get("pickup_slot_id") or order.pickup_slot_id,
-                plan_type=item.get("plan_type") or (order.plan_type if order.plan_type != PlanType.START_PLAN else PlanType.ORDER_NOW),
-                plan_subtype=item.get("plan_subtype") or order.plan_subtype or PlanSubType.NONE,
-                pickup_type=item.get("pickup_type") or order.pickup_type,
-                status=OrderStatus.PREPARING if (item.get("plan_type") or order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
-            )
+            item_plan_type = item.get("plan_type") or (order.plan_type if order.plan_type != PlanType.START_PLAN else PlanType.ORDER_NOW)
+            
+            # Base common kwargs
+            item_kwargs = {
+                "order": order,
+                "quantity": item.get("quantity", 1),
+                "day_of_week": item.get("day_of_week"),
+                "week_number": item.get("week_number"),
+                "vending_good_uuid": item.get("vending_good_uuid"),
+                "heating_requested": item.get("heating_requested", False),
+                "pickup_date": item.get("pickup_date", order.pickup_date),
+                "pickup_slot_id": item.get("pickup_slot_id") or order.pickup_slot_id,
+                "plan_type": item_plan_type,
+                "plan_subtype": item.get("plan_subtype") or order.plan_subtype or PlanSubType.NONE,
+                "pickup_type": item.get("pickup_type") or order.pickup_type,
+                "status": OrderStatus.PREPARING if (item.get("plan_type") or order.plan_type) == PlanType.START_PLAN else OrderStatus.PENDING
+            }
+
+            if item_plan_type == "SWEETS":
+                item_kwargs["sweets_item_id"] = item["menu_item_id"]
+                if item.get("variation_id"):
+                    item_kwargs["sweets_variation_id"] = item["variation_id"]
+            else:
+                item_kwargs["menu_item_id"] = item["menu_item_id"]
+
+            OrderItem.objects.create(**item_kwargs)
             item_type = item.get("plan_type") or order.plan_type
             print(f"DEBUG: Order #{order.id} | Item {item.get('menu_item_id')} | Saved Type: {item_type} | Status: {OrderStatus.PREPARING if item_type == PlanType.START_PLAN else OrderStatus.PENDING}")
 
@@ -659,7 +675,15 @@ class InitiatePaymentView(APIView):
                 display_order_id = 900000 + cart.id
                 total_price = cart.total_price
                 item_count = cart.items.count()
-                item_name = cart.items.first().menu_item.name if item_count > 0 else "Vending Checkout"
+                
+                first_item = cart.items.first()
+                item_name = "Vending Checkout"
+                if first_item:
+                    if first_item.menu_item:
+                        item_name = first_item.menu_item.name
+                    elif first_item.sweets_item:
+                        item_name = first_item.sweets_item.name
+
                 detailed_desc = f"Dosta Order - {item_name}" if item_count == 1 else f"Dosta Order ({item_count} items)"
                 
                 frontend_host = os.environ.get('FRONTEND_URL', 'http://localhost:8080')
@@ -947,7 +971,12 @@ class CartView(APIView):
             cart, created = Cart.objects.get_or_create(user=user, is_checked_out=False)
 
             # 2. Update Context Fields
-            cart.location_id = data.get("location_id")
+            loc_id = data.get("location_id")
+            if loc_id and VendingLocation.objects.filter(id=loc_id).exists():
+                cart.location_id = loc_id
+            else:
+                cart.location_id = None
+
             incoming_plan_type = data.get("plan_type", PlanType.ORDER_NOW)
             incoming_plan_subtype = data.get("plan_subtype", PlanSubType.NONE)
             
@@ -955,13 +984,18 @@ class CartView(APIView):
             if data.get("clear_all"):
                 cart.items.all().delete()
                 cart.update_total()
-                return Response({"message": "Cart cleared successfully"}, status=status.HTTP_200_OK)
 
             cart.plan_type = incoming_plan_type
             cart.plan_subtype = incoming_plan_subtype
             cart.pickup_type = data.get("pickup_type")
             cart.pickup_date = data.get("pickup_date")
-            cart.pickup_slot_id = data.get("pickup_slot_id")
+
+            slot_id = data.get("pickup_slot_id")
+            if slot_id and PickupTimeSlot.objects.filter(id=slot_id).exists():
+                cart.pickup_slot_id = slot_id
+            else:
+                cart.pickup_slot_id = None
+
             cart.current_step = data.get("current_step", 1)  # Save current step
             cart.save()
 
@@ -980,27 +1014,54 @@ class CartView(APIView):
                 vending_good_uuid = item.get("vending_good_uuid")
                 heating_requested = item.get("heating_requested", False)
 
+                plan_type = item.get("plan_type", incoming_plan_type)
+                
                 if menu_item_id:
-                    CartItem.objects.update_or_create(
-                        cart=cart,
-                        menu_item_id=menu_item_id,
-                        day_of_week=day_of_week,
-                        week_number=week_number,
-                        vending_good_uuid=vending_good_uuid,
-                        heating_requested=heating_requested,
-                        # Save context per item
-                        plan_type=item.get("plan_type", incoming_plan_type),
-                        plan_subtype=item.get("plan_subtype", incoming_plan_subtype),
-                        pickup_type=item.get("pickup_type", cart.pickup_type),
-                        pickup_date=item.get("pickup_date", cart.pickup_date),
-                        pickup_slot_id=item.get("pickup_slot_id") or cart.pickup_slot_id
-                    )
+                    # Common args for update_or_create
+                    create_kwargs = {
+                        "cart": cart,
+                        "day_of_week": day_of_week,
+                        "week_number": week_number,
+                        "vending_good_uuid": vending_good_uuid,
+                        "heating_requested": heating_requested,
+                        "plan_type": plan_type,
+                        "plan_subtype": item.get("plan_subtype", incoming_plan_subtype),
+                        "pickup_type": item.get("pickup_type", cart.pickup_type),
+                        "pickup_date": item.get("pickup_date", cart.pickup_date),
+                        "pickup_slot_id": item.get("pickup_slot_id") or cart.pickup_slot_id
+                    }
+
+                    if plan_type == "SWEETS":
+                        variation_id = item.get("variation_id")
+                        create_kwargs["sweets_variation_id"] = variation_id
+                        CartItem.objects.update_or_create(
+                            sweets_item_id=menu_item_id,
+                            sweets_variation_id=variation_id,
+                            defaults=create_kwargs,
+                            cart=cart,
+                            plan_type=plan_type,
+                            plan_subtype=item.get("plan_subtype", incoming_plan_subtype),
+                            day_of_week=day_of_week,
+                            week_number=week_number,
+                        )
+                    else:
+                        CartItem.objects.update_or_create(
+                            menu_item_id=menu_item_id,
+                            defaults=create_kwargs,
+                            cart=cart,
+                            plan_type=plan_type,
+                            plan_subtype=item.get("plan_subtype", incoming_plan_subtype),
+                            day_of_week=day_of_week,
+                            week_number=week_number,
+                        )
 
             cart.update_total()
             
             serializer = CartSerializer(cart, context={'request': request})
             return Response(serializer.data, status=status.HTTP_200_OK)
         except Exception as e:
+            import traceback
+            traceback.print_exc()
             print(f"Cart Sync Error: {e}") # Log to terminal
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

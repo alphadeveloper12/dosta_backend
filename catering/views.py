@@ -332,6 +332,15 @@ class CanapeItemListView(APIView):
         serializer = CanapeItemSerializer(items, many=True, context={'request': request})
         return Response(serializer.data)
 
+class SweetsItemListView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        items = SweetsItem.objects.prefetch_related('images', 'variations').all()
+        serializer = SweetsItemSerializer(items, many=True, context={'request': request})
+        return Response(serializer.data)
+
 # ========== CATERING ORDER VENDOR API ==========
 
 from django.views.generic import TemplateView, DetailView
