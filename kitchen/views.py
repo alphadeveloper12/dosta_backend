@@ -1022,16 +1022,32 @@ def agent_dashboard_api(request):
         "updated_at": device.updated_at.strftime("%Y-%m-%d %H:%M") if device.updated_at else None
     }
 
-    # Fetch Latest Marketing Report
+    # Fetch recent Ad Drafts
+    from ai_agents.models import AdDraft
+    recent_ad_drafts = AdDraft.objects.all().order_by('-created_at')[:10]
+    ad_drafts = [{
+        "id": draft.id,
+        "platform": draft.platform,
+        "headline": draft.headline,
+        "body": draft.body_text,
+        "targeting": draft.targeting_summary,
+        "budget": str(draft.budget),
+        "status": draft.status,
+        "platform_ad_id": draft.platform_ad_id,
+        "rejection_reason": draft.rejection_reason,
+        "created_at": draft.created_at.strftime("%b %d, %H:%M")
+    } for draft in recent_ad_drafts]
+
+    # Fetch latest marketing report
     from ai_agents.models import MarketingReport
-    latest_marketing_report = MarketingReport.objects.order_by('-created_at').first()
+    latest_report = MarketingReport.objects.order_by('-date', '-created_at').first()
     marketing_data = None
-    if latest_marketing_report:
+    if latest_report:
         marketing_data = {
-            "date": latest_marketing_report.date.strftime("%b %d, %Y"),
-            "meta_spend": str(latest_marketing_report.meta_spend),
-            "google_spend": str(latest_marketing_report.google_spend),
-            "ai_analysis": latest_marketing_report.ai_analysis_text
+            "date": latest_report.date.strftime("%Y-%m-%d"),
+            "meta_spend": f"{latest_report.meta_spend:,.2f} AED",
+            "google_spend": f"{latest_report.google_spend:,.2f} AED",
+            "ai_analysis": latest_report.ai_analysis_text
         }
 
     return JsonResponse({
@@ -1044,7 +1060,63 @@ def agent_dashboard_api(request):
         'whatsapp_gateway': whatsapp_gateway,
         'maton_configured': bool(os.getenv('MATON_API_KEY')),
         'marketing_report': marketing_data,
+        'ad_drafts': ad_drafts,
     })
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def approve_ad_draft(request, pk):
+    """Approves an ad draft and triggers publication to the platform."""
+    from ai_agents.models import AdDraft
+    from ai_agents.services.meta_ads_service import MetaAdsService
+    # (Other platform services would be imported here)
+    
+    draft = get_object_or_404(AdDraft, pk=pk)
+    
+    if draft.status != 'Pending Approval':
+        messages.error(request, "This ad is not in a pending state.")
+        return redirect('kitchen:agent_dashboard')
+    
+    draft.status = 'Approved'
+    draft.save()
+    
+    # Trigger API Call
+    success = False
+    platform_id = None
+    
+    if draft.platform == 'Meta':
+        success, platform_id = MetaAdsService.publish_ad(draft)
+    else:
+        # Placeholder for Google
+        success, platform_id = False, "Google Ads automatic publishing not yet implemented."
+
+    if success:
+        draft.status = 'Live'
+        draft.platform_ad_id = platform_id
+        messages.success(request, f"Ad published successfully to {draft.platform}! ID: {platform_id}")
+    else:
+        draft.status = 'Failed'
+        messages.error(request, f"Failed to publish ad: {platform_id}")
+    
+    draft.save()
+    return redirect('kitchen:agent_dashboard')
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def reject_ad_draft(request, pk):
+    """Rejects an ad draft with an optional reason."""
+    from ai_agents.models import AdDraft
+    draft = get_object_or_404(AdDraft, pk=pk)
+    reason = request.POST.get('reason', 'Rejected by Admin')
+    
+    draft.status = 'Rejected'
+    draft.rejection_reason = reason
+    draft.save()
+    
+    messages.warning(request, f"Ad draft for '{draft.headline}' was rejected.")
+    return redirect('kitchen:agent_dashboard')
 
 @login_required
 @user_passes_test(is_kitchen_admin)

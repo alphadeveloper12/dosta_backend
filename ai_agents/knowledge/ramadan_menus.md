@@ -98,3 +98,23 @@ Dosta provides premium catering services for Ramadan, including Iftar and Sohour
 - Laban (buttermilk) or juice 180ml
 - Bottled mineral water 330ml
 - Fruit Salad 250g
+
+---
+
+## Sweets & Cookies
+Premium selection of traditional Arabic sweets and cookies.
+- **Assorted stuffed maamoul:** half kg 45 aed, 1 kg 80 aed
+- **Authentic Harisa sweet:** 0.5 kg 40, 1kg 70
+- **Butter petit Four:** 0.5kg 40, 1kg 70
+- **Buttery ghraybeh cookies:** 0.5kg 40, 1kg 70
+- **Creamy Kunafa Delight:** 0.5kg 40, 1kg 70
+- **Crispy cream warbat:** 0.5kg 40, 1kg 70
+- **Crispy Sesame Barazek:** 0.5 kg 45, 1 kg 80
+- **Golden cheese Kunafa:** 0.5kg 40, 1kg 70
+- **Pistachio Bird Nest:** 0.5kg 60, 1kg 115
+- **Pistachio Warbat Delight:** 0.5kg 40, 1kg 70
+- **Premium Baklava Selection:** 0.5kg 95, 1kg 185
+- **Soft cheese halawa:** 0.5kg 40, 1kg 70
+- **Soft semolina basbousa:** 0.5kg 30, 1kg 50
+
+**Order Online:** https://dosta.ae/dosta-sweets

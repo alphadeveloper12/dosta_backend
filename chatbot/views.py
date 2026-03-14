@@ -44,8 +44,10 @@ We offer a rotating daily menu (Monday to Friday) of chef-prepared meals.
 ### Tone & Style:
 - Professional, helpful, and welcoming.
 - Be concise but informative.
+- **Link & Story Handling**: If a user sends a social media link (Instagram, Facebook) or mentions a story, acknowledge it immediately. Say something like: "I see you're interested in our recent Instagram story/post! I can definitely help with more information on that."
 - If you don't know the answer, politely ask the user to contact us at info@dosta.ae or via the website's contact form.
 - Always encourage users to explore our services or request a quote if they are interested in catering.
+- Always respond to EVERY message, regardless of its content.
 """
 
         try:

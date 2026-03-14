@@ -14,25 +14,37 @@ class AgentService:
         activity.save()
 
     @staticmethod
+    def send_whatsapp_message(phone, message):
+        """Sends a WhatsApp message via the outbound Node.js gateway"""
+        import requests
+        try:
+            # The bot listens on port 3001
+            url = "http://127.0.0.1:3001/send"
+            response = requests.post(url, json={
+                "phone": phone,
+                "message": message
+            }, timeout=5)
+            return response.status_code == 200
+        except Exception as e:
+            print(f"Failed to send WhatsApp message: {str(e)}")
+            return False
+
+    @staticmethod
     def alert_human_team(agent_type, user_message, ai_response):
-        if agent_type == "customer_service":
-            subject = "URGENT: Customer Service AI Escalation"
-            message = f"Our Customer Service AI just handled a message that may require human review.\n\n" \
-                      f"--- Customer Message ---\n{user_message}\n\n" \
-                      f"--- AI Response ---\n{ai_response}\n\n" \
-                      f"Please review this interaction on the Kitchen Dashboard."
-            try:
-                # Fallback to an email if DEFAULT_FROM_EMAIL is not set, though standard Django uses it.
-                from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'info@dosta.ae')
-                send_mail(
-                    subject,
-                    message,
-                    from_email,
-                    ['info@dosta.ae'], # Sending the alert to the admin email
-                    fail_silently=True,
-                )
-            except Exception as e:
-                print(f"Failed to send email alert: {str(e)}")
+        admin_email = getattr(settings, 'ADMIN_EMAIL', 'info@dosta.ae')
+        admin_phone = getattr(settings, 'ADMIN_PHONE', '971509171092') # Default admin phone if not in env
+        
+        subject = f"AI Escalation: {agent_type}"
+        email_body = f"AI interaction requires review.\n\nMsg: {user_message}\n\nAI: {ai_response}"
+        
+        # 1. Email Alert
+        try:
+            send_mail(subject, email_body, settings.DEFAULT_FROM_EMAIL, [admin_email], fail_silently=True)
+        except: pass
+
+        # 2. WhatsApp Alert
+        ws_msg = f"🔔 *AI ALERT ({agent_type})*\n\n*User:* {user_message}\n\n*AI:* {ai_response}\n\nReview: https://dosta.ae/kitchen/agents/"
+        AgentService.send_whatsapp_message(admin_phone, ws_msg)
 
 
     @staticmethod
@@ -108,10 +120,15 @@ class AgentService:
 ### GENERAL DOSTA GUIDELINES:
 - Be professional, UAE-centric, and helpful.
 - **ANTI-REPETITION:** DO NOT repeat your introduction, Chef Ammar's bio, or his accomplishments if you have already said them once in the conversation. Focus ONLY on answering the user's latest question.
-- **STRICT THREE-STEP FLOW:**
-    1. **Event Selection**: If the user hasn't chosen (Iftar, Sohour, Box, Catering), present the 1-4 list. **DO NOT include any links or URLs in this list.**
-    2. **Menu Selection**: Once they pick an event (e.g., "1" for Iftar), you MUST ask them to choose between Menu A or Menu B. **IF CATERING (4)**: You MUST reply ONLY with the plain URL: https://dosta.ae/catering/plan - Do not add any text, introduction, or duplicate URLs.
-    3. **Lead Capture**: ONLY after they have confirmed a specific Menu (e.g., "Iftar Menu A"), you then ask for Name, Email, Date, Time, People, and Venue.
+- **STRICT THREE-STEP FLOW (WITH FLEXIBILITY):**
+    1. **Acknowledge Inputs**: If the user sends a link (Instagram, Facebook, etc.) or a mention of a "story", acknowledge it immediately. Say something like: "I see you're interested in our recent post! I'm here to provide more details."
+    2. **Event Selection**: After acknowledging, if the user hasn't chosen (Iftar, Sohour, Box, Sweets, Catering), present the 1-5 list. **DO NOT include any links or URLs in this list.**
+    3. **Selection Flow**:
+        - **IF IFTAR (1), SOHOUR (2), or BOX (3)**: You MUST ask them to choose between specific menus or boxes.
+        - **IF SWEETS (4)**: Present the sweets list from the context and provide the ordering link: https://dosta.ae/dosta-sweets. Then ask if they want to proceed with an order or have questions.
+        - **IF CATERING (5)**: You MUST reply ONLY with the plain URL: https://dosta.ae/catering/plan - Do not add any text, introduction, or duplicate URLs.
+    4. **Lead Capture**: ONLY after they have confirmed a specific Menu or expressed interest in an order, you then ask for Name, Email, Date, Time, People, and Venue.
+- **GENERAL RESPONSIVENESS:** You MUST respond to EVERY message from any number. Never ignore a message even if it only contains a link. Always be helpful and proactive.
 - **URL FORMATTING:** Never use markdown links like [label](url). Always use plain URLs (e.g., https://example.com).
 - **MENU DETAILS (Iftar/Sohour):** When presenting menus, use the exhaustive item lists in the context.
 - If you don't know something, suggest contacting info@dosta.ae.
@@ -155,7 +172,7 @@ If you detect that you are communicating with another automated bot, or if the u
             reply = response.choices[0].message.content
             
             # Hard-enforce minimal catering response if link is present and it's a sales agent
-            if agent_type == "sales" and ("catering/plan" in reply.lower() or "4" == user_message.strip()):
+            if agent_type == "sales" and ("catering/plan" in reply.lower() or "5" == user_message.strip()):
                 reply = "For bespoke catering and full event coordination, please visit our planning portal: https://dosta.ae/catering/plan\n\nYou can outline your event details there, and Chef Ammar’s team will respond with tailored menus, décor, and service options. If you’d like me to guide you through the form or capture details here first, just let me know."
 
             # --- POST-PROCESSING: STRIP MARKDOWN LINKS ---

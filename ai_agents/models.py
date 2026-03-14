@@ -148,3 +148,36 @@ class AIGlobalSetting(models.Model):
 
     def __str__(self):
         return f"Setting: {self.key}"
+class AdDraft(models.Model):
+    """Stores AI-suggested ads for admin approval before going live"""
+    STATUS_CHOICES = (
+        ('Draft', 'Draft'),
+        ('Pending Approval', 'Pending Approval'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+        ('Live', 'Live'),
+        ('Failed', 'Failed'),
+    )
+    PLATFORM_CHOICES = (
+        ('Meta', 'Meta (Facebook/Instagram)'),
+        ('Google', 'Google Ads'),
+    )
+    
+    agent_id = models.CharField(max_length=50, default="marketing")
+    platform = models.CharField(max_length=20, choices=PLATFORM_CHOICES)
+    headline = models.CharField(max_length=255)
+    body_text = models.TextField()
+    targeting_summary = models.TextField(help_text="Human-readable targeting description")
+    targeting_data = models.JSONField(default=dict, blank=True, help_text="Raw API targeting parameters")
+    budget = models.DecimalField(max_digits=10, decimal_places=2, help_text="Daily budget in AED")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending Approval')
+    rejection_reason = models.TextField(blank=True, null=True)
+    platform_ad_id = models.CharField(max_length=100, blank=True, null=True, help_text="ID returned by Meta/Google after going live")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.platform} Ad: {self.headline[:30]}... ({self.status})"
