@@ -211,6 +211,14 @@ class Order(models.Model):
         """Returns items that require kitchen preparation and aren't fulfilled yet."""
         return self.items.filter(plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'], pickup_code__isnull=True)
 
+    @property
+    def has_meals(self):
+        return self.kitchen_items.filter(menu_item__isnull=False).exists()
+
+    @property
+    def has_sweets(self):
+        return self.kitchen_items.filter(sweets_item__isnull=False).exists()
+
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
