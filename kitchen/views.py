@@ -340,7 +340,12 @@ def get_active_orders_api(request):
         status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY],
         items__plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'],
         items__pickup_code__isnull=True
-    ).prefetch_related('items__menu_item').distinct().order_by('-created_at')
+    ).select_related('user__profile').prefetch_related(
+        'items__menu_item', 
+        'items__sweets_item',
+        'items__sweets_variation',
+        'user__profile__addresses'
+    ).distinct().order_by('-created_at')
     
     orders_data = []
     for order in orders:
@@ -355,13 +360,31 @@ def get_active_orders_api(request):
 
         items_data = []
         for item in kitchen_items[:5]:  # Return up to 5 items for the dashboard
+            name = "Unknown Item"
+            if item.menu_item:
+                name = item.menu_item.name
+            elif item.sweets_item:
+                name = item.sweets_item.name
+                if item.sweets_variation:
+                    name = f"{name} ({item.sweets_variation.weight})"
+            
             items_data.append({
-                'name': item.menu_item.name,
+                'name': name,
                 'quantity': item.quantity,
                 'week': item.week_number,
                 'day': item.day_of_week
             })
         
+        # Get customer details
+        profile = getattr(order.user, 'profile', None)
+        phone = profile.phone_number if profile else ""
+        
+        address_str = "No address"
+        if profile:
+            default_address = profile.addresses.filter(is_default=True).first() or profile.addresses.first()
+            if default_address:
+                address_str = f"{default_address.address_line_1}, {default_address.city}"
+
         orders_data.append({
             'id': order.id,
             'status': order.status,
@@ -370,8 +393,10 @@ def get_active_orders_api(request):
             'timesince': timesince(order.created_at),
             'pickup_date': str(order.pickup_date) if order.pickup_date else 'Today',
             'pickup_slot': order.pickup_slot.label if order.pickup_slot else None,
-            'items_count': order.kitchen_items.count(),
+            'items_count': kitchen_items.count(),
             'items': items_data,
+            'has_meals': kitchen_items.filter(menu_item__isnull=False).exists(),
+            'has_sweets': kitchen_items.filter(sweets_item__isnull=False).exists(),
             'detail_url': reverse('kitchen:order_detail', args=[order.id])
         })
     

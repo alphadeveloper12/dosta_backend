@@ -201,7 +201,8 @@ class Order(models.Model):
             if item.menu_item:
                 total += item.menu_item.price * item.quantity
             elif item.sweets_item:
-                total += item.sweets_item.price * item.quantity
+                price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
+                total += price * item.quantity
         self.total_amount = total
         self.save(update_fields=["total_amount"])
 
