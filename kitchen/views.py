@@ -118,8 +118,10 @@ class AnalyticsDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         range_orders_count = range_orders.count()
         range_revenue = range_orders.aggregate(total=Sum('total_amount'))['total'] or 0.00
 
-        # 4. User Leaderboard (All users with order stats in range)
-        user_stats = User.objects.annotate(
+        # 4. User Leaderboard (Only users joined in range)
+        user_stats = User.objects.filter(
+            date_joined__range=(start_datetime, end_datetime)
+        ).annotate(
             orders_count=Count('orders', filter=Q(orders__created_at__range=(start_datetime, end_datetime), orders__status__exact=OrderStatus.DRAFT, _negated=True)),
             total_spent=Sum('orders__total_amount', filter=Q(orders__created_at__range=(start_datetime, end_datetime), orders__status__exact=OrderStatus.DRAFT, _negated=True))
         ).order_by('-date_joined')
