@@ -19,6 +19,8 @@ urlpatterns = [
     path('daily-orders/', views.daily_orders_view, name='daily_orders'),
     path('agents/', views.agent_dashboard_view, name='agent_dashboard'),
     path('agents/api/', views.agent_dashboard_api, name='agent_dashboard_api'),
+    path('agents/ad-draft/<int:pk>/approve/', views.approve_ad_draft, name='approve_ad_draft'),
+    path('agents/ad-draft/<int:pk>/reject/', views.reject_ad_draft, name='reject_ad_draft'),
     
     # Catering Dashboard
     path('catering/', CateringKitchenDashboardView.as_view(), name='catering_dashboard'),

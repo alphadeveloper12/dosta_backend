@@ -201,7 +201,8 @@ class Order(models.Model):
             if item.menu_item:
                 total += item.menu_item.price * item.quantity
             elif item.sweets_item:
-                total += item.sweets_item.price * item.quantity
+                price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
+                total += price * item.quantity
         self.total_amount = total
         self.save(update_fields=["total_amount"])
 
@@ -209,6 +210,14 @@ class Order(models.Model):
     def kitchen_items(self):
         """Returns items that require kitchen preparation and aren't fulfilled yet."""
         return self.items.filter(plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'], pickup_code__isnull=True)
+
+    @property
+    def has_meals(self):
+        return self.kitchen_items.filter(menu_item__isnull=False).exists()
+
+    @property
+    def has_sweets(self):
+        return self.kitchen_items.filter(sweets_item__isnull=False).exists()
 
 
 class OrderItem(models.Model):

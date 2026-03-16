@@ -340,7 +340,12 @@ def get_active_orders_api(request):
         status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY],
         items__plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'],
         items__pickup_code__isnull=True
-    ).prefetch_related('items__menu_item').distinct().order_by('-created_at')
+    ).select_related('user__profile').prefetch_related(
+        'items__menu_item', 
+        'items__sweets_item',
+        'items__sweets_variation',
+        'user__profile__addresses'
+    ).distinct().order_by('-created_at')
     
     orders_data = []
     for order in orders:
@@ -355,13 +360,31 @@ def get_active_orders_api(request):
 
         items_data = []
         for item in kitchen_items[:5]:  # Return up to 5 items for the dashboard
+            name = "Unknown Item"
+            if item.menu_item:
+                name = item.menu_item.name
+            elif item.sweets_item:
+                name = item.sweets_item.name
+                if item.sweets_variation:
+                    name = f"{name} ({item.sweets_variation.weight})"
+            
             items_data.append({
-                'name': item.menu_item.name,
+                'name': name,
                 'quantity': item.quantity,
                 'week': item.week_number,
                 'day': item.day_of_week
             })
         
+        # Get customer details
+        profile = getattr(order.user, 'profile', None)
+        phone = profile.phone_number if profile else ""
+        
+        address_str = "No address"
+        if profile:
+            default_address = profile.addresses.filter(is_default=True).first() or profile.addresses.first()
+            if default_address:
+                address_str = f"{default_address.address_line_1}, {default_address.city}"
+
         orders_data.append({
             'id': order.id,
             'status': order.status,
@@ -370,8 +393,10 @@ def get_active_orders_api(request):
             'timesince': timesince(order.created_at),
             'pickup_date': str(order.pickup_date) if order.pickup_date else 'Today',
             'pickup_slot': order.pickup_slot.label if order.pickup_slot else None,
-            'items_count': order.kitchen_items.count(),
+            'items_count': kitchen_items.count(),
             'items': items_data,
+            'has_meals': kitchen_items.filter(menu_item__isnull=False).exists(),
+            'has_sweets': kitchen_items.filter(sweets_item__isnull=False).exists(),
             'detail_url': reverse('kitchen:order_detail', args=[order.id])
         })
     
@@ -1022,16 +1047,32 @@ def agent_dashboard_api(request):
         "updated_at": device.updated_at.strftime("%Y-%m-%d %H:%M") if device.updated_at else None
     }
 
-    # Fetch Latest Marketing Report
+    # Fetch recent Ad Drafts
+    from ai_agents.models import AdDraft
+    recent_ad_drafts = AdDraft.objects.all().order_by('-created_at')[:10]
+    ad_drafts = [{
+        "id": draft.id,
+        "platform": draft.platform,
+        "headline": draft.headline,
+        "body": draft.body_text,
+        "targeting": draft.targeting_summary,
+        "budget": str(draft.budget),
+        "status": draft.status,
+        "platform_ad_id": draft.platform_ad_id,
+        "rejection_reason": draft.rejection_reason,
+        "created_at": draft.created_at.strftime("%b %d, %H:%M")
+    } for draft in recent_ad_drafts]
+
+    # Fetch latest marketing report
     from ai_agents.models import MarketingReport
-    latest_marketing_report = MarketingReport.objects.order_by('-created_at').first()
+    latest_report = MarketingReport.objects.order_by('-date', '-created_at').first()
     marketing_data = None
-    if latest_marketing_report:
+    if latest_report:
         marketing_data = {
-            "date": latest_marketing_report.date.strftime("%b %d, %Y"),
-            "meta_spend": str(latest_marketing_report.meta_spend),
-            "google_spend": str(latest_marketing_report.google_spend),
-            "ai_analysis": latest_marketing_report.ai_analysis_text
+            "date": latest_report.date.strftime("%Y-%m-%d"),
+            "meta_spend": f"{latest_report.meta_spend:,.2f} AED",
+            "google_spend": f"{latest_report.google_spend:,.2f} AED",
+            "ai_analysis": latest_report.ai_analysis_text
         }
 
     return JsonResponse({
@@ -1044,7 +1085,63 @@ def agent_dashboard_api(request):
         'whatsapp_gateway': whatsapp_gateway,
         'maton_configured': bool(os.getenv('MATON_API_KEY')),
         'marketing_report': marketing_data,
+        'ad_drafts': ad_drafts,
     })
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def approve_ad_draft(request, pk):
+    """Approves an ad draft and triggers publication to the platform."""
+    from ai_agents.models import AdDraft
+    from ai_agents.services.meta_ads_service import MetaAdsService
+    # (Other platform services would be imported here)
+    
+    draft = get_object_or_404(AdDraft, pk=pk)
+    
+    if draft.status != 'Pending Approval':
+        messages.error(request, "This ad is not in a pending state.")
+        return redirect('kitchen:agent_dashboard')
+    
+    draft.status = 'Approved'
+    draft.save()
+    
+    # Trigger API Call
+    success = False
+    platform_id = None
+    
+    if draft.platform == 'Meta':
+        success, platform_id = MetaAdsService.publish_ad(draft)
+    else:
+        # Placeholder for Google
+        success, platform_id = False, "Google Ads automatic publishing not yet implemented."
+
+    if success:
+        draft.status = 'Live'
+        draft.platform_ad_id = platform_id
+        messages.success(request, f"Ad published successfully to {draft.platform}! ID: {platform_id}")
+    else:
+        draft.status = 'Failed'
+        messages.error(request, f"Failed to publish ad: {platform_id}")
+    
+    draft.save()
+    return redirect('kitchen:agent_dashboard')
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def reject_ad_draft(request, pk):
+    """Rejects an ad draft with an optional reason."""
+    from ai_agents.models import AdDraft
+    draft = get_object_or_404(AdDraft, pk=pk)
+    reason = request.POST.get('reason', 'Rejected by Admin')
+    
+    draft.status = 'Rejected'
+    draft.rejection_reason = reason
+    draft.save()
+    
+    messages.warning(request, f"Ad draft for '{draft.headline}' was rejected.")
+    return redirect('kitchen:agent_dashboard')
 
 @login_required
 @user_passes_test(is_kitchen_admin)

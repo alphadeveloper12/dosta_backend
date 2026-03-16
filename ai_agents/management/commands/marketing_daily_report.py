@@ -60,6 +60,14 @@ class Command(BaseCommand):
             )
 
             self.stdout.write(self.style.SUCCESS(f'[+] Successfully generated and saved Marketing Report ID: {report.id}'))
+            
+            # 4. Automaticaly suggest a new ad if Meta stats are available
+            if meta_stats.get('status') != 'error':
+                self.stdout.write('[*] Generating AI Ad Suggestion based on today\'s performance...')
+                draft = MetaAdsService.generate_draft(meta_stats)
+                if draft:
+                    self.stdout.write(self.style.SUCCESS(f'[+] New ad draft suggested for Admin approval: {draft.headline}'))
+            
             self.stdout.write(f"\n--- AI BRIEFING ---\n{analysis_text}\n-------------------")
 
         except Exception as e:
