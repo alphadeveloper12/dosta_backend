@@ -176,6 +176,8 @@ class Order(models.Model):
     status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.DRAFT)
     current_step = models.PositiveSmallIntegerField(default=1)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     pickup_code = models.CharField(max_length=50, blank=True, null=True)
     qr_code_url = models.URLField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -203,7 +205,7 @@ class Order(models.Model):
             elif item.sweets_item:
                 price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
                 total += price * item.quantity
-        self.total_amount = total
+        self.total_amount = total + self.delivery_charge
         self.save(update_fields=["total_amount"])
 
     @property
@@ -278,6 +280,8 @@ class Cart(models.Model):
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="carts", on_delete=models.SET_NULL, null=True, blank=True)
 
     total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     current_step = models.PositiveSmallIntegerField(default=1)
     is_checked_out = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -298,7 +302,7 @@ class Cart(models.Model):
             elif item.sweets_item:
                 price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
                 total += price * item.quantity
-        self.total_price = total
+        self.total_price = total + self.delivery_charge
         self.save(update_fields=["total_price"])
 
 

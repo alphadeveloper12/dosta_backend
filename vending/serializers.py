@@ -161,6 +161,8 @@ class OrderSerializer(serializers.ModelSerializer):
             'total_amount',
             'pickup_code',
             'qr_code_url',
+            'city',
+            'delivery_charge',
             'items',
             'created_at'
         ]
@@ -229,6 +231,8 @@ class CartSerializer(serializers.ModelSerializer):
             'pickup_date',
             'pickup_slot',
             'total_price', 
+            'city',
+            'delivery_charge',
             'current_step',
             'is_checked_out', 
             'created_at', 

@@ -123,7 +123,20 @@
               {% with order.user.profile.addresses.all|first as addr %}
               {% if addr %}{{ addr.address_line_1 }}, {{ addr.city }}{% else %}No address{% endif %}
               {% endwith %}
+            {% if order.city %}
+            <p class="text-indigo-600 font-bold text-sm mt-3 flex items-center bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 w-fit">
+              <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+              </svg>
+              City: {{ order.city }}
             </p>
+            {% endif %}
+            {% if order.delivery_charge > 0 %}
+            <p class="text-slate-500 font-bold text-xs mt-1 px-3">
+              + AED {{ order.delivery_charge }} Delivery Charge
+            </p>
+            {% endif %}
           </dd>
         </div>
 

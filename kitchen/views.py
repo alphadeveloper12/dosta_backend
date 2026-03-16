@@ -387,6 +387,7 @@ def get_active_orders_api(request):
 
         orders_data.append({
             'id': order.id,
+            'city': order.city,
             'status': order.status,
             'status_display': order.get_status_display(),
             'created_at': order.created_at.isoformat(),

@@ -484,7 +484,9 @@ class ConfirmOrderView(APIView):
             pickup_date=data.get("pickup_date"),
             pickup_slot_id=valid_slot_id,
             status=OrderStatus.PENDING,
-            current_step=6
+            current_step=6,
+            city=data.get("city"),
+            delivery_charge=data.get("delivery_charge", 0.00)
         )
 
         for item in data.get("items", []):
@@ -997,6 +999,13 @@ class CartView(APIView):
                 cart.pickup_slot_id = None
 
             cart.current_step = data.get("current_step", 1)  # Save current step
+            
+            # Only update city and delivery_charge if provided (to avoid overwriting guest data with defaults on partial syncs)
+            if "city" in data:
+                cart.city = data.get("city")
+            if "delivery_charge" in data:
+                cart.delivery_charge = data.get("delivery_charge", 0.00)
+            
             cart.save()
 
             # 3. Update Items (Partial Sync Strategy: Clear only items of the same plan type)
@@ -1020,6 +1029,7 @@ class CartView(APIView):
                     # Common args for update_or_create
                     create_kwargs = {
                         "cart": cart,
+                        "quantity": quantity, # FIX: Quantity was missing!
                         "day_of_week": day_of_week,
                         "week_number": week_number,
                         "vending_good_uuid": vending_good_uuid,
