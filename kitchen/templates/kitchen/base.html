@@ -1,3 +1,4 @@
+{% load static %}
 <!doctype html>
 <html lang="en">
 
@@ -5,10 +6,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kitchen Dashboard - Dosta</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Google Fonts: Inter -->
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Tailwind CSS (Local) -->
+  <script src="{% static 'js/tailwind.min.js' %}"></script>
+  <!-- Global Typography (Local Inter) -->
+  <link href="{% static 'css/inter.css' %}" rel="stylesheet" />
   <style>
     body {
       font-family: "Inter", sans-serif;
