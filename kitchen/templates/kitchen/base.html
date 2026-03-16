@@ -90,6 +90,22 @@
           <span>Tracking Board</span>
         </a>
 
+        <a href="{% url 'kitchen:analytics_dashboard' %}"
+          class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'analytics_dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
+          {% if request.resolver_match.url_name == 'analytics_dashboard' %}
+          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          {% endif %}
+          <span
+            class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'analytics_dashboard' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z">
+              </path>
+            </svg>
+          </span>
+          <span>Analytics</span>
+        </a>
+
         <a href="{% url 'kitchen:agent_dashboard' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'agent_dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'agent_dashboard' %}

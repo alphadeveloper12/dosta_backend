@@ -15,10 +15,17 @@ import os
 import requests
 import csv
 import io
+import datetime
+from django.utils.dateparse import parse_date
 from django.utils import timezone
+from django.db.models import Sum, Count, Q
+from django.contrib.auth import get_user_model
 from vending.models import Order, OrderStatus, OrderItem, PlanType, PlanSubType
 from ai_agents.models import AgentActivity, AgentInteractionLog
 from django.http import JsonResponse
+from django.views.generic import TemplateView
+
+User = get_user_model()
 
 class DashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Order
@@ -56,6 +63,79 @@ class TrackingView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         if status_filter:
             qs = qs.filter(status=status_filter)
         return qs
+
+class AnalyticsDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = 'kitchen/analytics.html'
+
+    def test_func(self):
+        return is_kitchen_admin(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # 1. Date Filtering
+        start_date_str = self.request.GET.get('start_date')
+        end_date_str = self.request.GET.get('end_date')
+        
+        today = timezone.localtime().date()
+        
+        if start_date_str:
+            start_date = parse_date(start_date_str)
+        else:
+            # Default to last 30 days if no filter
+            start_date = today - datetime.timedelta(days=30)
+            
+        if end_date_str:
+            end_date = parse_date(end_date_str)
+        else:
+            end_date = today
+            
+        # Ensure we cover the full end day
+        end_datetime = datetime.datetime.combine(end_date, datetime.time.max)
+        if timezone.is_naive(end_datetime):
+            end_datetime = timezone.make_aware(end_datetime)
+            
+        start_datetime = datetime.datetime.combine(start_date, datetime.time.min)
+        if timezone.is_naive(start_datetime):
+             start_datetime = timezone.make_aware(start_datetime)
+
+        # 2. Users Stats
+        users_in_range_qs = User.objects.filter(date_joined__range=(start_datetime, end_datetime))
+        total_users = User.objects.count()
+        users_in_range = users_in_range_qs.count()
+
+        # 3. Orders & Revenue Stats
+        # Today's orders
+        today_start = timezone.make_aware(datetime.datetime.combine(today, datetime.time.min))
+        today_orders = Order.objects.filter(created_at__gte=today_start).exclude(status=OrderStatus.DRAFT)
+        today_orders_count = today_orders.count()
+        today_revenue = today_orders.aggregate(total=Sum('total_amount'))['total'] or 0.00
+        
+        # Range orders
+        range_orders = Order.objects.filter(
+            created_at__range=(start_datetime, end_datetime)
+        ).exclude(status=OrderStatus.DRAFT)
+        range_orders_count = range_orders.count()
+        range_revenue = range_orders.aggregate(total=Sum('total_amount'))['total'] or 0.00
+
+        # 4. User Leaderboard (All users with order stats in range)
+        user_stats = User.objects.annotate(
+            orders_count=Count('orders', filter=Q(orders__created_at__range=(start_datetime, end_datetime), orders__status__exact=OrderStatus.DRAFT, _negated=True)),
+            total_spent=Sum('orders__total_amount', filter=Q(orders__created_at__range=(start_datetime, end_datetime), orders__status__exact=OrderStatus.DRAFT, _negated=True))
+        ).order_by('-date_joined')
+
+        context.update({
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'total_users': total_users,
+            'users_in_range': users_in_range,
+            'today_orders_count': today_orders_count,
+            'today_revenue': today_revenue,
+            'range_orders_count': range_orders_count,
+            'range_revenue': range_revenue,
+            'user_stats': user_stats,
+        })
+        return context
 
 class OrderDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     model = Order
