@@ -4,23 +4,23 @@
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
         <div>
             <h2
-                class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-slate-900 to-slate-700 tracking-tight">
+                class="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-700 tracking-tight">
                 Active Kitchen Orders
             </h2>
             <div class="flex items-center gap-2 mt-2">
                 <span class="relative flex h-3 w-3">
                     <span
-                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                        class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
                 </span>
-                <p class="text-slate-500 font-medium">Live Stream • Auto-syncing</p>
+                <p class="text-gray-500 font-medium">Live Stream • Auto-syncing</p>
             </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
             <!-- Test Button (Debug) -->
             <button onclick="simulateOrder()"
-                class="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200"
+                class="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200"
                 title="Test Notification">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -32,17 +32,17 @@
     </div>
 
     <!-- Tab Switcher -->
-    <div class="flex items-center gap-2 mb-8 bg-slate-100 p-1 rounded-2xl w-fit">
+    <div class="flex items-center gap-2 mb-8 bg-gray-100 p-1 rounded-2xl w-fit">
         <button onclick="setTab('all')" id="tab-all"
-            class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 bg-white text-slate-900 shadow-sm ring-1 ring-slate-200">
+            class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 bg-white text-gray-900 shadow-sm ring-1 ring-gray-200">
             All Orders
         </button>
         <button onclick="setTab('meals')" id="tab-meals"
-            class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-slate-500 hover:text-slate-700">
+            class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-gray-500 hover:text-gray-700">
             Meals Only
         </button>
         <button onclick="setTab('sweets')" id="tab-sweets"
-            class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-slate-500 hover:text-slate-700">
+            class="px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-gray-500 hover:text-gray-700">
             Sweets Only
         </button>
     </div>
@@ -55,18 +55,18 @@
         {% for order in orders %}
         <div id="order-card-{{ order.id }}" data-has-meals="{% if order.has_meals %}true{% else %}false{% endif %}"
             data-has-sweets="{% if order.has_sweets %}true{% else %}false{% endif %}"
-            class="group bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full border border-slate-100 ring-1 ring-slate-900/5 animate-fade-in-up"
+            class="group bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-trangray-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full border border-gray-100 ring-1 ring-gray-900/5 animate-fade-in-up"
             style="animation-delay: {{ forloop.counter0|add:1|default:0 }}00ms">
             <!-- Header -->
             <div
-                class="p-5 border-b border-slate-50 flex justify-between items-start bg-gradient-to-br from-slate-50 to-white">
+                class="p-5 border-b border-gray-50 flex justify-between items-start bg-gradient-to-br from-gray-50 to-white">
                 <div>
                     <div class="flex items-center gap-2 mb-1">
-                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Order</span>
-                        <h3 class="text-xl font-black text-slate-800">#{{ order.id }}</h3>
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Order</span>
+                        <h3 class="text-xl font-black text-gray-800">#{{ order.id }}</h3>
                     </div>
                     <span
-                        class="text-xs font-medium text-slate-500 flex items-center bg-slate-100 px-2 py-0.5 rounded-md w-fit">
+                        class="text-xs font-medium text-gray-500 flex items-center bg-gray-100 px-2 py-0.5 rounded-md w-fit">
                         <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -75,7 +75,7 @@
                     </span>
                 </div>
                 <span
-                    class="px-3 py-1 rounded-full text-xs font-bold shadow-sm ring-1 ring-inset {% if order.status == 'PENDING' %} bg-amber-50 text-amber-700 ring-amber-600/20 {% elif order.status == 'PREPARING' %} bg-blue-50 text-blue-700 ring-blue-600/20 {% elif order.status == 'READY' %} bg-emerald-50 text-emerald-700 ring-emerald-600/20 {% else %} bg-slate-100 text-slate-600 ring-slate-500/10 {% endif %}">
+                    class="px-3 py-1 rounded-full text-xs font-bold shadow-sm ring-1 ring-inset {% if order.status == 'PENDING' %} bg-yellow-50 text-yellow-700 ring-yellow-600/20 {% elif order.status == 'PREPARING' %} bg-blue-50 text-blue-700 ring-blue-600/20 {% elif order.status == 'READY' %} bg-green-50 text-green-700 ring-green-600/20 {% else %} bg-gray-100 text-gray-600 ring-gray-500/10 {% endif %}">
                     {{ order.get_status_display }}
                 </span>
             </div>
@@ -84,8 +84,8 @@
             <div class="p-4 flex-grow space-y-3">
                 <!-- Pickup Info -->
                 <div
-                    class="flex items-center justify-between text-sm p-2.5 bg-slate-50 rounded-xl border border-slate-100">
-                    <div class="flex items-center text-slate-500">
+                    class="flex items-center justify-between text-sm p-2.5 bg-gray-50 rounded-xl border border-gray-100">
+                    <div class="flex items-center text-gray-500">
                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z">
@@ -111,7 +111,7 @@
 
                 <!-- Items List -->
                 <div>
-                    <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center">
+                    <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center">
                         <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10">
@@ -124,9 +124,9 @@
                         <li class="flex justify-between items-start text-sm group/item">
                             <div class="flex items-start">
                                 <span
-                                    class="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 mr-2 group-hover/item:bg-indigo-400 transition-colors"></span>
+                                    class="w-1.5 h-1.5 rounded-full bg-gray-300 mt-1.5 mr-2 group-hover/item:bg-indigo-400 transition-colors"></span>
                                 <div>
-                                    <span class="text-slate-700 font-medium leading-snug block">
+                                    <span class="text-gray-700 font-medium leading-snug block">
                                         {% if item.menu_item %}{{ item.menu_item.name }}{% elif item.sweets_item %}{{
                                         item.sweets_item.name }}{% if item.sweets_variation %} ({{
                                         item.sweets_variation.weight }}){% endif %}{% else %}Unknown{% endif %}
@@ -139,7 +139,7 @@
                                 </div>
                             </div>
                             <span
-                                class="font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap text-xs">x
+                                class="font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded ml-2 whitespace-nowrap text-xs">x
                                 {{ item.quantity }}</span>
                         </li>
                         {% endfor %} {% if order.kitchen_items.count > 2 %}
@@ -156,7 +156,7 @@
                 <a href="{% url 'kitchen:order_detail' order.id %}"
                     class="block w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg shadow-sm hover:shadow-indigo-200 transition-all duration-200 flex items-center justify-center group/btn text-sm">
                     <span>View Details</span>
-                    <svg class="w-3.5 h-3.5 ml-2 group-hover/btn:translate-x-1 transition-transform" fill="none"
+                    <svg class="w-3.5 h-3.5 ml-2 group-hover/btn:trangray-x-1 transition-transform" fill="none"
                         stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                             d="M14 5l7 7m0 0l-7 7m7-7H3"></path>
@@ -166,7 +166,7 @@
         </div>
         {% empty %}
         <div
-            class="col-span-full flex flex-col items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200 text-center">
+            class="col-span-full flex flex-col items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-gray-200 text-center">
             <div class="bg-indigo-50 p-4 rounded-full mb-4">
                 <svg class="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -174,8 +174,8 @@
                     </path>
                 </svg>
             </div>
-            <h3 class="text-xl font-bold text-slate-900 mb-1">All Caught Up!</h3>
-            <p class="text-slate-500 max-w-sm mx-auto">
+            <h3 class="text-xl font-bold text-gray-900 mb-1">All Caught Up!</h3>
+            <p class="text-gray-500 max-w-sm mx-auto">
                 There are no active orders in the queue right now. Great job!
             </p>
         </div>
@@ -196,8 +196,8 @@
         ['all', 'meals', 'sweets'].forEach(t => {
             const btn = document.getElementById(`tab-${t}`);
             if (btn) btn.className = (t === tab)
-                ? "px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 bg-white text-slate-900 shadow-sm ring-1 ring-slate-200"
-                : "px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-slate-500 hover:text-slate-700";
+                ? "px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 bg-white text-gray-900 shadow-sm ring-1 ring-gray-200"
+                : "px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-200 text-gray-500 hover:text-gray-700";
         });
         applyFilter();
     }
@@ -217,8 +217,8 @@
         if (visibleCount === 0) {
             if (!empty) {
                 const div = document.createElement("div");
-                div.className = "empty-state-placeholder col-span-full flex flex-col items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-slate-200 text-center";
-                div.innerHTML = `<div class="bg-indigo-50 p-4 rounded-full mb-4"><svg class="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg></div><h3 class="text-xl font-bold text-slate-900 mb-1">All Caught Up!</h3><p class="text-slate-500 max-w-sm mx-auto">None for this category.</p>`;
+                div.className = "empty-state-placeholder col-span-full flex flex-col items-center justify-center py-24 bg-white rounded-3xl border-2 border-dashed border-gray-200 text-center";
+                div.innerHTML = `<div class="bg-indigo-50 p-4 rounded-full mb-4"><svg class="w-12 h-12 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg></div><h3 class="text-xl font-bold text-gray-900 mb-1">All Caught Up!</h3><p class="text-gray-500 max-w-sm mx-auto">None for this category.</p>`;
                 grid.appendChild(div);
             } else empty.style.display = "";
         } else if (empty) empty.style.display = "none";
@@ -241,24 +241,24 @@
         const toast = document.createElement("div");
 
         const styles = {
-            success: "bg-white border-l-4 border-emerald-500 text-slate-800",
-            error: "bg-white border-l-4 border-red-500 text-slate-800",
-            info: "bg-white border-l-4 border-indigo-500 text-slate-800"
+            success: "bg-white border-l-4 border-green-500 text-gray-800",
+            error: "bg-white border-l-4 border-red-500 text-gray-800",
+            info: "bg-white border-l-4 border-indigo-500 text-gray-800"
         };
         const icons = {
-            success: `<svg class="w-6 h-6 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+            success: `<svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
             error: `<svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
             info: `<svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
         };
 
-        toast.className = `${styles[type] || styles.info} pointer-events-auto p-4 rounded-lg shadow-xl shadow-slate-200/50 flex items-center gap-4 transform transition-all duration-500 translate-x-32 opacity-0 min-w-[300px] z-[60]`;
+        toast.className = `${styles[type] || styles.info} pointer-events-auto p-4 rounded-lg shadow-xl shadow-gray-200/50 flex items-center gap-4 transform transition-all duration-500 trangray-x-32 opacity-0 min-w-[300px] z-[60]`;
         toast.innerHTML = `
           <div class="flex-shrink-0">${icons[type] || icons.info}</div>
           <div class="flex-grow">
               <p class="font-bold text-sm uppercase tracking-wide opacity-80 mb-0.5">${type}</p>
               <p class="font-medium">${message}</p>
           </div>
-          <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-slate-600 transition-colors">
+          <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-gray-600 transition-colors">
              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
       `;
@@ -267,12 +267,12 @@
 
         // Animate in
         requestAnimationFrame(() => {
-            toast.classList.remove("translate-x-32", "opacity-0");
+            toast.classList.remove("trangray-x-32", "opacity-0");
         });
 
         // Remove after 5s
         setTimeout(() => {
-            toast.classList.add("translate-x-32", "opacity-0");
+            toast.classList.add("trangray-x-32", "opacity-0");
             setTimeout(() => toast.remove(), 500);
         }, 5000);
     }
@@ -289,10 +289,10 @@
     function renderOrderCard(order) {
         // Helper function to get status badge classes
         const getStatusClasses = (status) => {
-            if (status === "PENDING") return "bg-amber-50 text-amber-700 ring-amber-600/20";
+            if (status === "PENDING") return "bg-yellow-50 text-yellow-700 ring-yellow-600/20";
             if (status === "PREPARING") return "bg-blue-50 text-blue-700 ring-blue-600/20";
-            if (status === "READY") return "bg-emerald-50 text-emerald-700 ring-emerald-600/20";
-            return "bg-slate-100 text-slate-600 ring-slate-500/10";
+            if (status === "READY") return "bg-green-50 text-green-700 ring-green-600/20";
+            return "bg-gray-100 text-gray-600 ring-gray-500/10";
         };
 
         const pickupSlot = order.pickup_slot ?
@@ -305,29 +305,29 @@
                 (item) =>
                     `<li class="flex justify-between items-start text-sm group/item">
               <div class="flex items-start">
-                  <span class="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 mr-2 group-hover/item:bg-indigo-400 transition-colors"></span>
+                  <span class="w-1.5 h-1.5 rounded-full bg-gray-300 mt-1.5 mr-2 group-hover/item:bg-indigo-400 transition-colors"></span>
                   <div>
-                      <span class="text-slate-700 font-medium leading-snug block">${item.name}</span>
+                      <span class="text-gray-700 font-medium leading-snug block">${item.name}</span>
                       ${item.day ? `<span class="text-xs text-indigo-500 font-medium mt-0.5 block">${item.week ? `Week ${item.week} - ` : ""}${item.day}</span>` : ""}
                   </div>
               </div>
-              <span class="font-bold text-slate-900 bg-slate-100 px-2 py-0.5 rounded ml-2 whitespace-nowrap">x ${item.quantity}</span>
+              <span class="font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded ml-2 whitespace-nowrap">x ${item.quantity}</span>
           </li>`
             )
             .join("");
 
         const moreItems = order.items.length > 4 ?
-            `<li class="pl-3.5 text-xs text-slate-400 italic">+ ${order.items.length - 4} more items...</li>` : '';
+            `<li class="pl-3.5 text-xs text-gray-400 italic">+ ${order.items.length - 4} more items...</li>` : '';
 
         return `
          <!-- Header -->
-         <div class="p-5 border-b border-slate-50 flex justify-between items-start bg-gradient-to-br from-slate-50 to-white">
+         <div class="p-5 border-b border-gray-50 flex justify-between items-start bg-gradient-to-br from-gray-50 to-white">
              <div>
                  <div class="flex items-center gap-2 mb-1">
-                     <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Order</span>
-                     <h3 class="text-xl font-black text-slate-800">#${order.id}</h3>
+                     <span class="text-xs font-bold text-gray-400 uppercase tracking-wider">Order</span>
+                     <h3 class="text-xl font-black text-gray-800">#${order.id}</h3>
                  </div>
-                 <span class="text-xs font-medium text-slate-500 flex items-center bg-slate-100 px-2 py-0.5 rounded-md w-fit">
+                 <span class="text-xs font-medium text-gray-500 flex items-center bg-gray-100 px-2 py-0.5 rounded-md w-fit">
                      <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                      ${order.timesince} ago
                  </span>
@@ -340,8 +340,8 @@
          <!-- Body -->
          <div class="p-5 flex-grow space-y-5">
              <!-- Pickup Info -->
-             <div class="flex items-center justify-between text-sm p-3 bg-slate-50 rounded-xl border border-slate-100">
-                 <div class="flex items-center text-slate-500">
+             <div class="flex items-center justify-between text-sm p-3 bg-gray-50 rounded-xl border border-gray-100">
+                 <div class="flex items-center text-gray-500">
                      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                      <span>${order.pickup_date}</span>
                  </div>
@@ -359,7 +359,7 @@
 
              <!-- Items List -->
              <div>
-                 <div class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center">
+                 <div class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center">
                      <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
                      Items (${order.items_count})
                  </div>
@@ -375,7 +375,7 @@
              <a href="${order.detail_url}"
                  class="w-full text-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2.5 px-4 rounded-xl shadow-sm hover:shadow-indigo-200 transition-all duration-200 flex items-center justify-center group/btn">
                  <span>View Details</span>
-                 <svg class="w-4 h-4 ml-2 group-hover/btn:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                 <svg class="w-4 h-4 ml-2 group-hover/btn:trangray-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
              </a>
          </div>
    `;
@@ -398,7 +398,7 @@
 
                         const tempDiv = document.createElement("div");
                         tempDiv.id = `order-card-${order.id}`;
-                        tempDiv.className = "group bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full border border-slate-100 ring-1 ring-slate-900/5";
+                        tempDiv.className = "group bg-white rounded-2xl shadow-sm hover:shadow-xl hover:-trangray-y-1 transition-all duration-300 overflow-hidden flex flex-col h-full border border-gray-100 ring-1 ring-gray-900/5";
                         tempDiv.setAttribute('data-has-meals', order.has_meals);
                         tempDiv.setAttribute('data-has-sweets', order.has_sweets);
                         tempDiv.innerHTML = renderOrderCard(order);

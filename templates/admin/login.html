@@ -92,13 +92,13 @@
 
 {% block content %}
 <div
-    class="min-h-screen w-full bg-gradient-to-br from-slate-900 via-indigo-950 to-black flex items-center justify-center p-4">
+    class="min-h-screen w-full bg-gradient-to-br from-gray-900 via-indigo-950 to-black flex items-center justify-center p-4">
 
     <!-- Abstract Background Shapes -->
     <div class="fixed inset-0 overflow-hidden pointer-events-none">
         <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-3xl"></div>
         <div class="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-blue-500/10 rounded-full blur-3xl"></div>
-        <div class="absolute -bottom-[10%] left-[20%] w-[35%] h-[35%] bg-slate-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-[10%] left-[20%] w-[35%] h-[35%] bg-gray-500/10 rounded-full blur-3xl"></div>
     </div>
 
     <!-- Login Card -->
@@ -106,10 +106,10 @@
 
         <!-- Logo / Header -->
         <div class="text-center mb-8">
-            <h1 class="text-3xl font-bold text-slate-800 mb-2">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">
                 Dosta Kitchen
             </h1>
-            <p class="text-slate-500 text-sm font-medium">Authentication Required</p>
+            <p class="text-gray-500 text-sm font-medium">Authentication Required</p>
         </div>
 
         {% if form.errors and not form.non_field_errors %}
@@ -137,7 +137,7 @@
             <div class="space-y-5">
                 <!-- Username -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">
                         {{ form.username.label_tag }}
                     </label>
                     {{ form.username }}
@@ -148,7 +148,7 @@
 
                 <!-- Password -->
                 <div>
-                    <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 px-1">
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">
                         {{ form.password.label_tag }}
                     </label>
                     {{ form.password }}
@@ -178,7 +178,7 @@
 
     <!-- Footer Credit -->
     <div class="fixed bottom-6 w-full text-center pointer-events-none">
-        <p class="text-slate-500/40 text-xs font-medium">Secured by Dosta Platform</p>
+        <p class="text-gray-500/40 text-xs font-medium">Secured by Dosta Platform</p>
     </div>
 
 </div>
