@@ -30,6 +30,10 @@
       background: #334155;
       border-radius: 4px;
     }
+
+    .max-w-latest {
+      max-width: 1400px;
+    }
   </style>
 </head>
 
@@ -61,7 +65,7 @@
         <a href="{% url 'kitchen:dashboard' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'dashboard' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'dashboard' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -77,7 +81,7 @@
         <a href="{% url 'kitchen:tracking_dashboard' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'tracking_dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'tracking_dashboard' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'tracking_dashboard' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -93,7 +97,7 @@
         <a href="{% url 'kitchen:analytics_dashboard' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'analytics_dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'analytics_dashboard' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'analytics_dashboard' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -109,7 +113,7 @@
         <a href="{% url 'kitchen:agent_dashboard' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'agent_dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'agent_dashboard' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'agent_dashboard' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -125,7 +129,7 @@
         <a href="{% url 'kitchen:catering_dashboard' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'catering_dashboard' %}bg-yellow-50 text-yellow-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'catering_dashboard' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-yellow-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-yellow-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'catering_dashboard' %}bg-white text-yellow-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -145,7 +149,7 @@
         <a href="{% url 'kitchen:daily_orders' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'daily_orders' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'daily_orders' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'daily_orders' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -161,7 +165,7 @@
         <a href="{% url 'kitchen:menu_upload' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'menu_upload' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'menu_upload' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'menu_upload' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -176,7 +180,7 @@
         <a href="{% url 'kitchen:vending_machine_items' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'vending_machine_items' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'vending_machine_items' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'vending_machine_items' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -190,7 +194,7 @@
         <a href="{% url 'kitchen:vending_master_list' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'vending_master_list' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'vending_master_list' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'vending_master_list' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
@@ -206,7 +210,7 @@
         <a href="{% url 'kitchen:catering_master_list' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'catering_master_list' %}bg-green-50 text-green-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'catering_master_list' %}
-          <div class="absolute left-0 top-1/2 -trangray-y-1/2 w-1 h-6 bg-green-600 rounded-r-full"></div>
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-green-600 rounded-r-full"></div>
           {% endif %}
           <span
             class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'catering_master_list' %}bg-white text-green-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
