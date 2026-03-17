@@ -34,6 +34,94 @@
     .max-w-latest {
       max-width: 1400px;
     }
+
+    /* =====================================================
+       Tailwind v3 / JIT classes missing from v2.2.19 build
+       ===================================================== */
+
+    /* Arbitrary text sizes */
+    .text-\[10px\] { font-size: 10px; line-height: 1.5; }
+    .text-\[9px\]  { font-size: 9px;  line-height: 1.5; }
+    .text-\[8px\]  { font-size: 8px;  line-height: 1.5; }
+
+    /* Arbitrary max/min heights — critical for table scroll containers */
+    .max-h-\[600px\] { max-height: 600px; }
+    .max-h-\[400px\] { max-height: 400px; }
+    .min-h-\[300px\] { min-height: 300px; }
+
+    /* Arbitrary widths */
+    .min-w-\[200px\] { min-width: 200px; }
+    .min-w-\[300px\] { min-width: 300px; }
+    .max-w-\[150px\] { max-width: 150px; }
+    .max-w-\[200px\] { max-width: 200px; }
+    .max-w-\[85\%\]  { max-width: 85%; }
+
+    /* Aspect ratio (v3 feature) */
+    .aspect-square { aspect-ratio: 1 / 1; }
+
+    /* Line clamp */
+    .line-clamp-3 {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+    }
+
+    /* Arbitrary z-index */
+    .z-\[100\] { z-index: 100; }
+    .z-\[60\]  { z-index: 60; }
+
+    /* Opacity-modified backgrounds (v3 slash syntax) */
+    .bg-black\/20  { background-color: rgba(0,0,0,0.20); }
+    .bg-black\/40  { background-color: rgba(0,0,0,0.40); }
+    .bg-black\/60  { background-color: rgba(0,0,0,0.60); }
+    .bg-white\/5   { background-color: rgba(255,255,255,0.05); }
+    .bg-white\/10  { background-color: rgba(255,255,255,0.10); }
+    .bg-white\/20  { background-color: rgba(255,255,255,0.20); }
+    .bg-white\/40  { background-color: rgba(255,255,255,0.40); }
+    .bg-gray-50\/30    { background-color: rgba(249,250,251,0.30); }
+    .bg-gray-50\/50    { background-color: rgba(249,250,251,0.50); }
+    .bg-gray-100\/50   { background-color: rgba(243,244,246,0.50); }
+    .bg-gray-900\/60   { background-color: rgba(17,24,39,0.60); }
+    .bg-indigo-50\/50  { background-color: rgba(238,242,255,0.50); }
+    .bg-green-500\/10  { background-color: rgba(34,197,94,0.10); }
+    .bg-indigo-500\/10 { background-color: rgba(99,102,241,0.10); }
+    .bg-blue-500\/10   { background-color: rgba(59,130,246,0.10); }
+    .bg-gray-500\/10   { background-color: rgba(107,114,128,0.10); }
+    .bg-red-500\/20    { background-color: rgba(239,68,68,0.20); }
+    .bg-red-500\/80    { background-color: rgba(239,68,68,0.80); }
+    .bg-red-900\/40    { background-color: rgba(127,29,29,0.40); }
+
+    /* Opacity-modified borders */
+    .border-white\/10      { border-color: rgba(255,255,255,0.10); }
+    .border-white\/20      { border-color: rgba(255,255,255,0.20); }
+    .border-white\/30      { border-color: rgba(255,255,255,0.30); }
+    .border-white\/40      { border-color: rgba(255,255,255,0.40); }
+    .border-green-500\/30  { border-color: rgba(34,197,94,0.30); }
+    .border-red-900\/40    { border-color: rgba(127,29,29,0.40); }
+    .border-indigo-100\/50 { border-color: rgba(224,231,255,0.50); }
+
+    /* Opacity-modified text */
+    .text-white\/40 { color: rgba(255,255,255,0.40); }
+    .text-white\/60 { color: rgba(255,255,255,0.60); }
+
+    /* Opacity-modified gradient from-colors */
+    .from-indigo-50\/50 {
+      --tw-gradient-from: rgba(238,242,255,0.50);
+      --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(238,242,255,0));
+    }
+    .from-black\/60 {
+      --tw-gradient-from: rgba(0,0,0,0.60);
+      --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(0,0,0,0));
+    }
+
+    /* Ring opacity variants */
+    .ring-gray-900\/5    { --tw-ring-color: rgba(17,24,39,0.05); }
+    .ring-blue-600\/20   { --tw-ring-color: rgba(37,99,235,0.20); }
+    .ring-gray-500\/10   { --tw-ring-color: rgba(107,114,128,0.10); }
+    .ring-green-600\/20  { --tw-ring-color: rgba(22,163,74,0.20); }
+    .ring-yellow-600\/20 { --tw-ring-color: rgba(202,138,4,0.20); }
   </style>
 </head>
 
