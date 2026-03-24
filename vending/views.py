@@ -1118,7 +1118,7 @@ class ExternalMachineGoodsView(APIView):
         
         print(f"DEBUG: Fetching token for MachineGoods from {token_url}")
         try:
-            token_response = requests.get(token_url, params=token_params, timeout=30)
+            token_response = requests.get(token_url, params=token_params, timeout=8)
             print(f"DEBUG: Token response status: {token_response.status_code}")
             token_data = token_response.json()
             print(f"DEBUG: Token response data: {token_data}")
@@ -1134,14 +1134,14 @@ class ExternalMachineGoodsView(APIView):
             headers = {"Authorization": token}
             print(f"DEBUG: Fetching goods from {goods_url} with params {params} and headers {headers}")
             
-            response = requests.get(goods_url, params=params, headers=headers, timeout=30)
+            response = requests.get(goods_url, params=params, headers=headers, timeout=8)
             api_data = response.json()
             
             # 3. Fetch Stock / Lock Information
             lock_counts = {}
             try:
                 stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
-                stock_res = requests.get(stock_url, params={"machineUuid": params.get("machineUuid")}, headers=headers, timeout=30)
+                stock_res = requests.get(stock_url, params={"machineUuid": params.get("machineUuid")}, headers=headers, timeout=8)
                 stock_data = stock_res.json()
                 print(f"DEBUG: Stock response data: {stock_data}")
                 if stock_data.get("result") == "200" and stock_data.get("data"):

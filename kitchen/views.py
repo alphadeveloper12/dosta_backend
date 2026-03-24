@@ -264,44 +264,51 @@ def menu_upload_view(request):
                 
             # PERFORM IMAGE DOWNLOADS OUTSIDE TRANSACTION TO PREVENT DB LOCKS
             import time
+            import threading
             from django.core.files.base import ContentFile
             from django.utils.text import slugify
-            from vending.models import MasterItem
             
-            for img_info in pending_images:
-                master_id = img_info['master_id']
-                item_name = img_info['item_name']
-                picture_url = img_info['picture_url']
-                
-                try:
-                    direct_url = get_google_drive_direct_link(picture_url)
-                    max_retries = 3
+            def download_images_task(images):
+                from vending.models import MasterItem
+                for img_info in images:
+                    master_id = img_info['master_id']
+                    item_name = img_info['item_name']
+                    picture_url = img_info['picture_url']
                     
-                    for attempt in range(max_retries):
-                        try:
-                            response = requests.get(direct_url, timeout=30)
-                            if response.status_code == 200:
-                                filename = f"{slugify(item_name)}.jpg"
-                                master = MasterItem.objects.get(id=master_id)
-                                master.image.save(filename, ContentFile(response.content), save=True)
-                                break # Success
-                            elif response.status_code == 429:
+                    try:
+                        direct_url = get_google_drive_direct_link(picture_url)
+                        max_retries = 3
+                        
+                        for attempt in range(max_retries):
+                            try:
+                                response = requests.get(direct_url, timeout=30)
+                                if response.status_code == 200:
+                                    filename = f"{slugify(item_name)}.jpg"
+                                    master = MasterItem.objects.get(id=master_id)
+                                    master.image.save(filename, ContentFile(response.content), save=True)
+                                    break # Success
+                                elif response.status_code == 429:
+                                    if attempt == max_retries - 1:
+                                        logs.append(f"Image download failed for {item_name}: Rate limited (HTTP 429)")
+                                    else:
+                                        time.sleep(2 ** attempt)
+                                else:
+                                    if attempt == max_retries - 1:
+                                        logs.append(f"Image download failed for {item_name}: HTTP {response.status_code}")
+                                    else:
+                                        time.sleep(2)
+                            except Exception as req_e:
                                 if attempt == max_retries - 1:
-                                    logs.append(f"Image download failed for {item_name}: Rate limited (HTTP 429)")
+                                    logs.append(f"Image download failed for {item_name}: {req_e}")
                                 else:
                                     time.sleep(2 ** attempt)
-                            else:
-                                if attempt == max_retries - 1:
-                                    logs.append(f"Image download failed for {item_name}: HTTP {response.status_code}")
-                                else:
-                                    time.sleep(2)
-                        except Exception as req_e:
-                            if attempt == max_retries - 1:
-                                logs.append(f"Image download failed for {item_name}: {req_e}")
-                            else:
-                                time.sleep(2 ** attempt)
-                except Exception as e:
-                    logs.append(f"Image error for {item_name}: {e}")
+                    except Exception as e:
+                        logs.append(f"Image error for {item_name}: {e}")
+
+            if pending_images:
+                thread = threading.Thread(target=download_images_task, args=(pending_images,))
+                thread.start()
+                messages.info(request, f"Started downloading {len(pending_images)} new images in the background.")
                 
             messages.success(request, f"Successfully imported {masters_created} items and linked {schedules_created} schedules.")
             # We can log warnings to messages as well if desired
@@ -782,7 +789,7 @@ def vending_machine_items_view(request):
     shelves_data = []
     
     try:
-        token_response = requests.get(token_url, params=token_params, timeout=10)
+        token_response = requests.get(token_url, params=token_params, timeout=8)
         token_data = token_response.json()
         token = token_data.get("data") or token_data.get("token")
         
@@ -811,9 +818,17 @@ def vending_machine_items_view(request):
                     local_image_map[normalize_name(item.name)] = item.image.url
             
             try:
-                response = requests.get(goods_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=15)
-                api_data = response.json()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                    future_goods = executor.submit(requests.get, goods_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=5) # Reduced timeout
+                    future_stock = executor.submit(requests.get, stock_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=5) # Reduced timeout
+
+                    goods_res = future_goods.result()
+                    stock_res = future_stock.result()
                 
+                api_data = goods_res.json() # This was 'response.json()' before
+                stock_data = stock_res.json() # New stock data
+
+                # Process goods data
                 if api_data and api_data.get("result") == "200":
                     slots = api_data.get("data") or []
                     shelves_dict = {}
