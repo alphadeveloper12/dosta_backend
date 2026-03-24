@@ -68,6 +68,7 @@ class MasterItem(models.Model):
     carbs = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
     fats = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
     heating = models.BooleanField(default=False)
+    default_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Price from sheet or admin edit. Used when creating MenuItem schedule links.")
     image_source_url = models.URLField(max_length=500, blank=True, null=True)
     image = models.ImageField(upload_to='menu_images/', blank=True, null=True)
     
@@ -175,9 +176,9 @@ class Order(models.Model):
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="orders", on_delete=models.SET_NULL, null=True, blank=True)
     status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.DRAFT)
     current_step = models.PositiveSmallIntegerField(default=1)
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     city = models.CharField(max_length=100, blank=True, null=True)
-    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     pickup_code = models.CharField(max_length=50, blank=True, null=True)
     qr_code_url = models.URLField(max_length=500, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -198,14 +199,23 @@ class Order(models.Model):
         return self.plan_type in [PlanType.ORDER_NOW, PlanType.SMART_GRAB]
 
     def update_total(self):
-        total = 0
+        from decimal import Decimal
+        total = Decimal('0.00')
         for item in self.items.all():
-            if item.menu_item:
-                total += item.menu_item.price * item.quantity
-            elif item.sweets_item:
-                price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
-                total += price * item.quantity
-        self.total_amount = total + self.delivery_charge
+            # Prioritize snapshot price (frozen history)
+            price = item.item_price_snapshot
+            
+            # Fallback to current price if snapshot not yet taken (active order)
+            if price is None:
+                if item.menu_item:
+                    price = item.menu_item.price
+                elif item.sweets_item:
+                    price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
+            
+            if price is not None:
+                total += Decimal(str(price)) * item.quantity
+        
+        self.total_amount = total + Decimal(str(self.delivery_charge))
         self.save(update_fields=["total_amount"])
 
     @property
@@ -215,19 +225,36 @@ class Order(models.Model):
 
     @property
     def has_meals(self):
-        return self.kitchen_items.filter(menu_item__isnull=False).exists()
+        return self.kitchen_items.filter(
+            models.Q(menu_item__isnull=False) | models.Q(item_type_snapshot='MEAL')
+        ).exists()
 
     @property
     def has_sweets(self):
-        return self.kitchen_items.filter(sweets_item__isnull=False).exists()
+        return self.kitchen_items.filter(
+            models.Q(sweets_item__isnull=False) | models.Q(item_type_snapshot='SWEET')
+        ).exists()
 
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
-    menu_item = models.ForeignKey(MenuItem, related_name="order_items", on_delete=models.PROTECT, null=True, blank=True)
+    menu_item = models.ForeignKey(MenuItem, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
     sweets_item = models.ForeignKey('catering.SweetsItem', related_name="order_items", on_delete=models.PROTECT, null=True, blank=True)
     sweets_variation = models.ForeignKey('catering.SweetsItemVariation', related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
+    
+    # Snapshots (to preserve history after wipes)
+    item_name_snapshot = models.CharField(max_length=255, blank=True, null=True)
+    item_type_snapshot = models.CharField(max_length=20, choices=[('MEAL', 'Meal'), ('SWEET', 'Sweet')], null=True, blank=True)
+    item_price_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    variation_snapshot = models.CharField(max_length=100, blank=True, null=True) # For weight/size
+    
+    # Nutrition Snapshots
+    calories_snapshot = models.JSONField(null=True, blank=True) # For complex macro strings or values
+    protein_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    carbs_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    fats_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
@@ -248,8 +275,32 @@ class OrderItem(models.Model):
     class Meta:
         indexes = [models.Index(fields=["order", "week_number", "day_of_week"])]
 
+    def save(self, *args, **kwargs):
+        if not self.item_name_snapshot:
+            if self.menu_item:
+                self.item_name_snapshot = self.menu_item.name
+                self.item_price_snapshot = self.menu_item.price
+                self.item_type_snapshot = 'MEAL'
+                # Capture nutrition from master
+                if self.menu_item.master_item:
+                    mi = self.menu_item.master_item
+                    self.calories_snapshot = mi.calories
+                    self.protein_snapshot = mi.protein
+                    self.carbs_snapshot = mi.carbs
+                    self.fats_snapshot = mi.fats
+            elif self.sweets_item:
+                self.item_name_snapshot = self.sweets_item.name
+                self.item_price_snapshot = self.sweets_variation.price if self.sweets_variation else self.sweets_item.price
+                self.item_type_snapshot = 'SWEET'
+                if self.sweets_variation:
+                    self.variation_snapshot = self.sweets_variation.weight
+                elif hasattr(self.sweets_item, 'weight'): # fallback
+                    self.variation_snapshot = getattr(self.sweets_item, 'weight', '')
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        base = f"{self.menu_item.name} x {self.quantity}"
+        name = self.item_name_snapshot or (self.menu_item.name if self.menu_item else "Unknown Item")
+        base = f"{name} x {self.quantity}"
         if self.week_number:
             return f"{base} (Week {self.week_number}, {self.day_of_week})"
         if self.day_of_week:
@@ -279,9 +330,9 @@ class Cart(models.Model):
     pickup_date = models.DateField(null=True, blank=True)
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="carts", on_delete=models.SET_NULL, null=True, blank=True)
 
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     city = models.CharField(max_length=100, blank=True, null=True)
-    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     current_step = models.PositiveSmallIntegerField(default=1)
     is_checked_out = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -295,21 +346,23 @@ class Cart(models.Model):
         return sum(item.quantity for item in self.items.all())
 
     def update_total(self):
-        total = 0
+        from decimal import Decimal
+        total = Decimal('0.00')
         for item in self.items.all():
             if item.menu_item:
-                total += item.menu_item.price * item.quantity
+                total += Decimal(str(item.menu_item.price)) * item.quantity
             elif item.sweets_item:
                 price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
-                total += price * item.quantity
-        self.total_price = total + self.delivery_charge
+                if price:
+                    total += Decimal(str(price)) * item.quantity
+        self.total_price = total + Decimal(str(self.delivery_charge))
         self.save(update_fields=["total_price"])
 
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
-    menu_item = models.ForeignKey(MenuItem, related_name="cart_items", on_delete=models.PROTECT, null=True, blank=True)
-    sweets_item = models.ForeignKey('catering.SweetsItem', related_name="cart_items", on_delete=models.PROTECT, null=True, blank=True)
+    menu_item = models.ForeignKey(MenuItem, related_name="cart_items", on_delete=models.CASCADE, null=True, blank=True)
+    sweets_item = models.ForeignKey('catering.SweetsItem', related_name="cart_items", on_delete=models.CASCADE, null=True, blank=True)
     sweets_variation = models.ForeignKey('catering.SweetsItemVariation', related_name="cart_items", on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
     

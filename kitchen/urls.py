@@ -29,6 +29,8 @@ urlpatterns = [
 
     # Master Items Management
     path('master-items/vending/', views.VendingMasterListView.as_view(), name='vending_master_list'),
+    path('master-items/vending/<int:pk>/edit/', views.vending_master_item_edit_view, name='vending_master_item_edit'),
+    path('master-items/vending/<int:pk>/schedule/', views.vending_master_schedule_api, name='vending_master_schedule_api'),
     path('master-items/vending/sync/', views.sync_vending_master_items, name='sync_vending_master'),
     path('master-items/catering/', views.CateringMasterListView.as_view(), name='catering_master_list'),
     path('master-items/catering/sync/', views.sync_catering_master_items, name='sync_catering_master'),

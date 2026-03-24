@@ -87,8 +87,8 @@
     <div
      class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
      <button
-      onclick="openEditModal('{{ item.id }}', '{{ item.name|escapejs }}', '{{ item.description|escapejs }}')"
-      class="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-indigo-50 transition-colors">
+      onclick="openEditModal('{{ item.id }}', '{{ item.name|escapejs }}', '{{ item.description|escapejs }}', '{{ item.default_price }}')"
+      class="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-indigo-50 transition-colors cursor-pointer">
       Edit Item
      </button>
     </div>
@@ -103,13 +103,15 @@
      {{ item.description|default:"No description" }}
     </p>
 
-    <div class="mt-4 flex items-center justify-between text-xs text-gray-400">
-     <span>Updated: {{ item.updated_at|date:"M d" }}</span>
-     {% if item.calories %}
-     <span class="bg-gray-100 px-2 py-1 rounded"
-      >{{ item.calories }} kcal</span
-     >
-     {% endif %}
+    <div class="mt-4 flex items-center justify-between text-xs font-medium">
+     <span class="text-gray-900">{{ item.default_price }} AED</span>
+     <span class="{% if item.menu_items.count > 0 %}bg-indigo-50 text-indigo-700{% else %}bg-gray-100 text-gray-500{% endif %} px-2 py-1 rounded">
+        {% if item.menu_items.count > 0 %}
+            {{ item.menu_items.count }} Schedules
+        {% else %}
+            No schedule
+        {% endif %}
+     </span>
     </div>
    </div>
   </div>
@@ -134,7 +136,7 @@
    <div
     class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
     id="modalPanel">
-    <form method="POST" enctype="multipart/form-data" class="p-6">
+    <form method="POST" enctype="multipart/form-data" class="p-6" id="editForm">
      {% csrf_token %}
      <input type="hidden" name="item_id" id="editItemId" />
 
@@ -173,6 +175,32 @@
 
       <div>
        <label class="block text-sm font-medium text-gray-700 mb-1"
+        >Price (AED)</label
+       >
+       <input
+        type="number"
+        step="0.01"
+        name="price"
+        id="editItemPrice"
+        required
+        class="w-full rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" />
+      </div>
+
+      <div class="pt-4 mt-2 border-t border-gray-100">
+        <div class="flex items-center justify-between mb-3">
+            <label class="block text-sm font-medium text-gray-700">Schedules (Week & Day)</label>
+            <button type="button" onclick="addScheduleRow()" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-md">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Schedule
+            </button>
+        </div>
+        <div id="scheduleRowsContainer" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+            <!-- Dynamic rows go here -->
+        </div>
+        <input type="hidden" name="schedules_json" id="schedulesJson" value="[]">
+      </div>
+
+      <div class="pt-4 border-t border-gray-100">
+       <label class="block text-sm font-medium text-gray-700 mb-1"
         >Update Image</label
        >
        <input
@@ -203,41 +231,111 @@
 </div>
 
 <script>
- const modal = document.getElementById("editModal");
- const backdrop = document.getElementById("modalBackdrop");
- const panel = document.getElementById("modalPanel");
+  const modal = document.getElementById("editModal");
+  const backdrop = document.getElementById("modalBackdrop");
+  const panel = document.getElementById("modalPanel");
+  const editForm = document.getElementById("editForm");
+  const scheduleRowsContainer = document.getElementById("scheduleRowsContainer");
+  const schedulesJsonInput = document.getElementById("schedulesJson");
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
- function openEditModal(id, name, desc) {
-  document.getElementById("editItemId").value = id;
-  document.getElementById("editItemName").value = name;
-  document.getElementById("editItemDesc").value = desc || "";
+  function openEditModal(id, name, desc, price) {
+   document.getElementById("editItemId").value = id;
+   document.getElementById("editItemName").value = name;
+   document.getElementById("editItemDesc").value = desc || "";
+   document.getElementById("editItemPrice").value = price || "0";
+   
+   editForm.action = `/kitchen/master-items/vending/${id}/edit/`;
 
-  modal.classList.remove("hidden");
-  // Animate in
-  requestAnimationFrame(() => {
-   backdrop.classList.remove("opacity-0");
-   panel.classList.remove(
+   // Fetch schedules
+   scheduleRowsContainer.innerHTML = '<div class="text-xs text-gray-400 text-center py-2">Loading schedules...</div>';
+   fetch(`/kitchen/master-items/vending/${id}/schedule/`)
+     .then(res => res.json())
+     .then(data => {
+         scheduleRowsContainer.innerHTML = '';
+         if(data.schedules && data.schedules.length > 0) {
+             data.schedules.forEach(s => addScheduleRow(s.week, s.day));
+         } else {
+             scheduleRowsContainer.innerHTML = '<div class="text-xs text-gray-400 italic text-center py-2" id="emptyScheduleMsg">No schedules linked.</div>';
+         }
+     })
+     .catch(err => {
+         scheduleRowsContainer.innerHTML = '<div class="text-xs text-red-500 text-center py-2">Error loading schedules.</div>';
+     });
+
+   modal.classList.remove("hidden");
+   // Animate in
+   requestAnimationFrame(() => {
+    backdrop.classList.remove("opacity-0");
+    panel.classList.remove(
+     "opacity-0",
+     "translate-y-4",
+     "sm:translate-y-0",
+     "sm:scale-95",
+    );
+   });
+  }
+
+  function closeEditModal() {
+   // Animate out
+   backdrop.classList.add("opacity-0");
+   panel.classList.add(
     "opacity-0",
     "translate-y-4",
     "sm:translate-y-0",
     "sm:scale-95",
    );
-  });
- }
 
- function closeEditModal() {
-  // Animate out
-  backdrop.classList.add("opacity-0");
-  panel.classList.add(
-   "opacity-0",
-   "translate-y-4",
-   "sm:translate-y-0",
-   "sm:scale-95",
-  );
+   setTimeout(() => {
+    modal.classList.add("hidden");
+   }, 300);
+  }
 
-  setTimeout(() => {
-   modal.classList.add("hidden");
-  }, 300);
- }
+  function addScheduleRow(week = 1, day = "Monday") {
+      const emptyMsg = document.getElementById("emptyScheduleMsg");
+      if(emptyMsg) emptyMsg.remove();
+
+      const row = document.createElement("div");
+      row.className = "flex items-center gap-2 schedule-row bg-gray-50 p-2 rounded-lg border border-gray-100";
+      
+      const weekSelect = document.createElement("select");
+      weekSelect.className = "w-1/3 rounded-md border-gray-200 text-sm py-1.5 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm week-val bg-white";
+      [1,2,3,4].forEach(w => {
+          let opt = new Option(`Week ${w}`, w);
+          if(w == week) opt.selected = true;
+          weekSelect.add(opt);
+      });
+
+      const daySelect = document.createElement("select");
+      daySelect.className = "w-full rounded-md border-gray-200 text-sm py-1.5 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm day-val bg-white";
+      days.forEach(d => {
+          let opt = new Option(d, d);
+          if(d === day) opt.selected = true;
+          daySelect.add(opt);
+      });
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors";
+      removeBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+      removeBtn.onclick = () => row.remove();
+
+      row.appendChild(weekSelect);
+      row.appendChild(daySelect);
+      row.appendChild(removeBtn);
+      
+      scheduleRowsContainer.appendChild(row);
+  }
+
+  editForm.onsubmit = function() {
+      const rows = Array.from(scheduleRowsContainer.querySelectorAll('.schedule-row'));
+      const schedules = rows.map(r => {
+          return {
+              week: parseInt(r.querySelector('.week-val').value),
+              day: r.querySelector('.day-val').value
+          };
+      });
+      schedulesJsonInput.value = JSON.stringify(schedules);
+  };
 </script>
 {% endblock %}

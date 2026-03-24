@@ -216,65 +216,167 @@ logger = logging.getLogger(__name__)
 @user_passes_test(is_kitchen_admin)
 def menu_upload_view(request):
     if request.method == 'POST' and request.FILES.get('menu_file'):
+        # Check confirmation checkbox
+        if request.POST.get('confirm_delete') != 'on':
+            messages.error(request, "You must check the confirmation box to proceed with the upload.")
+            return render(request, 'kitchen/menu_upload.html')
+
         file = request.FILES['menu_file']
         
         try:
+            data = []
             if file.name.endswith('.csv'):
                 decoded_file = file.read().decode('utf-8-sig').splitlines()
                 reader = csv.DictReader(decoded_file)
-                process_menu_data(reader)
-                messages.success(request, "Menu uploaded successfully via CSV!")
+                data = list(reader)
             elif file.name.endswith(('.xls', '.xlsx')):
                 import openpyxl
                 wb = openpyxl.load_workbook(file)
                 sheet = wb.active
                 
-                # Get headers
                 rows = list(sheet.iter_rows(values_only=True))
                 if not rows:
                     raise ValueError("Empty file")
                     
                 headers = [str(h).strip() if h else f"col_{i}" for i, h in enumerate(rows[0])]
-                data = []
                 for row in rows[1:]:
-                    # Skip completely empty rows
                     if not any(row):
                         continue
-
                     row_dict = {}
                     for i, val in enumerate(row):
                         if i < len(headers):
                             row_dict[headers[i]] = val
                     data.append(row_dict)
-                
-                process_menu_data(data)
-                messages.success(request, "Menu uploaded successfully via Excel!")
             else:
                 messages.error(request, "Unsupported file format. Please use CSV or Excel.")
+                return render(request, 'kitchen/menu_upload.html')
+
+            # DESTRUCTIVE WIPE & IMPORT
+            from django.db import transaction
+            from vending.models import Menu, MenuItem, MasterItem
+            
+            with transaction.atomic():
+                MenuItem.objects.all().delete()
+                Menu.objects.all().delete()
+                MasterItem.objects.all().delete()
                 
+                masters_created, schedules_created, logs, pending_images = import_vending_sheet(data)
+                
+            # PERFORM IMAGE DOWNLOADS OUTSIDE TRANSACTION TO PREVENT DB LOCKS
+            import time
+            from django.core.files.base import ContentFile
+            from django.utils.text import slugify
+            from vending.models import MasterItem
+            
+            for img_info in pending_images:
+                master_id = img_info['master_id']
+                item_name = img_info['item_name']
+                picture_url = img_info['picture_url']
+                
+                try:
+                    direct_url = get_google_drive_direct_link(picture_url)
+                    max_retries = 3
+                    
+                    for attempt in range(max_retries):
+                        try:
+                            response = requests.get(direct_url, timeout=30)
+                            if response.status_code == 200:
+                                filename = f"{slugify(item_name)}.jpg"
+                                master = MasterItem.objects.get(id=master_id)
+                                master.image.save(filename, ContentFile(response.content), save=True)
+                                break # Success
+                            elif response.status_code == 429:
+                                if attempt == max_retries - 1:
+                                    logs.append(f"Image download failed for {item_name}: Rate limited (HTTP 429)")
+                                else:
+                                    time.sleep(2 ** attempt)
+                            else:
+                                if attempt == max_retries - 1:
+                                    logs.append(f"Image download failed for {item_name}: HTTP {response.status_code}")
+                                else:
+                                    time.sleep(2)
+                        except Exception as req_e:
+                            if attempt == max_retries - 1:
+                                logs.append(f"Image download failed for {item_name}: {req_e}")
+                            else:
+                                time.sleep(2 ** attempt)
+                except Exception as e:
+                    logs.append(f"Image error for {item_name}: {e}")
+                
+            messages.success(request, f"Successfully imported {masters_created} items and linked {schedules_created} schedules.")
+            # We can log warnings to messages as well if desired
+            for log in logs[:5]: # Show max 5 warnings
+                messages.warning(request, log)
+
         except Exception as e:
             logger.error(f"Error processing file: {e}")
             messages.error(request, f"Error processing file: {str(e)}")
             
     return render(request, 'kitchen/menu_upload.html')
 
-def parse_macros(macro_str):
-    """Parses '36g' or '36' -> 36.0"""
-    if not macro_str:
+def parse_numeric(val_str):
+    """Safely parse numbers from strings like '35 AED' or '36g'.
+    Handles commas by treating them as decimal separators if only one exists,
+    otherwise removes them as thousand separators.
+    """
+    if not val_str:
         return 0
-    # Remove 'g' 'kcal' etc
-    cleaned = re.sub(r'[^\d.]', '', str(macro_str))
+    
+    val_str = str(val_str).strip()
+    
+    # If there is a comma but no dot, it's likely a European-style decimal separator
+    if ',' in val_str and '.' not in val_str:
+        # Check if it looks like a decimal separator (at the end)
+        parts = val_str.split(',')
+        if len(parts) == 2 and len(parts[1]) <= 2:
+            val_str = val_str.replace(',', '.')
+            
+    # Remove everything except digits and dots
+    cleaned = re.sub(r'[^\d.]', '', val_str)
+    
+    # If multiple dots, keep only the first one
+    if cleaned.count('.') > 1:
+        parts = cleaned.split('.')
+        cleaned = parts[0] + '.' + ''.join(parts[1:])
+        
     try:
-        return float(cleaned) if cleaned else 0
+        val = float(cleaned) if cleaned else 0
+        # Cap at 1 million to prevent crazy DB overflows
+        if val > 1000000:
+            return 1000000
+        return val
     except ValueError:
         return 0
 
-def process_menu_data(data_iter):
+def get_google_drive_direct_link(url):
     """
-    Expected columns: Week, Day, Item, Description, Price, Picture, Macros/Calories identifiers...
+    Transforms a Google Drive sharing link into a direct download link.
+    If the URL is not a recognized Google Drive link, returns the original URL.
     """
-    
-    # Mapping for DayOfWeek
+    if not url or "drive.google.com" not in url:
+        return url
+        
+    import re
+    # Match /file/d/ID/...
+    match = re.search(r'/file/d/([a-zA-Z0-9_-]+)', url)
+    if match:
+        file_id = match.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+    # Match id=ID
+    match = re.search(r'id=([a-zA-Z0-9_-]+)', url)
+    if match:
+        file_id = match.group(1)
+        return f"https://drive.google.com/uc?export=download&id={file_id}"
+        
+    return url
+
+def import_vending_sheet(data_iter):
+    from vending.models import Menu, MenuItem, MasterItem, DayOfWeek
+    import requests
+    from django.core.files.base import ContentFile
+    from django.utils.text import slugify
+
     day_map = {
         'Monday': DayOfWeek.MONDAY,
         'Tuesday': DayOfWeek.TUESDAY, 
@@ -285,127 +387,169 @@ def process_menu_data(data_iter):
         'Sunday': DayOfWeek.SUNDAY
     }
 
-    for row in data_iter:
-        # Normalize keys and values
-        row = {k.strip(): str(v).strip() for k, v in row.items() if k}
-        with open('debug_log.txt', 'a') as f:
-            f.write(f"DEBUG keys: {list(row.keys())}\n")
-            f.write(f"DEBUG row: {row}\n")
-        
-        # 1. Parse Week (e.g. "Week 1" -> 1)
-        week_raw = str(row.get('Week', '')).lower()
-        week_match = re.search(r'\d+', week_raw)
-        week_num = int(week_match.group()) if week_match else 1
-        
-        # 2. Parse Day
-        day_raw = str(row.get('Day', '')).strip()
-        # Capitalize first letter
-        day_raw = day_raw.capitalize()
-        if day_raw not in day_map:
-            logger.debug(f"Invalid Day: {day_raw}")
-            continue # Skip invalid days
-            
-        # 3. Get or Create Menu
-        # Robustly handle duplicates (legacy data might have "Week 1" for multiple Monday records)
-        menu = Menu.objects.filter(
-            day_of_week=day_map[day_raw],
-            week_number=week_num
-        ).first()
-        
-        if not menu:
-            menu = Menu.objects.create(
-                day_of_week=day_map[day_raw],
-                week_number=week_num,
-                date=None
-            )
-        
-        logger.debug(f"Menu found/created: {menu}")
-        
-        # 4. Create Menu Item
-        item_name = row.get('Item', 'Unknown Item')
-        if not item_name or item_name == 'Unknown Item':
-             logger.debug(f"Missing item name in row: {row}")
-             continue
-             
-        # Columns based on user image perception:
-        # We need to be smart about column names.
-        
-        price = parse_macros(row.get('Price', 0))
-        desc = row.get('Description', '')
-        
-        # Nutritional - user image shows numeric columns at the end (G, H, I, J...)
-        
-        cals = parse_macros(row.get('Calories', row.get('Kcal', 0)))
-        prot = parse_macros(row.get('Protein', 0))
-        carbs = parse_macros(row.get('Carbs', 0))
-        fats = parse_macros(row.get('Fats', 0))
-        
-        # Heating
-        heating_raw = row.get('Heating', row.get('heating', '')).lower().strip()
-        heating = (heating_raw == 'yes')
+    masters_count = 0
+    schedules_count = 0
+    logs = []
+    pending_images = []
 
-        # Check for explicitly updated fields to avoid overwriting with defaults if not present
-        defaults = {
-            'description': desc,
-            'price': price,
-            'calories': int(cals),
-            'protein': prot,
-            'carbs': carbs,
-            'fats': fats,
-            'heating': heating,
-        }
+    for row in data_iter:
+        row = {k.strip(): str(v).strip() for k, v in row.items() if k}
         
-        item, created = MenuItem.objects.update_or_create(
-            menu=menu,
-            name=item_name,
-            defaults=defaults
-        )
+        # Parse Required Fields
+        item_name = row.get('Item', row.get('Item Name', '')).strip()
+        if not item_name:
+            continue  # Skip empty names
+            
+        desc = row.get('Description', row.get('Item Description', ''))
+        price_val = parse_numeric(row.get('Price', row.get('Item Price', 0)))
         
-        # Handle Image URL
-        picture_url = row.get('Picture', '').strip()
-        
-        # Clean Excel formulas e.g. =IMAGE("url")
+        # Parse Image URL
+        picture_url = row.get('Image', row.get('Picture', '')).strip()
         if picture_url.startswith('=') or 'IMAGE(' in picture_url:
-            # Extract http/https url via regex
             url_match = re.search(r'(https?://[^\s"\'\)]+)', picture_url)
             if url_match:
                 picture_url = url_match.group(1)
-        
-        # Basic cleanup of quotes if any remain
         picture_url = picture_url.strip('"\'')
 
-        if picture_url and (picture_url.startswith('http') or 'drive.google.com' in picture_url):
-            # Check if we need to update
-            # We update if: 
-            # 1. We don't have an image source URL stored (legacy items)
-            # 2. The stored source URL is different from the new one
-            # 3. The item has no image file associated
-            if item.image_source_url != picture_url or not item.image:
-                try:
-                    with open('debug_log.txt', 'a') as f:
-                        f.write(f"DEBUG: Downloading new image for {item_name} from {picture_url}\n")
-                    
-                    # For Google Drive Export URLs, standard requests.get usually works if public
-                    response = requests.get(picture_url, timeout=10)
-                    if response.status_code == 200:
-                        # Create filename
-                        filename = f"{slugify(item_name)}.jpg"
-                        # Save image and update source URL
-                        item.image.save(filename, ContentFile(response.content), save=False)
-                        item.image_source_url = picture_url
-                        item.save()
-                        
-                        with open('debug_log.txt', 'a') as f:
-                            f.write(f"DEBUG: Saved image {filename}\n")
-                    else:
-                        with open('debug_log.txt', 'a') as f:
-                            f.write(f"DEBUG: Failed to download image. Status: {response.status_code}\n")
-                except Exception as e:
-                    with open('debug_log.txt', 'a') as f:
-                        f.write(f"DEBUG: Error downloading image: {e}\n")
-            else:
-                 with open('debug_log.txt', 'a') as f:
-                        f.write(f"DEBUG: Image URL unchanged for {item_name}, skipping download.\n")
+        # Create MasterItem ALWAYS
+        master, created = MasterItem.objects.get_or_create(
+            name=item_name,
+            defaults={
+                'description': desc,
+                'default_price': price_val,
+                'image_source_url': picture_url if picture_url.startswith('http') else None
+            }
+        )
+        if created:
+            masters_count += 1
+            # Queue image for download after transaction if it's new
+            if picture_url and picture_url.startswith('http'):
+                pending_images.append({
+                    'master_id': master.id,
+                    'item_name': item_name,
+                    'picture_url': picture_url
+                })
+        else:
+            logs.append(f"Skipped duplicate MasterItem name: {item_name}")
+            continue # We already processed this master (e.g. from duplicate rows in sheet)
+
+        # Handle Optional Schedule Data
+        week_raw = row.get('Week', '').strip().lower()
+        day_raw = row.get('Day', '').strip().capitalize()
+        
+        if week_raw and day_raw in day_map:
+            week_match = re.search(r'\d+', week_raw)
+            week_num = int(week_match.group()) if week_match else 1
+            
+            menu, _ = Menu.objects.get_or_create(
+                day_of_week=day_map[day_raw],
+                week_number=week_num
+            )
+            
+            MenuItem.objects.create(
+                menu=menu,
+                master_item=master,
+                name=master.name,
+                price=master.default_price,
+                description=master.description,
+                image=master.image,
+                image_source_url=master.image_source_url
+            )
+            schedules_count += 1
+
+    return masters_count, schedules_count, logs, pending_images
+
+# -----------------------------------------------------------
+# VENDING MASTER ITEM EDIT APIs
+# -----------------------------------------------------------
+from django.views.decorators.http import require_POST
+import json
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def vending_master_item_edit_view(request, pk):
+    """Handles the edit modal form submission"""
+    from vending.models import MasterItem, Menu, MenuItem, DayOfWeek
+    
+    master = get_object_or_404(MasterItem, pk=pk)
+    
+    # 1. Update Master Fields
+    master.name = request.POST.get('name', master.name)
+    master.description = request.POST.get('description', '')
+    master.default_price = parse_numeric(request.POST.get('price', master.default_price))
+    
+    if 'image' in request.FILES:
+        master.image = request.FILES['image']
+        
+    master.save() # Triggers signal to update any existing menu items' name/desc
+    
+    # 2. Update Schedules (Diff-based to preserve Cart links)
+    schedules_json = request.POST.get('schedules_json', '[]')
+    try:
+        new_schedules = json.loads(schedules_json)
+        day_map = {
+            'Monday': DayOfWeek.MONDAY, 'Tuesday': DayOfWeek.TUESDAY, 
+            'Wednesday': DayOfWeek.WEDNESDAY, 'Thursday': DayOfWeek.THURSDAY, 
+            'Friday': DayOfWeek.FRIDAY, 'Saturday': DayOfWeek.SATURDAY, 
+            'Sunday': DayOfWeek.SUNDAY
+        }
+        
+        # Track intended schedule (week, day)
+        intended_schedule = set()
+        for s in new_schedules:
+            week_num = int(s.get('week', 1))
+            day_raw = s.get('day', 'Monday')
+            day_val = day_map.get(day_raw, DayOfWeek.MONDAY)
+            intended_schedule.add((week_num, day_val))
+            
+        # 1. Delete MenuItem records that are no longer in the schedule
+        existing_items = MenuItem.objects.filter(master_item=master)
+        for item in existing_items:
+            if (item.menu.week_number, item.menu.day_of_week) not in intended_schedule:
+                item.delete()
+        
+        # 2. Create or Update intended MenuItem records
+        for week_num, day_val in intended_schedule:
+            menu, _ = Menu.objects.get_or_create(
+                day_of_week=day_val,
+                week_number=week_num
+            )
+            
+            # Update existing or Create new
+            MenuItem.objects.update_or_create(
+                menu=menu,
+                master_item=master,
+                defaults={
+                    'name': master.name,
+                    'price': master.default_price,
+                    'description': master.description,
+                    'image': master.image,
+                    'image_source_url': master.image_source_url
+                }
+            )
+            
+    except Exception as e:
+        messages.error(request, f"Error updating schedules: {str(e)}")
+        
+    messages.success(request, f"Updated '{master.name}' and its schedules successfully.")
+    return redirect('kitchen:vending_master_list')
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def vending_master_schedule_api(request, pk):
+    """Returns JSON of current schedules for a master item to populate the modal"""
+    from vending.models import MasterItem
+    master = get_object_or_404(MasterItem, pk=pk)
+    
+    schedules = []
+    for menu_item in master.menu_items.select_related('menu'):
+        schedules.append({
+            'week': menu_item.menu.week_number,
+            'day': menu_item.menu.day_of_week
+        })
+        
+    return JsonResponse({'schedules': schedules})
 
 
 @login_required
@@ -442,13 +586,19 @@ def get_active_orders_api(request):
 
         items_data = []
         for item in kitchen_items[:5]:  # Return up to 5 items for the dashboard
-            name = "Unknown Item"
-            if item.menu_item:
-                name = item.menu_item.name
-            elif item.sweets_item:
-                name = item.sweets_item.name
-                if item.sweets_variation:
-                    name = f"{name} ({item.sweets_variation.weight})"
+            name = item.item_name_snapshot
+            
+            if not name:
+                if item.menu_item:
+                    name = item.menu_item.name
+                elif item.sweets_item:
+                    name = item.sweets_item.name
+                    if item.sweets_variation:
+                        name = f"{name} ({item.sweets_variation.weight})"
+                elif item.variation_snapshot:
+                    name = f"Item ({item.variation_snapshot})"
+                else:
+                    name = "Item Deleted"
             
             items_data.append({
                 'name': name,
@@ -478,8 +628,8 @@ def get_active_orders_api(request):
             'pickup_slot': order.pickup_slot.label if order.pickup_slot else None,
             'items_count': kitchen_items.count(),
             'items': items_data,
-            'has_meals': kitchen_items.filter(menu_item__isnull=False).exists(),
-            'has_sweets': kitchen_items.filter(sweets_item__isnull=False).exists(),
+            'has_meals': kitchen_items.filter(models.Q(menu_item__isnull=False) | models.Q(item_name_snapshot__isnull=False)).exists(),
+            'has_sweets': kitchen_items.filter(sweets_item__isnull=False).exists(), # Sweets are usually NOT wiped
             'detail_url': reverse('kitchen:order_detail', args=[order.id])
         })
     
