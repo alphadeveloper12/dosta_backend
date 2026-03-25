@@ -511,7 +511,7 @@ def vending_master_item_edit_view(request, pk):
             intended_schedule.add((week_num, day_val))
             
         # 1. Delete MenuItem records that are no longer in the schedule
-        existing_items = MenuItem.objects.filter(master_item=master)
+        existing_items = MenuItem.objects.filter(master_item=master, menu__menu_type=MenuType.MONTHLY)
         for item in existing_items:
             if (item.menu.week_number, item.menu.day_of_week) not in intended_schedule:
                 item.delete()
@@ -520,7 +520,8 @@ def vending_master_item_edit_view(request, pk):
         for week_num, day_val in intended_schedule:
             menu, _ = Menu.objects.get_or_create(
                 day_of_week=day_val,
-                week_number=week_num
+                week_number=week_num,
+                menu_type=MenuType.MONTHLY
             )
             
             # Update existing or Create new
@@ -546,17 +547,28 @@ def vending_master_item_edit_view(request, pk):
 @user_passes_test(is_kitchen_admin)
 def vending_master_schedule_api(request, pk):
     """Returns JSON of current schedules for a master item to populate the modal"""
-    from vending.models import MasterItem
+    from vending.models import MasterItem, MenuType
     master = get_object_or_404(MasterItem, pk=pk)
     
+    # Monthly schedules are the main editable list in the modal
     schedules = []
-    for menu_item in master.menu_items.select_related('menu'):
+    for menu_item in master.menu_items.filter(menu__menu_type=MenuType.MONTHLY).select_related('menu'):
         schedules.append({
             'week': menu_item.menu.week_number,
             'day': menu_item.menu.day_of_week
         })
+    
+    # Weekly schedules shown read-only in modal
+    weekly_schedules = []
+    for menu_item in master.menu_items.filter(menu__menu_type=MenuType.WEEKLY).select_related('menu'):
+        weekly_schedules.append({
+            'day': menu_item.menu.day_of_week
+        })
         
-    return JsonResponse({'schedules': schedules})
+    return JsonResponse({
+        'schedules': schedules,
+        'weekly_schedules': weekly_schedules
+    })
 
 
 @login_required
@@ -1034,10 +1046,30 @@ class VendingMasterListView(LoginRequiredMixin, ListView):
     ordering = ['name']
 
     def get_queryset(self):
+        from django.db.models import Count, Q
+        from vending.models import MenuType
         queryset = super().get_queryset()
         query = self.request.GET.get('q')
         if query:
             queryset = queryset.filter(name__icontains=query)
+            
+        queryset = queryset.annotate(
+            standard_schedules_count=Count(
+                'menu_items', 
+                filter=Q(menu_items__menu__menu_type=MenuType.STANDARD),
+                distinct=True
+            ),
+            weekly_schedules_count=Count(
+                'menu_items',
+                filter=Q(menu_items__menu__menu_type=MenuType.WEEKLY),
+                distinct=True
+            ),
+            monthly_schedules_count=Count(
+                'menu_items',
+                filter=Q(menu_items__menu__menu_type=MenuType.MONTHLY),
+                distinct=True
+            )
+        )
         return queryset
 
     def post(self, request, *args, **kwargs):
@@ -1398,3 +1430,164 @@ def agent_dashboard_view(request):
     Shell view for the Agent Dashboard.
     """
     return render(request, 'kitchen/agent_dashboard.html')
+
+# ==========================================
+# WEEKLY AND MONTHLY ASSIGNMENT VIEWS
+# ==========================================
+from django.db import transaction
+from vending.models import MenuType
+
+class WeeklyVendingAssignmentView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = 'kitchen/weekly_vending_assignment.html'
+
+    def test_func(self):
+        return is_kitchen_admin(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        from vending.models import MenuItem
+        context = super().get_context_data(**kwargs)
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        selected_day = self.request.GET.get('day', 'Monday')
+        if selected_day not in days:
+            selected_day = 'Monday'
+            
+        q = self.request.GET.get('q', '')
+        
+        items = VendingMasterItem.objects.all().order_by('name')
+        if q:
+            items = items.filter(name__icontains=q)
+            
+        # Get active assignments for this day on Weekly menu
+        active_master_ids = set(MenuItem.objects.filter(
+            menu__day_of_week=selected_day,
+            menu__menu_type=MenuType.WEEKLY
+        ).values_list('master_item_id', flat=True))
+        
+        for item in items:
+            item.is_assigned = item.id in active_master_ids
+            
+        context['days'] = days
+        context['selected_day'] = selected_day
+        context['items'] = items
+        return context
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def save_weekly_vending_assignment(request):
+    from vending.models import Menu, MenuItem
+    selected_day = request.POST.get('day', 'Monday')
+    item_ids = request.POST.getlist('item_ids')
+    
+    # 1. Get or Create the Weekly Menu for this day
+    menu, _ = Menu.objects.get_or_create(
+        day_of_week=selected_day,
+        menu_type=MenuType.WEEKLY,
+        defaults={'week_number': 1}
+    )
+    
+    with transaction.atomic():
+        # 2. Clear existing MenuItems for this menu
+        menu.items.all().delete()
+        
+        # 3. Create new MenuItems
+        masters = VendingMasterItem.objects.filter(id__in=item_ids)
+        for master in masters:
+            MenuItem.objects.create(
+                menu=menu,
+                master_item=master,
+                name=master.name,
+                price=master.default_price,
+                description=master.description,
+                image=master.image,
+                image_source_url=master.image_source_url
+            )
+            
+    messages.success(request, f"Successfully updated Weekly menu for {selected_day}.")
+    return redirect(f"{reverse('kitchen:vending_weekly_assignment')}?day={selected_day}")
+
+class MonthlyVendingAssignmentView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = 'kitchen/monthly_vending_assignment.html'
+
+    def test_func(self):
+        return is_kitchen_admin(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        from vending.models import MenuItem
+        context = super().get_context_data(**kwargs)
+        days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+        weeks = [1, 2, 3, 4]
+        
+        selected_day = self.request.GET.get('day', 'Monday')
+        if selected_day not in days:
+            selected_day = 'Monday'
+            
+        try:
+            selected_week = int(self.request.GET.get('week', 1))
+            if selected_week not in weeks:
+                selected_week = 1
+        except ValueError:
+            selected_week = 1
+            
+        q = self.request.GET.get('q', '')
+        
+        items = VendingMasterItem.objects.all().order_by('name')
+        if q:
+            items = items.filter(name__icontains=q)
+            
+        # Get active assignments for this day and week on Monthly menu
+        active_master_ids = set(MenuItem.objects.filter(
+            menu__day_of_week=selected_day,
+            menu__week_number=selected_week,
+            menu__menu_type=MenuType.MONTHLY
+        ).values_list('master_item_id', flat=True))
+        
+        for item in items:
+            item.is_assigned = item.id in active_master_ids
+            
+        context['days'] = days
+        context['weeks'] = weeks
+        context['selected_day'] = selected_day
+        context['selected_week'] = selected_week
+        context['items'] = items
+        return context
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def save_monthly_vending_assignment(request):
+    from vending.models import Menu, MenuItem
+    selected_day = request.POST.get('day', 'Monday')
+    try:
+        selected_week = int(request.POST.get('week', 1))
+    except ValueError:
+        selected_week = 1
+        
+    item_ids = request.POST.getlist('item_ids')
+    
+    # 1. Get or Create the Monthly Menu for this day and week
+    menu, _ = Menu.objects.get_or_create(
+        day_of_week=selected_day,
+        week_number=selected_week,
+        menu_type=MenuType.MONTHLY
+    )
+    
+    with transaction.atomic():
+        # 2. Clear existing MenuItems for this menu
+        menu.items.all().delete()
+        
+        # 3. Create new MenuItems
+        masters = VendingMasterItem.objects.filter(id__in=item_ids)
+        for master in masters:
+            MenuItem.objects.create(
+                menu=menu,
+                master_item=master,
+                name=master.name,
+                price=master.default_price,
+                description=master.description,
+                image=master.image,
+                image_source_url=master.image_source_url
+            )
+            
+    messages.success(request, f"Successfully updated Monthly menu for Week {selected_week} {selected_day}.")
+    return redirect(f"{reverse('kitchen:vending_monthly_assignment')}?day={selected_day}&week={selected_week}")

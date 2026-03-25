@@ -15,6 +15,12 @@ class DayOfWeek(models.TextChoices):
     SUNDAY = 'Sunday', 'Sunday'
 
 
+class MenuType(models.TextChoices):
+    STANDARD = 'STANDARD', 'Standard'
+    WEEKLY = 'WEEKLY', 'Weekly'
+    MONTHLY = 'MONTHLY', 'Monthly'
+
+
 class PlanType(models.TextChoices):
     ORDER_NOW = "ORDER_NOW", "Order now"
     START_PLAN = "START_PLAN", "Start a plan"
@@ -47,6 +53,7 @@ class OrderStatus(models.TextChoices):
 # -----------------------------------------------------------
 
 class Menu(models.Model):
+    menu_type = models.CharField(max_length=20, choices=MenuType.choices, default=MenuType.STANDARD)
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices)
     week_number = models.PositiveSmallIntegerField(default=1, help_text="Week number (1-4) for monthly rotation")
     date = models.DateField(null=True, blank=True)

@@ -13,7 +13,15 @@
    </p>
   </div>
 
-  <div class="flex items-center gap-3">
+  <div class="flex items-center gap-3 flex-wrap">
+   <a href="{% url 'kitchen:vending_weekly_assignment' %}" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl font-bold hover:bg-blue-100 transition-colors flex items-center gap-2 text-sm whitespace-nowrap">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+    Weekly
+   </a>
+   <a href="{% url 'kitchen:vending_monthly_assignment' %}" class="px-4 py-2 bg-purple-50 text-purple-700 rounded-xl font-bold hover:bg-purple-100 transition-colors flex items-center gap-2 text-sm whitespace-nowrap">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+    Monthly
+   </a>
    <a
     href="{% url 'kitchen:sync_vending_master' %}"
     class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-bold hover:bg-indigo-100 transition-colors flex items-center gap-2 text-sm whitespace-nowrap">
@@ -105,13 +113,21 @@
 
     <div class="mt-4 flex items-center justify-between text-xs font-medium">
      <span class="text-gray-900">{{ item.default_price }} AED</span>
-     <span class="{% if item.menu_items.count > 0 %}bg-indigo-50 text-indigo-700{% else %}bg-gray-100 text-gray-500{% endif %} px-2 py-1 rounded">
-        {% if item.menu_items.count > 0 %}
-            {{ item.menu_items.count }} Schedules
+     <div class="flex flex-wrap gap-1 justify-end">
+        {% if item.standard_schedules_count > 0 or item.weekly_schedules_count > 0 or item.monthly_schedules_count > 0 %}
+            {% if item.standard_schedules_count > 0 %}
+                <span class="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-[10px] font-bold">{{ item.standard_schedules_count }} Standard</span>
+            {% endif %}
+            {% if item.weekly_schedules_count > 0 %}
+                <span class="bg-green-50 text-green-700 px-2 py-1 rounded text-[10px] font-bold">{{ item.weekly_schedules_count }} Weekly</span>
+            {% endif %}
+            {% if item.monthly_schedules_count > 0 %}
+                <span class="bg-orange-50 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">{{ item.monthly_schedules_count }} Monthly</span>
+            {% endif %}
         {% else %}
-            No schedule
+            <span class="bg-gray-100 text-gray-500 px-2 py-1 rounded text-[10px] font-bold">No schedule</span>
         {% endif %}
-     </span>
+     </div>
     </div>
    </div>
   </div>
@@ -134,9 +150,9 @@
   <div
    class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
    <div
-    class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+    class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95 max-h-[90vh] flex flex-col"
     id="modalPanel">
-    <form method="POST" enctype="multipart/form-data" class="p-6" id="editForm">
+    <form method="POST" enctype="multipart/form-data" class="p-6 overflow-y-auto flex-1" id="editForm">
      {% csrf_token %}
      <input type="hidden" name="item_id" id="editItemId" />
 
@@ -188,7 +204,7 @@
 
       <div class="pt-4 mt-2 border-t border-gray-100">
         <div class="flex items-center justify-between mb-3">
-            <label class="block text-sm font-medium text-gray-700">Schedules (Week & Day)</label>
+            <label class="block text-sm font-medium text-gray-700">Monthly Schedules (Week & Day)</label>
             <button type="button" onclick="addScheduleRow()" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-md">
                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Schedule
             </button>
@@ -197,6 +213,14 @@
             <!-- Dynamic rows go here -->
         </div>
         <input type="hidden" name="schedules_json" id="schedulesJson" value="[]">
+      </div>
+
+      <!-- Read-only Weekly Schedules -->
+      <div class="pt-3 mt-1 border-t border-gray-100">
+        <label class="block text-xs font-semibold text-green-700 mb-1">Weekly Menu Assignments <span class="font-normal text-gray-400">(read-only)</span></label>
+        <div id="weeklyScheduleInfo" class="flex flex-wrap gap-1 min-h-[24px]">
+          <span class="text-xs text-gray-400 italic">Loading...</span>
+        </div>
       </div>
 
       <div class="pt-4 border-t border-gray-100">
@@ -249,14 +273,27 @@
 
    // Fetch schedules
    scheduleRowsContainer.innerHTML = '<div class="text-xs text-gray-400 text-center py-2">Loading schedules...</div>';
+   const weeklyInfoContainer = document.getElementById('weeklyScheduleInfo');
+   weeklyInfoContainer.innerHTML = '';
+
    fetch(`/kitchen/master-items/vending/${id}/schedule/`)
      .then(res => res.json())
      .then(data => {
+         // -- Monthly Schedules (editable list) --
          scheduleRowsContainer.innerHTML = '';
          if(data.schedules && data.schedules.length > 0) {
              data.schedules.forEach(s => addScheduleRow(s.week, s.day));
          } else {
-             scheduleRowsContainer.innerHTML = '<div class="text-xs text-gray-400 italic text-center py-2" id="emptyScheduleMsg">No schedules linked.</div>';
+             scheduleRowsContainer.innerHTML = '<div class="text-xs text-gray-400 italic text-center py-2" id="emptyScheduleMsg">No monthly schedules linked. Add one above.</div>';
+         }
+
+         // -- Weekly Schedules (read-only) --
+         if (data.weekly_schedules && data.weekly_schedules.length > 0) {
+             weeklyInfoContainer.innerHTML = data.weekly_schedules.map(s =>
+                 `<span class="inline-block bg-green-50 text-green-700 px-2 py-0.5 rounded text-xs font-medium">${s.day}</span>`
+             ).join('');
+         } else {
+             weeklyInfoContainer.innerHTML = '<span class="text-xs text-gray-400 italic">None</span>';
          }
      })
      .catch(err => {
@@ -339,3 +376,5 @@
   };
 </script>
 {% endblock %}
+
+

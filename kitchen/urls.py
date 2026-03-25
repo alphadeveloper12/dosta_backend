@@ -29,6 +29,10 @@ urlpatterns = [
 
     # Master Items Management
     path('master-items/vending/', views.VendingMasterListView.as_view(), name='vending_master_list'),
+    path('master-items/vending/weekly/', views.WeeklyVendingAssignmentView.as_view(), name='vending_weekly_assignment'),
+    path('master-items/vending/weekly/save/', views.save_weekly_vending_assignment, name='save_vending_weekly_assignment'),
+    path('master-items/vending/monthly/', views.MonthlyVendingAssignmentView.as_view(), name='vending_monthly_assignment'),
+    path('master-items/vending/monthly/save/', views.save_monthly_vending_assignment, name='save_vending_monthly_assignment'),
     path('master-items/vending/<int:pk>/edit/', views.vending_master_item_edit_view, name='vending_master_item_edit'),
     path('master-items/vending/<int:pk>/schedule/', views.vending_master_schedule_api, name='vending_master_schedule_api'),
     path('master-items/vending/sync/', views.sync_vending_master_items, name='sync_vending_master'),
