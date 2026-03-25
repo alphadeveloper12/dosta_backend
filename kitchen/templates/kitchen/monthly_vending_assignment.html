@@ -12,7 +12,7 @@
     </h2>
    </div>
    <p class="text-gray-500 mt-1 ml-9">
-    Assign active items to the Monthly menu by day.
+    Assign active items to the Monthly menu by week and day. Selections across tabs are preserved until you save.
    </p>
   </div>
 
@@ -29,40 +29,47 @@
     <input type="text" name="q" id="searchInput" value="{{ request.GET.q|default:'' }}" class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 sm:text-sm shadow-sm transition-all hover:shadow-md" placeholder="Search items..." autocapitalize="off" />
    </form>
    
-   <button type="submit" form="assignmentForm" class="px-5 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-sm shadow-purple-200 flex items-center gap-2">
+   <button type="button" id="saveBtn" onclick="submitAllSelections()" disabled
+    class="px-5 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-sm shadow-purple-200 flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed">
     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-    Save Assignments
+    Save
    </button>
   </div>
  </div>
 
  <!-- Week Tabs -->
- <div class="flex overflow-x-auto border-b border-gray-200 custom-scrollbar pb-px">
+ <div class="flex overflow-x-auto border-b border-gray-200 custom-scrollbar pb-px" id="weekTabs">
   {% for week in weeks %}
-  <a href="?day={{ selected_day }}&week={{ week }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="px-6 py-3 font-medium text-sm border-b-2 whitespace-nowrap transition-colors {% if week == selected_week %}border-purple-500 text-purple-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
+  <button type="button"
+   data-week="{{ week }}"
+   class="week-tab-btn px-6 py-3 font-medium text-sm border-b-2 whitespace-nowrap transition-colors {% if week == selected_week %}border-purple-500 text-purple-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
    Week {{ week }}
-  </a>
+  </button>
   {% endfor %}
  </div>
 
  <!-- Day Tabs -->
- <div class="flex overflow-x-auto border-b border-gray-200 mb-6 custom-scrollbar pb-px">
+ <div class="flex overflow-x-auto border-b border-gray-200 mb-6 custom-scrollbar pb-px" id="dayTabs">
   {% for day in days %}
-  <a href="?day={{ day }}&week={{ selected_week }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="px-6 py-3 font-medium text-sm border-b-2 whitespace-nowrap transition-colors {% if day == selected_day %}border-purple-500 text-purple-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
+  <button type="button"
+   data-day="{{ day }}"
+   class="day-tab-btn px-6 py-3 font-medium text-sm border-b-2 whitespace-nowrap transition-colors {% if day == selected_day %}border-purple-500 text-purple-600{% else %}border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300{% endif %}">
    {{ day }}
-  </a>
+   <span class="tab-badge hidden ml-1.5 px-1.5 py-0.5 text-xs bg-purple-100 text-purple-700 rounded-full" data-tab-badge=""></span>
+  </button>
   {% endfor %}
  </div>
 
  <!-- Items Grid -->
  <form method="POST" action="{% url 'kitchen:save_vending_monthly_assignment' %}" id="assignmentForm">
   {% csrf_token %}
-  <input type="hidden" name="day" value="{{ selected_day }}">
-  <input type="hidden" name="week" value="{{ selected_week }}">
-  
+  <!-- Hidden fields injected by JS before submit -->
+  <div id="hiddenFieldsContainer"></div>
+
   <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" id="itemGridContainer">
    {% for item in items %}
-   <label class="bg-white rounded-xl shadow-sm border {% if item.is_assigned %}border-purple-500 ring-1 ring-purple-500{% else %}border-gray-100 hover:border-gray-300{% endif %} transition-all overflow-hidden cursor-pointer relative group flex flex-col h-full item-card">
+   <label class="bg-white rounded-xl shadow-sm border {% if item.is_assigned %}border-purple-500 ring-1 ring-purple-500{% else %}border-gray-100 hover:border-gray-300{% endif %} transition-all overflow-hidden cursor-pointer relative group flex flex-col h-full item-card"
+    data-item-id="{{ item.id }}">
     
     <!-- Image -->
     <div class="h-32 bg-gray-50 relative overflow-hidden flex-shrink-0">
@@ -75,7 +82,7 @@
      {% endif %}
      
      <div class="absolute top-2 right-2 bg-white rounded-md p-1 shadow-sm">
-      <input type="checkbox" name="item_ids" value="{{ item.id }}" class="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 item-checkbox" {% if item.is_assigned %}checked{% endif %}>
+      <input type="checkbox" data-item="{{ item.id }}" class="w-5 h-5 text-purple-600 border-gray-300 rounded focus:ring-purple-500 item-checkbox" {% if item.is_assigned %}checked{% endif %}>
      </div>
     </div>
 
@@ -95,77 +102,246 @@
 </div>
 
 <script>
- document.addEventListener('DOMContentLoaded', function() {
-   const checkboxes = document.querySelectorAll('.item-checkbox');
-   checkboxes.forEach(cb => {
-     cb.addEventListener('change', function() {
-       const card = this.closest('.item-card');
-       if(this.checked) {
-         card.classList.remove('border-gray-100', 'hover:border-gray-300');
-         card.classList.add('border-purple-500', 'ring-1', 'ring-purple-500');
-       } else {
-         card.classList.add('border-gray-100', 'hover:border-gray-300');
-         card.classList.remove('border-purple-500', 'ring-1', 'ring-purple-500');
-       }
-     });
-   });
- });
-</script>
+  // ── State Store ─────────────────────────────────────────────────
+  // selectionStore[tabKey] = Set of item id strings
+  // tabKey = "{week}_{day}", e.g. "1_Monday"
+  const selectionStore = {};
+  let currentWeek = {{ selected_week }};
+  let currentDay = '{{ selected_day }}';
 
-<script>
-  // AJAX Search
+  function tabKey(week, day) { return `${week}_${day}`; }
+  function currentKey() { return tabKey(currentWeek, currentDay); }
+
+  function initCurrentTabFromDOM() {
+    const key = currentKey();
+    const checked = [...document.querySelectorAll('#itemGridContainer .item-checkbox:checked')];
+    selectionStore[key] = new Set(checked.map(cb => cb.dataset.item));
+  }
+
+  // ── UI helpers ──────────────────────────────────────────────────
+  function updateSaveBtn() {
+    const total = Object.values(selectionStore).reduce((s, set) => s + set.size, 0);
+    document.getElementById('saveBtn').disabled = total === 0;
+  }
+
+  function updateDayBadges() {
+    document.querySelectorAll('.day-tab-btn').forEach(btn => {
+      const day = btn.dataset.day;
+      const key = tabKey(currentWeek, day);
+      const badge = btn.querySelector('.tab-badge');
+      if (!badge) return;
+      const count = selectionStore[key] ? selectionStore[key].size : 0;
+      if (count > 0) {
+        badge.textContent = count;
+        badge.classList.remove('hidden');
+      } else {
+        badge.textContent = '';
+        badge.classList.add('hidden');
+      }
+    });
+  }
+
+  // ── Checkbox binding ────────────────────────────────────────────
+  function bindCheckboxEvents() {
+    const grid = document.getElementById('itemGridContainer');
+    if (!grid) return;
+    grid.querySelectorAll('.item-checkbox').forEach(cb => {
+      cb.addEventListener('change', function () {
+        const card = this.closest('.item-card');
+        const itemId = this.dataset.item;
+        const key = currentKey();
+        if (!selectionStore[key]) selectionStore[key] = new Set();
+
+        if (this.checked) {
+          selectionStore[key].add(itemId);
+          card.classList.remove('border-gray-100', 'hover:border-gray-300');
+          card.classList.add('border-purple-500', 'ring-1', 'ring-purple-500');
+          grid.prepend(card);
+        } else {
+          selectionStore[key].delete(itemId);
+          card.classList.add('border-gray-100', 'hover:border-gray-300');
+          card.classList.remove('border-purple-500', 'ring-1', 'ring-purple-500');
+        }
+        updateSaveBtn();
+        updateDayBadges();
+      });
+    });
+  }
+
+  // ── Apply stored selections to the current grid ─────────────────
+  function applyStoreToGrid() {
+    const grid = document.getElementById('itemGridContainer');
+    const store = selectionStore[currentKey()] || new Set();
+    const cards = [...grid.querySelectorAll('.item-card')];
+    const checkedCards = [], uncheckedCards = [];
+
+    cards.forEach(card => {
+      const cb = card.querySelector('.item-checkbox');
+      const itemId = cb ? cb.dataset.item : null;
+      const isSelected = store.has(itemId);
+      cb.checked = isSelected;
+      if (isSelected) {
+        card.classList.remove('border-gray-100', 'hover:border-gray-300');
+        card.classList.add('border-purple-500', 'ring-1', 'ring-purple-500');
+        checkedCards.push(card);
+      } else {
+        card.classList.add('border-gray-100', 'hover:border-gray-300');
+        card.classList.remove('border-purple-500', 'ring-1', 'ring-purple-500');
+        uncheckedCards.push(card);
+      }
+    });
+
+    [...checkedCards, ...uncheckedCards].forEach(c => grid.appendChild(c));
+  }
+
+  // ── AJAX tab load ───────────────────────────────────────────────
+  function loadTab(week, day) {
+    currentWeek = week;
+    currentDay = day;
+
+    // Update tab styles
+    document.querySelectorAll('.week-tab-btn').forEach(btn => {
+      const active = parseInt(btn.dataset.week) === week;
+      btn.classList.toggle('border-purple-500', active);
+      btn.classList.toggle('text-purple-600', active);
+      btn.classList.toggle('border-transparent', !active);
+      btn.classList.toggle('text-gray-500', !active);
+    });
+    document.querySelectorAll('.day-tab-btn').forEach(btn => {
+      const active = btn.dataset.day === day;
+      btn.classList.toggle('border-purple-500', active);
+      btn.classList.toggle('text-purple-600', active);
+      btn.classList.toggle('border-transparent', !active);
+      btn.classList.toggle('text-gray-500', !active);
+    });
+
+    const grid = document.getElementById('itemGridContainer');
+    grid.style.opacity = '0.5';
+
+    // Update hidden search form fields
+    document.querySelector('#searchForm input[name="day"]').value = day;
+    document.querySelector('#searchForm input[name="week"]').value = week;
+
+    const url = new URL(window.location.href);
+    url.searchParams.set('day', day);
+    url.searchParams.set('week', week);
+    const q = document.getElementById('searchInput').value;
+    if (q) url.searchParams.set('q', q); else url.searchParams.delete('q');
+    window.history.replaceState({}, '', url);
+
+    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+      .then(r => r.text())
+      .then(html => {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        const newGrid = doc.getElementById('itemGridContainer');
+        if (newGrid) {
+          grid.innerHTML = newGrid.innerHTML;
+
+          // Seed store from server if no local override
+          const key = currentKey();
+          if (!selectionStore[key]) {
+            const serverChecked = [...grid.querySelectorAll('.item-checkbox:checked')];
+            selectionStore[key] = new Set(serverChecked.map(cb => cb.dataset.item));
+          }
+
+          applyStoreToGrid();
+          bindCheckboxEvents();
+          updateSaveBtn();
+          updateDayBadges();
+        }
+        grid.style.opacity = '1';
+      })
+      .catch(err => {
+        console.error('Tab switch error:', err);
+        grid.style.opacity = '1';
+      });
+  }
+
+  // ── Form submission ─────────────────────────────────────────────
+  function submitAllSelections() {
+    const container = document.getElementById('hiddenFieldsContainer');
+    container.innerHTML = '';
+
+    const addHidden = (name, value) => {
+      const el = document.createElement('input');
+      el.type = 'hidden';
+      el.name = name;
+      el.value = value;
+      container.appendChild(el);
+    };
+
+    addHidden('active_day', currentDay);
+    addHidden('active_week', currentWeek);
+
+    const tabsWithData = Object.keys(selectionStore).filter(k => selectionStore[k].size > 0);
+
+    tabsWithData.forEach(key => {
+      addHidden('tabs', key);
+      selectionStore[key].forEach(id => addHidden(`item_ids_${key}`, id));
+    });
+
+    // Sync any last-moment DOM changes for current tab
+    const curKey = currentKey();
+    document.querySelectorAll('#itemGridContainer .item-checkbox:checked').forEach(cb => {
+      const id = cb.dataset.item;
+      const alreadyAdded = [...container.querySelectorAll(`input[name="item_ids_${curKey}"]`)]
+        .some(el => el.value === id);
+      if (!alreadyAdded) {
+        if (!tabsWithData.includes(curKey)) addHidden('tabs', curKey);
+        addHidden(`item_ids_${curKey}`, id);
+      }
+    });
+
+    document.getElementById('assignmentForm').submit();
+  }
+
+  // ── AJAX Search ─────────────────────────────────────────────────
   document.addEventListener('DOMContentLoaded', () => {
+    initCurrentTabFromDOM();
+    bindCheckboxEvents();
+    updateSaveBtn();
+    updateDayBadges();
+
+    // Week tab clicks
+    document.querySelectorAll('.week-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => loadTab(parseInt(btn.dataset.week), currentDay));
+    });
+
+    // Day tab clicks
+    document.querySelectorAll('.day-tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => loadTab(currentWeek, btn.dataset.day));
+    });
+
+    // Search
     const searchInput = document.getElementById('searchInput');
     const searchForm = document.getElementById('searchForm');
     const gridContainer = document.getElementById('itemGridContainer');
-
     let debounceTimer;
 
     if (searchForm && searchInput && gridContainer) {
-      // Prevent default form submission to avoid full reload
-      searchForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-      });
-
+      searchForm.addEventListener('submit', e => e.preventDefault());
       searchInput.addEventListener('input', () => {
         clearTimeout(debounceTimer);
-        // Wait 1 second per user request
         debounceTimer = setTimeout(() => {
-          const url = new URL(searchForm.action || window.location.href);
+          const url = new URL(window.location.href);
           url.searchParams.set('q', searchInput.value);
+          url.searchParams.set('day', currentDay);
+          url.searchParams.set('week', currentWeek);
 
-          // Preserve day and week if they exist
-          const currentParams = new URLSearchParams(window.location.search);
-          if (currentParams.has('day')) url.searchParams.set('day', currentParams.get('day'));
-          if (currentParams.has('week')) url.searchParams.set('week', currentParams.get('week'));
-
-          // Add AJAX header
           fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(res => res.text())
+            .then(r => r.text())
             .then(html => {
-              const parser = new DOMParser();
-              const doc = parser.parseFromString(html, 'text/html');
+              const doc = new DOMParser().parseFromString(html, 'text/html');
               const newGrid = doc.getElementById('itemGridContainer');
               if (newGrid) {
                 gridContainer.innerHTML = newGrid.innerHTML;
-                // Re-bind checkbox events since innerHTML replaced them
-                const checkboxes = gridContainer.querySelectorAll('.item-checkbox');
-                checkboxes.forEach(cb => {
-                  cb.addEventListener('change', function() {
-                    const card = this.closest('.item-card');
-                    if(this.checked) {
-                      card.classList.remove('border-gray-100', 'hover:border-gray-300');
-                      card.classList.add('border-purple-500', 'ring-1', 'ring-purple-500');
-                    } else {
-                      card.classList.add('border-gray-100', 'hover:border-gray-300');
-                      card.classList.remove('border-purple-500', 'ring-1', 'ring-purple-500');
-                    }
-                  });
-                });
+                applyStoreToGrid();
+                bindCheckboxEvents();
+                updateSaveBtn();
               }
             })
-            .catch(err => console.error("Search fetch error:", err));
-        }, 1000); 
+            .catch(err => console.error('Search fetch error:', err));
+        }, 800);
       });
     }
   });
@@ -176,5 +352,6 @@
   .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
   .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 4px; }
   .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+  #itemGridContainer { transition: opacity 0.15s ease; }
 </style>
 {% endblock %}

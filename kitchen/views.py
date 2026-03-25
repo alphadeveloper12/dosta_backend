@@ -1479,35 +1479,44 @@ class WeeklyVendingAssignmentView(LoginRequiredMixin, UserPassesTestMixin, Templ
 @require_POST
 def save_weekly_vending_assignment(request):
     from vending.models import Menu, MenuItem
-    selected_day = request.POST.get('day', 'Monday')
-    item_ids = request.POST.getlist('item_ids')
-    
-    # 1. Get or Create the Weekly Menu for this day
-    menu, _ = Menu.objects.get_or_create(
-        day_of_week=selected_day,
-        menu_type=MenuType.WEEKLY,
-        defaults={'week_number': 1}
-    )
-    
+    valid_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+
+    # Support multi-day submission (days[] + item_ids_{day} per day)
+    days_submitted = request.POST.getlist('days')
+    if not days_submitted:
+        # Legacy single-day fallback
+        days_submitted = [request.POST.get('day', 'Monday')]
+
+    active_day = request.POST.get('active_day', days_submitted[0] if days_submitted else 'Monday')
+
     with transaction.atomic():
-        # 2. Clear existing MenuItems for this menu
-        menu.items.all().delete()
-        
-        # 3. Create new MenuItems
-        masters = VendingMasterItem.objects.filter(id__in=item_ids)
-        for master in masters:
-            MenuItem.objects.create(
-                menu=menu,
-                master_item=master,
-                name=master.name,
-                price=master.default_price,
-                description=master.description,
-                image=master.image,
-                image_source_url=master.image_source_url
+        for day in days_submitted:
+            if day not in valid_days:
+                continue
+            item_ids = request.POST.getlist(f'item_ids_{day}')
+
+            menu, _ = Menu.objects.get_or_create(
+                day_of_week=day,
+                menu_type=MenuType.WEEKLY,
+                defaults={'week_number': 1}
             )
-            
-    messages.success(request, f"Successfully updated Weekly menu for {selected_day}.")
-    return redirect(f"{reverse('kitchen:vending_weekly_assignment')}?day={selected_day}")
+            menu.items.all().delete()
+
+            masters = VendingMasterItem.objects.filter(id__in=item_ids)
+            for master in masters:
+                MenuItem.objects.create(
+                    menu=menu,
+                    master_item=master,
+                    name=master.name,
+                    price=master.default_price,
+                    description=master.description,
+                    image=master.image,
+                    image_source_url=master.image_source_url
+                )
+
+    days_label = ', '.join(days_submitted)
+    messages.success(request, f"Successfully updated Weekly menu for: {days_label}.")
+    return redirect(f"{reverse('kitchen:vending_weekly_assignment')}?day={active_day}")
 
 class MonthlyVendingAssignmentView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'kitchen/monthly_vending_assignment.html'
@@ -1563,37 +1572,56 @@ class MonthlyVendingAssignmentView(LoginRequiredMixin, UserPassesTestMixin, Temp
 @require_POST
 def save_monthly_vending_assignment(request):
     from vending.models import Menu, MenuItem
-    selected_day = request.POST.get('day', 'Monday')
+    valid_days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']
+    valid_weeks = [1, 2, 3, 4]
+
+    # Support multi-tab submission: tabs[] and item_ids_{week}_{day} per combination
+    tabs_submitted = request.POST.getlist('tabs')
+    active_day = request.POST.get('active_day', 'Monday')
     try:
-        selected_week = int(request.POST.get('week', 1))
+        active_week = int(request.POST.get('active_week', 1))
     except ValueError:
-        selected_week = 1
-        
-    item_ids = request.POST.getlist('item_ids')
-    
-    # 1. Get or Create the Monthly Menu for this day and week
-    menu, _ = Menu.objects.get_or_create(
-        day_of_week=selected_day,
-        week_number=selected_week,
-        menu_type=MenuType.MONTHLY
-    )
-    
+        active_week = 1
+
+    if not tabs_submitted:
+        # Legacy single-tab fallback
+        day = request.POST.get('day', 'Monday')
+        try:
+            week = int(request.POST.get('week', 1))
+        except ValueError:
+            week = 1
+        tabs_submitted = [f'{week}_{day}']
+
     with transaction.atomic():
-        # 2. Clear existing MenuItems for this menu
-        menu.items.all().delete()
-        
-        # 3. Create new MenuItems
-        masters = VendingMasterItem.objects.filter(id__in=item_ids)
-        for master in masters:
-            MenuItem.objects.create(
-                menu=menu,
-                master_item=master,
-                name=master.name,
-                price=master.default_price,
-                description=master.description,
-                image=master.image,
-                image_source_url=master.image_source_url
+        for tab_key in tabs_submitted:
+            try:
+                week_str, day = tab_key.split('_', 1)
+                week = int(week_str)
+            except (ValueError, AttributeError):
+                continue
+            if day not in valid_days or week not in valid_weeks:
+                continue
+
+            item_ids = request.POST.getlist(f'item_ids_{tab_key}')
+
+            menu, _ = Menu.objects.get_or_create(
+                day_of_week=day,
+                week_number=week,
+                menu_type=MenuType.MONTHLY
             )
-            
-    messages.success(request, f"Successfully updated Monthly menu for Week {selected_week} {selected_day}.")
-    return redirect(f"{reverse('kitchen:vending_monthly_assignment')}?day={selected_day}&week={selected_week}")
+            menu.items.all().delete()
+
+            masters = VendingMasterItem.objects.filter(id__in=item_ids)
+            for master in masters:
+                MenuItem.objects.create(
+                    menu=menu,
+                    master_item=master,
+                    name=master.name,
+                    price=master.default_price,
+                    description=master.description,
+                    image=master.image,
+                    image_source_url=master.image_source_url
+                )
+
+    messages.success(request, f"Successfully saved Monthly menu assignments.")
+    return redirect(f"{reverse('kitchen:vending_monthly_assignment')}?day={active_day}&week={active_week}")
