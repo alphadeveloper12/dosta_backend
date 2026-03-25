@@ -1465,6 +1465,9 @@ class WeeklyVendingAssignmentView(LoginRequiredMixin, UserPassesTestMixin, Templ
         
         for item in items:
             item.is_assigned = item.id in active_master_ids
+
+        # Sort so assigned items come first
+        items = sorted(items, key=lambda x: (not x.is_assigned, x.name))
             
         context['days'] = days
         context['selected_day'] = selected_day
@@ -1544,6 +1547,9 @@ class MonthlyVendingAssignmentView(LoginRequiredMixin, UserPassesTestMixin, Temp
         
         for item in items:
             item.is_assigned = item.id in active_master_ids
+
+        # Sort so assigned items come first
+        items = sorted(items, key=lambda x: (not x.is_assigned, x.name))
             
         context['days'] = days
         context['weeks'] = weeks

@@ -28,7 +28,7 @@
    </a>
 
    <!-- Search Form -->
-   <form method="GET" class="relative group">
+   <form method="GET" class="relative group" id="searchForm">
     <div
      class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
      <svg
@@ -46,6 +46,7 @@
     <input
      type="text"
      name="q"
+     id="searchInput"
      value="{{ request.GET.q|default:'' }}"
      class="block w-full pl-10 pr-3 py-2 border border-slate-200 rounded-xl leading-5 bg-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm shadow-sm transition-all hover:shadow-md"
      placeholder="Search items..."
@@ -55,7 +56,7 @@
  </div>
 
  <!-- Items Grid -->
- <div
+ <div id="itemGridContainer"
   class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
   {% for item in items %}
   <div
@@ -234,5 +235,45 @@
    modal.classList.add("hidden");
   }, 300);
  }
+</script>
+
+<script>
+  // AJAX Search
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('searchInput');
+    const searchForm = document.getElementById('searchForm');
+    const gridContainer = document.getElementById('itemGridContainer');
+
+    let debounceTimer;
+
+    if (searchForm && searchInput && gridContainer) {
+      // Prevent default form submission to avoid full reload
+      searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+      });
+
+      searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        // Wait 1 second per user request
+        debounceTimer = setTimeout(() => {
+          const url = new URL(searchForm.action || window.location.href);
+          url.searchParams.set('q', searchInput.value);
+
+          // Add AJAX header
+          fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(html, 'text/html');
+              const newGrid = doc.getElementById('itemGridContainer');
+              if (newGrid) {
+                gridContainer.innerHTML = newGrid.innerHTML;
+              }
+            })
+            .catch(err => console.error("Search fetch error:", err));
+        }, 1000); 
+      });
+    }
+  });
 </script>
 {% endblock %}

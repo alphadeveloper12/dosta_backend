@@ -25,7 +25,7 @@
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
      </svg>
     </div>
-    <input type="text" name="q" value="{{ request.GET.q|default:'' }}" class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm shadow-sm transition-all hover:shadow-md" placeholder="Search items..." autocapitalize="off" />
+    <input type="text" name="q" id="searchInput" value="{{ request.GET.q|default:'' }}" class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm shadow-sm transition-all hover:shadow-md" placeholder="Search items..." autocapitalize="off" />
    </form>
    
    <button type="submit" form="assignmentForm" class="px-5 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-sm shadow-blue-200 flex items-center gap-2">
@@ -49,7 +49,7 @@
   {% csrf_token %}
   <input type="hidden" name="day" value="{{ selected_day }}">
   
-  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+  <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4" id="itemGridContainer">
    {% for item in items %}
    <label class="bg-white rounded-xl shadow-sm border {% if item.is_assigned %}border-blue-500 ring-1 ring-blue-500{% else %}border-gray-100 hover:border-gray-300{% endif %} transition-all overflow-hidden cursor-pointer relative group flex flex-col h-full item-card">
     
@@ -100,6 +100,65 @@
    });
  });
 </script>
+
+<script>
+  // AJAX Search
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('searchInput');
+    const searchForm = document.getElementById('searchForm');
+    const gridContainer = document.getElementById('itemGridContainer');
+
+    let debounceTimer;
+
+    if (searchForm && searchInput && gridContainer) {
+      // Prevent default form submission to avoid full reload
+      searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+      });
+
+      searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        // Wait 1 second per user request
+        debounceTimer = setTimeout(() => {
+          const url = new URL(searchForm.action || window.location.href);
+          url.searchParams.set('q', searchInput.value);
+
+          // Preserve day if it exists
+          const currentParams = new URLSearchParams(window.location.search);
+          if (currentParams.has('day')) url.searchParams.set('day', currentParams.get('day'));
+
+          // Add AJAX header
+          fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(html, 'text/html');
+              const newGrid = doc.getElementById('itemGridContainer');
+              if (newGrid) {
+                gridContainer.innerHTML = newGrid.innerHTML;
+                // Re-bind checkbox events since innerHTML replaced them
+                const checkboxes = gridContainer.querySelectorAll('.item-checkbox');
+                checkboxes.forEach(cb => {
+                  cb.addEventListener('change', function() {
+                    const card = this.closest('.item-card');
+                    if(this.checked) {
+                      card.classList.remove('border-gray-100', 'hover:border-gray-300');
+                      card.classList.add('border-blue-500', 'ring-1', 'ring-blue-500');
+                    } else {
+                      card.classList.add('border-gray-100', 'hover:border-gray-300');
+                      card.classList.remove('border-blue-500', 'ring-1', 'ring-blue-500');
+                    }
+                  });
+                });
+              }
+            })
+            .catch(err => console.error("Search fetch error:", err));
+        }, 1000); 
+      });
+    }
+  });
+</script>
+
 <style>
   .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
   .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
