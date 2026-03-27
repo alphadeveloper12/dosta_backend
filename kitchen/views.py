@@ -24,6 +24,7 @@ from vending.models import Order, OrderStatus, OrderItem, PlanType, PlanSubType
 from ai_agents.models import AgentActivity, AgentInteractionLog
 from django.http import JsonResponse
 from django.views.generic import TemplateView
+import concurrent.futures
 
 User = get_user_model()
 
@@ -801,7 +802,7 @@ def vending_machine_items_view(request):
     shelves_data = []
     
     try:
-        token_response = requests.get(token_url, params=token_params, timeout=8)
+        token_response = requests.get(token_url, params=token_params, timeout=15)
         token_data = token_response.json()
         token = token_data.get("data") or token_data.get("token")
         
@@ -810,6 +811,7 @@ def vending_machine_items_view(request):
         else:
             # 4. Fetch Machine Goods
             goods_url = "http://www.hnzczy.cn:8087/commodityinfo/querycommodityinfo"
+            stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
             headers = {"Authorization": token}
             
             # Pre-fetch local images to fix broken external URLs
@@ -831,8 +833,8 @@ def vending_machine_items_view(request):
             
             try:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                    future_goods = executor.submit(requests.get, goods_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=5) # Reduced timeout
-                    future_stock = executor.submit(requests.get, stock_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=5) # Reduced timeout
+                    future_goods = executor.submit(requests.get, goods_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=25)
+                    future_stock = executor.submit(requests.get, stock_url, params={"machineUuid": selected_uuid}, headers=headers, timeout=25)
 
                     goods_res = future_goods.result()
                     stock_res = future_stock.result()
