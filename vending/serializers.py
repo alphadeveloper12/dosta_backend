@@ -4,6 +4,7 @@ from .models import (
     UserLocationSelection,
     Menu,
     MenuItem,
+    MasterItem,
     Offer,
     PickupTimeSlot,
     Order,
@@ -85,6 +86,31 @@ class MenuSerializer(serializers.ModelSerializer):
     class Meta:
         model = Menu
         fields = ['id', 'day_of_week', 'date', 'items']
+
+
+class MasterItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    price = serializers.DecimalField(source='default_price', max_digits=10, decimal_places=2)
+    heating = serializers.SerializerMethodField()
+    offers = serializers.SerializerMethodField()
+
+    class Meta:
+        model = MasterItem
+        fields = ['id', 'name', 'price', 'description', 'image_url', 'offers', 'heating']
+
+    def get_heating(self, obj):
+        return "yes" if obj.heating else "no"
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        elif obj.image:
+            return obj.image.url
+        return None
+
+    def get_offers(self, obj):
+        return []
 
 
 # -----------------------------------------------------------

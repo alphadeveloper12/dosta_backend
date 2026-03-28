@@ -20,6 +20,7 @@ from .models import (
     PlanSubType,
     PickupTimeSlot,
     MealPlan,
+    MasterItem,
     Order,
     OrderItem,
     OrderStatus,
@@ -32,6 +33,7 @@ from .serializers import (
     VendingLocationSerializer,
     UserLocationSelectionSerializer,
     MenuSerializer,
+    MasterItemSerializer,
     PickupTimeSlotSerializer,
     MealPlanSerializer,
     OrderSerializer,
@@ -356,15 +358,11 @@ class MenuByTypeView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, plan_type):
-        day = request.query_params.get("day")
-        qs = Menu.objects.filter(menu_type=MenuType.STANDARD)
-        if day:
-            qs = qs.filter(day_of_week=day)
-
-        serializer = MenuSerializer(qs, many=True, context={'request': request})
+        items = MasterItem.objects.all().order_by('name')
+        serializer = MasterItemSerializer(items, many=True, context={'request': request})
         return Response({
             "plan_type": plan_type,
-            "menus": serializer.data,
+            "menus": [{"id": None, "day_of_week": None, "date": None, "items": serializer.data}],
             "allow_multiple_selection": True,
             "next_step": "confirm_order"
         })
