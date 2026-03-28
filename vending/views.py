@@ -528,40 +528,47 @@ class ConfirmOrderView(APIView):
         order.update_total()
         
         if data.get("is_payment_verified") is True or data.get("is_payment_verified") == "true":
-            # Skip Payment initiation, we already verified it.
-             order.status = OrderStatus.CONFIRMED
-             order.save(update_fields=['status'])
-             
-             # NEW: Process Vending Fulfillment on Backend (More Reliable)
-             from .services import VendingService
-             if order.plan_type in [PlanType.ORDER_NOW, PlanType.SMART_GRAB] or \
-                order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).exists():
-                 
-                 print(f"🚀 Processing Backend Fulfillment for Order {order.id} (Verified Payment Flow)")
-                 try:
-                     pickup_code = VendingService.process_order_fulfillment(order)
-                     
-                     if pickup_code:
-                         order.pickup_code = pickup_code
-                         order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
-                         order.save(update_fields=['pickup_code', 'qr_code_url'])
-                         
-                         # Update Items to READY
-                         order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
-                             status=OrderStatus.READY,
-                             pickup_code=pickup_code
-                         )
-                         print(f"✅ Fulfillment Success for Order {order.id}. Code: {pickup_code}")
-                     else:
-                         print(f"⚠️ Fulfillment returned no code for Order {order.id}. Check logs for details.")
-                 except Exception as fulfillment_err:
-                     print(f"❌ CRITICAL: Fulfillment Exception for Order {order.id}: {str(fulfillment_err)}")
-             
-             serializer = OrderSerializer(order, context={'request': request})
-             return Response({
-                 "order": serializer.data,
-                 "message": "Order created and confirmed."
-             }, status=status.HTTP_201_CREATED)
+            # Payment verified — confirm order
+            order.status = OrderStatus.CONFIRMED
+            order.save(update_fields=['status'])
+
+            # Process vending fulfillment (stock decrement + pickup code)
+            from .services import VendingService
+            needs_fulfillment = (
+                order.plan_type in [PlanType.ORDER_NOW, PlanType.SMART_GRAB] or
+                order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).exists()
+            )
+
+            if needs_fulfillment:
+                print(f"🚀 Processing Backend Fulfillment for Order {order.id}")
+                pickup_code = None
+                order.fulfillment_attempts = 1
+                try:
+                    pickup_code = VendingService.process_order_fulfillment(order)
+                except Exception as fulfillment_err:
+                    print(f"❌ Fulfillment Exception for Order {order.id}: {fulfillment_err}")
+
+                if pickup_code:
+                    order.pickup_code = pickup_code
+                    order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+                    order.status = OrderStatus.READY
+                    order.save(update_fields=['pickup_code', 'qr_code_url', 'status', 'fulfillment_attempts'])
+                    order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
+                        status=OrderStatus.READY,
+                        pickup_code=pickup_code
+                    )
+                    print(f"✅ Fulfillment Success for Order {order.id}. Code: {pickup_code}")
+                else:
+                    # Payment taken but pickup code failed — mark for admin attention
+                    order.status = OrderStatus.PENDING_FULFILLMENT
+                    order.save(update_fields=['status', 'fulfillment_attempts'])
+                    print(f"⚠️ Fulfillment failed for Order {order.id}. Marked as PENDING_FULFILLMENT.")
+
+            serializer = OrderSerializer(order, context={'request': request})
+            return Response({
+                "order": serializer.data,
+                "message": "Order created and confirmed."
+            }, status=status.HTTP_201_CREATED)
 
         # --- Initiate Payment Session (Original Flow) ---
         try:
@@ -831,6 +838,109 @@ class UpdatePickupCodeView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class RetryFulfillmentView(APIView):
+    """
+    POST /api/vending/order/<order_id>/retry-fulfillment/
+    Retries pickup code generation for PENDING_FULFILLMENT orders.
+    Allowed for the order owner (user) or kitchen admin.
+    Idempotent: if a pickup code already exists, returns existing code without re-generating.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request, order_id):
+        try:
+            # Allow order owner or staff
+            if request.user.is_staff or request.user.is_superuser:
+                order = Order.objects.get(id=order_id)
+            else:
+                order = Order.objects.get(id=order_id, user=request.user)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=404)
+
+        # If pickup code already exists — idempotent, return it
+        if order.pickup_code:
+            return Response({
+                "message": "Pickup code already exists.",
+                "pickup_code": order.pickup_code,
+                "qr_code_url": order.qr_code_url,
+                "status": order.status
+            }, status=200)
+
+        # Only retry for appropriate statuses
+        if order.status not in [OrderStatus.PENDING_FULFILLMENT, OrderStatus.CONFIRMED]:
+            return Response({
+                "error": f"Cannot retry fulfillment for order with status '{order.status}'."
+            }, status=400)
+
+        # Cap retries to prevent abuse (max 5 attempts)
+        MAX_ATTEMPTS = 5
+        if order.fulfillment_attempts >= MAX_ATTEMPTS:
+            return Response({
+                "error": "Maximum retry attempts reached. Please contact support."
+            }, status=429)
+
+        from .services import VendingService
+        order.fulfillment_attempts += 1
+        order.save(update_fields=['fulfillment_attempts'])
+
+        pickup_code = None
+        try:
+            pickup_code = VendingService.process_order_fulfillment(order)
+        except Exception as e:
+            print(f"❌ Retry fulfillment exception for Order {order.id}: {e}")
+
+        if pickup_code:
+            order.pickup_code = pickup_code
+            order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+            order.status = OrderStatus.READY
+            order.save(update_fields=['pickup_code', 'qr_code_url', 'status'])
+            order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
+                status=OrderStatus.READY,
+                pickup_code=pickup_code
+            )
+            serializer = OrderSerializer(order, context={'request': request})
+            return Response({
+                "message": "Fulfillment successful.",
+                "pickup_code": pickup_code,
+                "qr_code_url": order.qr_code_url,
+                "order": serializer.data
+            }, status=200)
+        else:
+            order.status = OrderStatus.PENDING_FULFILLMENT
+            order.save(update_fields=['status'])
+            return Response({
+                "error": "Fulfillment failed again. Please try later or contact support.",
+                "attempts": order.fulfillment_attempts
+            }, status=503)
+
+
+class MarkQRUsedView(APIView):
+    """
+    POST /api/vending/order/<order_id>/mark-qr-used/
+    Called by kitchen/machine when food is dispensed.
+    Marks the QR as used and order as COMPLETED so the user sees delivery details.
+    Staff only.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=404)
+
+        if order.qr_used:
+            return Response({"message": "QR already marked as used."}, status=200)
+
+        order.qr_used = True
+        order.status = OrderStatus.COMPLETED
+        order.save(update_fields=['qr_used', 'status'])
+        order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
+            status=OrderStatus.COMPLETED
+        )
+        return Response({"message": "QR marked as used. Order completed."}, status=200)
+
+
 class KitchenOrderItemCompleteView(APIView):
     """
     POST /api/vending/kitchen/complete-item/
@@ -1008,12 +1118,25 @@ class CartView(APIView):
             cart.save()
 
             # 3. Update Items (Partial Sync Strategy: Clear only items of the same plan type)
+            items_data = data.get("items", [])
             if incoming_plan_type == PlanType.START_PLAN:
-                cart.items.filter(plan_type=incoming_plan_type, plan_subtype=incoming_plan_subtype).delete()
+                if incoming_plan_subtype == PlanSubType.MONTHLY:
+                    # Only delete items for the specific weeks being submitted
+                    incoming_week_numbers = set(
+                        item.get("week_number") for item in items_data if item.get("week_number") is not None
+                    )
+                    if incoming_week_numbers:
+                        cart.items.filter(
+                            plan_type=incoming_plan_type,
+                            plan_subtype=incoming_plan_subtype,
+                            week_number__in=incoming_week_numbers
+                        ).delete()
+                    else:
+                        cart.items.filter(plan_type=incoming_plan_type, plan_subtype=incoming_plan_subtype).delete()
+                else:
+                    cart.items.filter(plan_type=incoming_plan_type, plan_subtype=incoming_plan_subtype).delete()
             else:
                 cart.items.filter(plan_type=incoming_plan_type).delete()
-
-            items_data = data.get("items", [])
             for item in items_data:
                 menu_item_id = item.get("menu_item_id")
                 quantity = item.get("quantity", 1)

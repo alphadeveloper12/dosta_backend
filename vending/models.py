@@ -46,6 +46,7 @@ class OrderStatus(models.TextChoices):
     READY = "READY", "Ready"
     COMPLETED = "COMPLETED", "Completed"
     CANCELLED = "CANCELLED", "Cancelled"
+    PENDING_FULFILLMENT = "PENDING_FULFILLMENT", "Pending Fulfillment"
 
 
 # -----------------------------------------------------------
@@ -182,13 +183,15 @@ class Order(models.Model):
     pickup_type = models.CharField(max_length=20, choices=PickupType.choices, null=True, blank=True)
     pickup_date = models.DateField(null=True, blank=True)
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="orders", on_delete=models.SET_NULL, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.DRAFT)
+    status = models.CharField(max_length=30, choices=OrderStatus.choices, default=OrderStatus.DRAFT)
     current_step = models.PositiveSmallIntegerField(default=1)
     total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     city = models.CharField(max_length=100, blank=True, null=True)
     delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     pickup_code = models.CharField(max_length=50, blank=True, null=True)
     qr_code_url = models.URLField(max_length=500, blank=True, null=True)
+    qr_used = models.BooleanField(default=False)
+    fulfillment_attempts = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -275,7 +278,7 @@ class OrderItem(models.Model):
     pickup_date = models.DateField(null=True, blank=True)
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
     
-    status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.PENDING, null=True, blank=True)
+    status = models.CharField(max_length=30, choices=OrderStatus.choices, default=OrderStatus.PENDING, null=True, blank=True)
     pickup_code = models.CharField(max_length=50, blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)

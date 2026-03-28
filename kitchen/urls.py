@@ -39,6 +39,10 @@ urlpatterns = [
     path('master-items/catering/', views.CateringMasterListView.as_view(), name='catering_master_list'),
     path('master-items/catering/sync/', views.sync_catering_master_items, name='sync_catering_master'),
     
+    # Fulfillment management
+    path('order/<int:order_id>/retry-fulfillment/', views.kitchen_retry_fulfillment, name='retry_fulfillment'),
+    path('order/<int:order_id>/mark-qr-used/', views.kitchen_mark_qr_used, name='mark_qr_used'),
+
     # Logout
     path('logout/', views.kitchen_logout_view, name='logout'),
 ]

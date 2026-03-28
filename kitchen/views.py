@@ -37,16 +37,23 @@ class DashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
         return is_kitchen_admin(self.request.user)
 
     def get_queryset(self):
-        # Show specific statuses for kitchen, but only if they have non-Order Now items
         return Order.objects.filter(
             status__in=[
                 OrderStatus.PENDING,
                 OrderStatus.PREPARING,
-                OrderStatus.READY
+                OrderStatus.READY,
+                OrderStatus.PENDING_FULFILLMENT,
             ],
             items__plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'],
-            items__pickup_code__isnull=True # Only items that still need fulfillment
+            items__pickup_code__isnull=True
         ).distinct().order_by('-created_at')
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['pending_fulfillment_orders'] = Order.objects.filter(
+            status=OrderStatus.PENDING_FULFILLMENT
+        ).order_by('-created_at')
+        return context
 
 class TrackingView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     model = Order
@@ -1234,6 +1241,91 @@ def kitchen_logout_view(request):
     logout(request)
     messages.info(request, "You have been logged out.")
     return redirect('/admin/login/')
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def kitchen_retry_fulfillment(request, order_id):
+    """
+    POST /kitchen/order/<order_id>/retry-fulfillment/
+    Kitchen admin retries pickup code generation for a PENDING_FULFILLMENT order.
+    """
+    if request.method != 'POST':
+        return redirect('kitchen:tracking')
+
+    try:
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        messages.error(request, f"Order #{order_id} not found.")
+        return redirect('kitchen:tracking')
+
+    if order.pickup_code:
+        messages.info(request, f"Order #{order_id} already has pickup code: {order.pickup_code}")
+        return redirect('kitchen:tracking')
+
+    MAX_ATTEMPTS = 10  # Higher limit for admin
+    if order.fulfillment_attempts >= MAX_ATTEMPTS:
+        messages.error(request, f"Order #{order_id} has exceeded maximum retry attempts ({MAX_ATTEMPTS}).")
+        return redirect('kitchen:tracking')
+
+    from vending.services import VendingService
+    order.fulfillment_attempts += 1
+    order.save(update_fields=['fulfillment_attempts'])
+
+    pickup_code = None
+    try:
+        pickup_code = VendingService.process_order_fulfillment(order)
+    except Exception as e:
+        messages.error(request, f"Fulfillment error for Order #{order_id}: {str(e)}")
+        return redirect('kitchen:tracking')
+
+    if pickup_code:
+        order.pickup_code = pickup_code
+        order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+        order.status = OrderStatus.READY
+        order.save(update_fields=['pickup_code', 'qr_code_url', 'status'])
+        from vending.models import PlanType
+        order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
+            status=OrderStatus.READY, pickup_code=pickup_code
+        )
+        messages.success(request, f"✅ Order #{order_id} fulfilled. Pickup code: {pickup_code}")
+    else:
+        order.status = OrderStatus.PENDING_FULFILLMENT
+        order.save(update_fields=['status'])
+        messages.error(request, f"❌ Fulfillment failed again for Order #{order_id}. Attempt #{order.fulfillment_attempts}.")
+
+    return redirect('kitchen:tracking')
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def kitchen_mark_qr_used(request, order_id):
+    """
+    POST /kitchen/order/<order_id>/mark-qr-used/
+    Kitchen admin marks QR as used (food dispensed), completing the order.
+    """
+    if request.method != 'POST':
+        return redirect('kitchen:tracking')
+
+    try:
+        order = Order.objects.get(id=order_id)
+    except Order.DoesNotExist:
+        messages.error(request, f"Order #{order_id} not found.")
+        return redirect('kitchen:tracking')
+
+    if order.qr_used:
+        messages.info(request, f"Order #{order_id} QR already marked as used.")
+        return redirect('kitchen:tracking')
+
+    order.qr_used = True
+    order.status = OrderStatus.COMPLETED
+    order.save(update_fields=['qr_used', 'status'])
+    from vending.models import PlanType
+    order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
+        status=OrderStatus.COMPLETED
+    )
+    messages.success(request, f"✅ Order #{order_id} marked as delivered.")
+    return redirect('kitchen:tracking')
 
 @login_required
 @user_passes_test(is_kitchen_admin)

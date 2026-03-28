@@ -187,6 +187,8 @@ class OrderSerializer(serializers.ModelSerializer):
             'total_amount',
             'pickup_code',
             'qr_code_url',
+            'qr_used',
+            'fulfillment_attempts',
             'city',
             'delivery_charge',
             'items',
