@@ -196,11 +196,11 @@
           </svg>
           Order Items
         </h3>
-        <span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">{{ order.kitchen_items.count }} items</span>
+        <span class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-bold">{{ order.items.count }} items</span>
       </div>
 
       <ul class="divide-y divide-gray-50">
-        {% for item in order.kitchen_items %}
+        {% for item in order.items.all %}
         <li class="p-6 hover:bg-gray-50/50 transition-colors duration-150">
           <div class="flex items-start md:items-center gap-6">
             {% with item.menu_item as mi %}
