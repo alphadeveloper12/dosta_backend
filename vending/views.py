@@ -512,22 +512,20 @@ class ConfirmOrderView(APIView):
                 if item.get("variation_id"):
                     item_kwargs["sweets_variation_id"] = item["variation_id"]
             else:
-                item_kwargs["menu_item_id"] = item["menu_item_id"]
+                raw_id = item.get("menu_item_id")
+                # Route to correct FK: MasterItem (ORDER_NOW) vs MenuItem (START_PLAN/SMART_GRAB)
+                if raw_id and MasterItem.objects.filter(id=raw_id).exists():
+                    item_kwargs["master_item_id"] = raw_id
+                else:
+                    item_kwargs["menu_item_id"] = raw_id
 
             OrderItem.objects.create(**item_kwargs)
-            item_type = item.get("plan_type") or order.plan_type
-            print(f"DEBUG: Order #{order.id} | Item {item.get('menu_item_id')} | Saved Type: {item_type} | Status: {OrderStatus.PREPARING if item_type == PlanType.START_PLAN else OrderStatus.PENDING}")
-
-        # Validate Payment Method Existence
-        if not request.user.profile.payment_methods.exists():
-            return Response(
-                {"error": "No payment method found via profile. Please add one first or select cash."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
         order.update_total()
-        
-        if data.get("is_payment_verified") is True or data.get("is_payment_verified") == "true":
+
+        is_payment_verified = data.get("is_payment_verified") is True or data.get("is_payment_verified") == "true"
+
+        if is_payment_verified:
             # Payment verified — confirm order
             order.status = OrderStatus.CONFIRMED
             order.save(update_fields=['status'])
@@ -939,6 +937,132 @@ class MarkQRUsedView(APIView):
             status=OrderStatus.COMPLETED
         )
         return Response({"message": "QR marked as used. Order completed."}, status=200)
+
+
+class RecoverOrderView(APIView):
+    """
+    POST /api/vending/order/<order_id>/recover/
+    Admin-only: Re-processes a stuck PENDING order (payment already taken).
+    Re-attaches items from the user's cart (if available), recalculates total,
+    then runs fulfillment to generate a pickup code.
+    Body (optional): { "items": [...] }  — same format as ConfirmOrderView items.
+    If body items provided they override cart lookup.
+    """
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, order_id):
+        try:
+            order = Order.objects.get(id=order_id)
+        except Order.DoesNotExist:
+            return Response({"error": "Order not found"}, status=404)
+
+        if order.status not in [OrderStatus.PENDING, OrderStatus.PENDING_FULFILLMENT]:
+            return Response({"error": f"Order is already in status '{order.status}', no recovery needed."}, status=400)
+
+        from .services import VendingService
+
+        # --- Re-attach items if order has none ---
+        provided_items = request.data.get("items", [])
+        if not order.items.exists():
+            if provided_items:
+                for item in provided_items:
+                    item_plan_type = item.get("plan_type") or order.plan_type or PlanType.ORDER_NOW
+                    item_kwargs = {
+                        "order": order,
+                        "quantity": item.get("quantity", 1),
+                        "day_of_week": item.get("day_of_week"),
+                        "week_number": item.get("week_number"),
+                        "vending_good_uuid": item.get("vending_good_uuid"),
+                        "heating_requested": item.get("heating_requested", False),
+                        "pickup_date": item.get("pickup_date", order.pickup_date),
+                        "pickup_slot_id": item.get("pickup_slot_id") or order.pickup_slot_id,
+                        "plan_type": item_plan_type,
+                        "plan_subtype": item.get("plan_subtype") or order.plan_subtype or PlanSubType.NONE,
+                        "pickup_type": item.get("pickup_type") or order.pickup_type,
+                        "status": OrderStatus.PENDING,
+                    }
+                    raw_id = item.get("menu_item_id")
+                    if raw_id and MasterItem.objects.filter(id=raw_id).exists():
+                        item_kwargs["master_item_id"] = raw_id
+                    else:
+                        item_kwargs["menu_item_id"] = raw_id
+                    OrderItem.objects.create(**item_kwargs)
+            else:
+                # Try to find the user's cart and copy items
+                cart = Cart.objects.filter(user=order.user, is_checked_out=False).first()
+                if not cart:
+                    cart = Cart.objects.filter(user=order.user).order_by('-updated_at').first()
+                if cart and cart.items.exists():
+                    for ci in cart.items.all():
+                        item_kwargs = {
+                            "order": order,
+                            "quantity": ci.quantity,
+                            "day_of_week": ci.day_of_week,
+                            "week_number": ci.week_number,
+                            "vending_good_uuid": ci.vending_good_uuid,
+                            "heating_requested": ci.heating_requested,
+                            "pickup_date": ci.pickup_date or order.pickup_date,
+                            "pickup_slot_id": ci.pickup_slot_id or order.pickup_slot_id,
+                            "plan_type": ci.plan_type or order.plan_type,
+                            "plan_subtype": ci.plan_subtype or order.plan_subtype or PlanSubType.NONE,
+                            "pickup_type": ci.pickup_type or order.pickup_type,
+                            "status": OrderStatus.PENDING,
+                        }
+                        if ci.master_item_id:
+                            item_kwargs["master_item_id"] = ci.master_item_id
+                        elif ci.menu_item_id:
+                            item_kwargs["menu_item_id"] = ci.menu_item_id
+                        elif ci.sweets_item_id:
+                            item_kwargs["sweets_item_id"] = ci.sweets_item_id
+                            if ci.sweets_variation_id:
+                                item_kwargs["sweets_variation_id"] = ci.sweets_variation_id
+                        OrderItem.objects.create(**item_kwargs)
+                else:
+                    return Response(
+                        {"error": "Order has no items and no cart found. Provide 'items' in the request body."},
+                        status=400
+                    )
+
+        order.update_total()
+        order.status = OrderStatus.CONFIRMED
+        order.save(update_fields=['status'])
+
+        # Run fulfillment
+        needs_fulfillment = (
+            order.plan_type in [PlanType.ORDER_NOW, PlanType.SMART_GRAB] or
+            order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).exists()
+        )
+
+        if needs_fulfillment:
+            order.fulfillment_attempts = (order.fulfillment_attempts or 0) + 1
+            pickup_code = None
+            try:
+                pickup_code = VendingService.process_order_fulfillment(order)
+            except Exception as e:
+                print(f"❌ Recovery fulfillment error for Order {order.id}: {e}")
+
+            if pickup_code:
+                order.pickup_code = pickup_code
+                order.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={pickup_code}"
+                order.status = OrderStatus.READY
+                order.save(update_fields=['pickup_code', 'qr_code_url', 'status', 'fulfillment_attempts'])
+                order.items.filter(plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB]).update(
+                    status=OrderStatus.READY, pickup_code=pickup_code
+                )
+                serializer = OrderSerializer(order, context={'request': request})
+                return Response({"message": "Recovery successful.", "order": serializer.data}, status=200)
+            else:
+                order.status = OrderStatus.PENDING_FULFILLMENT
+                order.save(update_fields=['status', 'fulfillment_attempts'])
+                serializer = OrderSerializer(order, context={'request': request})
+                return Response(
+                    {"message": "Items re-attached and total fixed, but pickup code generation failed. Order marked PENDING_FULFILLMENT.", "order": serializer.data},
+                    status=200
+                )
+        else:
+            order.save()
+            serializer = OrderSerializer(order, context={'request': request})
+            return Response({"message": "Order recovered (non-fulfillment type).", "order": serializer.data}, status=200)
 
 
 class KitchenOrderItemCompleteView(APIView):

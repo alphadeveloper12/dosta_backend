@@ -220,6 +220,8 @@ class Order(models.Model):
             if price is None:
                 if item.menu_item:
                     price = item.menu_item.price
+                elif item.master_item:
+                    price = item.master_item.default_price
                 elif item.sweets_item:
                     price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
             
@@ -250,6 +252,7 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
     menu_item = models.ForeignKey(MenuItem, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
+    master_item = models.ForeignKey(MasterItem, related_name="order_items", on_delete=models.PROTECT, null=True, blank=True)
     sweets_item = models.ForeignKey('catering.SweetsItem', related_name="order_items", on_delete=models.PROTECT, null=True, blank=True)
     sweets_variation = models.ForeignKey('catering.SweetsItemVariation', related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)

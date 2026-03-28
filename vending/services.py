@@ -137,23 +137,26 @@ class VendingService:
                 
                 # FALLBACK: If UUID is missing, try to resolve by name
                 if not item_uuid:
-                    norm_item_name = VendingService.normalize_name(item.menu_item.name)
-                    print(f"🔍 Item {item.id} ({item.menu_item.name}) missing UUID. Trying normalization: {norm_item_name}")
-                    
-                    if norm_item_name in name_to_uuids:
-                        # Find spot with most stock or just first
-                        candidates = sorted(name_to_uuids[norm_item_name], key=lambda x: x['presentNumber'], reverse=True)
-                        if candidates:
-                            item_uuid = candidates[0]['uuid']
-                            item.vending_good_uuid = item_uuid
-                            item.save(update_fields=['vending_good_uuid'])
-                            print(f"✅ Resolved UUID for {item.menu_item.name}: {item_uuid}")
-                
+                    # Support both MenuItem and MasterItem
+                    linked = item.menu_item or item.master_item
+                    item_name = linked.name if linked else None
+                    if item_name:
+                        norm_item_name = VendingService.normalize_name(item_name)
+                        print(f"🔍 Item {item.id} ({item_name}) missing UUID. Trying normalization: {norm_item_name}")
+                        if norm_item_name in name_to_uuids:
+                            candidates = sorted(name_to_uuids[norm_item_name], key=lambda x: x['presentNumber'], reverse=True)
+                            if candidates:
+                                item_uuid = candidates[0]['uuid']
+                                item.vending_good_uuid = item_uuid
+                                item.save(update_fields=['vending_good_uuid'])
+                                print(f"✅ Resolved UUID for {item_name}: {item_uuid}")
+
                 if item_uuid:
                     usage_map[item_uuid] = usage_map.get(item_uuid, 0) + item.quantity
                     resolved_items.append(item)
                 else:
-                    print(f"⚠️ Could not resolve UUID for item {item.id}: {item.menu_item.name}")
+                    linked = item.menu_item or item.master_item
+                    print(f"⚠️ Could not resolve UUID for item {item.id}: {linked.name if linked else 'unknown'}")
 
         goods_list_to_update = []
         
