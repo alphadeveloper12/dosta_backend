@@ -530,8 +530,10 @@ class ConfirmOrderView(APIView):
             order.status = OrderStatus.CONFIRMED
             order.save(update_fields=['status'])
 
-            # Mark the user's active cart as checked out so it doesn't appear stale
-            Cart.objects.filter(user=request.user, is_checked_out=False).update(is_checked_out=True)
+            # Clear the user's active cart: delete all items and mark as checked out
+            active_carts = Cart.objects.filter(user=request.user, is_checked_out=False)
+            CartItem.objects.filter(cart__in=active_carts).delete()
+            active_carts.update(is_checked_out=True, total_price=0)
 
             # Process vending fulfillment (stock decrement + pickup code)
             from .services import VendingService
@@ -1226,7 +1228,10 @@ class CartView(APIView):
             # Support clearing the entire cart
             if data.get("clear_all"):
                 cart.items.all().delete()
-                cart.update_total()
+                cart.is_checked_out = True
+                cart.total_price = 0
+                cart.save()
+                return Response({"message": "Cart cleared."}, status=status.HTTP_200_OK)
 
             cart.plan_type = incoming_plan_type
             cart.plan_subtype = incoming_plan_subtype
