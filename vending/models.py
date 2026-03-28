@@ -75,6 +75,7 @@ class MasterItem(models.Model):
     carbs = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
     fats = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
     heating = models.BooleanField(default=False)
+    maximum_heating = models.PositiveIntegerField(default=0, help_text="Maximum heating duration in minutes (0 = no limit)")
     default_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Price from sheet or admin edit. Used when creating MenuItem schedule links.")
     image_source_url = models.URLField(max_length=500, blank=True, null=True)
     image = models.ImageField(upload_to='menu_images/', blank=True, null=True)

@@ -96,7 +96,7 @@ class MasterItemSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MasterItem
-        fields = ['id', 'name', 'price', 'description', 'image_url', 'offers', 'heating']
+        fields = ['id', 'name', 'price', 'description', 'image_url', 'offers', 'heating', 'maximum_heating']
 
     def get_heating(self, obj):
         return "yes" if obj.heating else "no"
@@ -228,6 +228,7 @@ class CartItemSerializer(serializers.ModelSerializer):
                 'description': master.description or '',
                 'image_url': image_url,
                 'heating': 'yes' if master.heating else 'no',
+                'maximum_heating': master.maximum_heating,
                 'offers': []
             }
         elif not instance.menu_item and instance.sweets_item:

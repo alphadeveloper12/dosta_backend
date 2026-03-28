@@ -486,10 +486,12 @@ def vending_master_item_edit_view(request, pk):
     master.name = request.POST.get('name', master.name)
     master.description = request.POST.get('description', '')
     master.default_price = parse_numeric(request.POST.get('price', master.default_price))
-    
+    master.heating = request.POST.get('heating') == 'true'
+    master.maximum_heating = int(request.POST.get('maximum_heating', 0) or 0)
+
     if 'image' in request.FILES:
         master.image = request.FILES['image']
-        
+
     master.save() # Triggers signal to update any existing menu items' name/desc
     
     # 2. Update Schedules (Diff-based to preserve Cart links)
