@@ -246,8 +246,8 @@ class VendingService:
             "machineUuid": machine_uuid,
             "orderNo": str(order_id),
             "orderTime": order_time_str,
-            "timeOut": 1,
-            "lock": 0
+            "timeOut": 24,
+            "lock": 1
         }
 
         try:
