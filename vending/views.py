@@ -530,6 +530,9 @@ class ConfirmOrderView(APIView):
             order.status = OrderStatus.CONFIRMED
             order.save(update_fields=['status'])
 
+            # Mark the user's active cart as checked out so it doesn't appear stale
+            Cart.objects.filter(user=request.user, is_checked_out=False).update(is_checked_out=True)
+
             # Process vending fulfillment (stock decrement + pickup code)
             from .services import VendingService
             needs_fulfillment = (
@@ -1403,9 +1406,12 @@ class ExternalMachineGoodsView(APIView):
             
             # 3. Fetch Stock / Lock Information
             lock_counts = {}
+            machine_uuid = params.get("machineUuid")
+
+            # PRIMARY: Try external queryGoodsStock API
             try:
                 stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
-                stock_res = requests.get(stock_url, params={"machineUuid": params.get("machineUuid")}, headers=headers, timeout=8)
+                stock_res = requests.get(stock_url, params={"machineUuid": machine_uuid}, headers=headers, timeout=8)
                 stock_data = stock_res.json()
                 print(f"DEBUG: Stock response data: {stock_data}")
                 if stock_data.get("result") == "200" and stock_data.get("data"):
@@ -1414,18 +1420,33 @@ class ExternalMachineGoodsView(APIView):
                         inv = stock_item.get("inventory") or 0
                         avail = stock_item.get("availableInventory") or 0
                         lock = stock_item.get("lockInventory") or 0
-                        
-                        # Logic: Number of items to lock
-                        # Either explicitly locked, or the part of inventory that isn't available
                         count_to_lock = max(lock, inv - avail)
-                        
                         if count_to_lock > 0:
                             lock_counts[g_uuid] = count_to_lock
-                            
                         print(f"DEBUG: Stock Check - UUID: {g_uuid}, Inv: {inv}, Avail: {avail}, Lock: {lock} -> Count to Lock: {count_to_lock}")
-                print(f"DEBUG: Final Lock Counts: {lock_counts}")
+                print(f"DEBUG: Final Lock Counts from external API: {lock_counts}")
             except Exception as stock_err:
-                print(f"DEBUG: Could not fetch stock info: {stock_err}")
+                print(f"DEBUG: Could not fetch stock info from external API: {stock_err}")
+
+            # FALLBACK: Supplement with our own READY orders (QR generated but not yet collected)
+            # This ensures items reserved for a user are shown as locked even if external API is down
+            try:
+                from django.utils import timezone as tz
+                active_location = VendingLocation.objects.filter(serial_number=machine_uuid).first()
+                if active_location:
+                    ready_items = OrderItem.objects.filter(
+                        order__location=active_location,
+                        order__status=OrderStatus.READY,
+                        order__qr_used=False,
+                        plan_type__in=[PlanType.ORDER_NOW, PlanType.SMART_GRAB],
+                        vending_good_uuid__isnull=False
+                    ).exclude(vending_good_uuid='')
+                    for oi in ready_items:
+                        g_uuid = str(oi.vending_good_uuid)
+                        lock_counts[g_uuid] = lock_counts.get(g_uuid, 0) + oi.quantity
+                    print(f"DEBUG: Lock Counts after DB fallback: {lock_counts}")
+            except Exception as db_err:
+                print(f"DEBUG: Could not fetch DB lock info: {db_err}")
 
             # Transform the response to match the structure the frontend expects
             if api_data.get("result") == "200" and "data" in api_data:
