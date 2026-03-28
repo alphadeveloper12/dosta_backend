@@ -215,7 +215,22 @@ class CartItemSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        if not instance.menu_item and instance.sweets_item:
+        if not instance.menu_item and instance.master_item:
+            master = instance.master_item
+            request = self.context.get('request')
+            image_url = None
+            if master.image:
+                image_url = request.build_absolute_uri(master.image.url) if request else master.image.url
+            data['menu_item'] = {
+                'id': master.id,
+                'name': master.name,
+                'price': str(master.default_price),
+                'description': master.description or '',
+                'image_url': image_url,
+                'heating': 'yes' if master.heating else 'no',
+                'offers': []
+            }
+        elif not instance.menu_item and instance.sweets_item:
             sweets = instance.sweets_item
             variation = instance.sweets_variation
             request = self.context.get('request')
@@ -223,10 +238,10 @@ class CartItemSerializer(serializers.ModelSerializer):
             image = sweets.image or (sweets.master_item.image if sweets.master_item else None)
             if image:
                 image_url = request.build_absolute_uri(image.url) if request else image.url
-            
+
             name = f"{sweets.name} ({variation.weight})" if variation else sweets.name
             price = str(variation.price) if variation else str(sweets.price)
-            
+
             data['menu_item'] = {
                 'id': sweets.id,
                 'name': name,

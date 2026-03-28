@@ -358,6 +358,8 @@ class Cart(models.Model):
         for item in self.items.all():
             if item.menu_item:
                 total += Decimal(str(item.menu_item.price)) * item.quantity
+            elif item.master_item:
+                total += Decimal(str(item.master_item.default_price)) * item.quantity
             elif item.sweets_item:
                 price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
                 if price:
@@ -369,16 +371,17 @@ class Cart(models.Model):
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
     menu_item = models.ForeignKey(MenuItem, related_name="cart_items", on_delete=models.CASCADE, null=True, blank=True)
+    master_item = models.ForeignKey(MasterItem, related_name="cart_items", on_delete=models.PROTECT, null=True, blank=True)
     sweets_item = models.ForeignKey('catering.SweetsItem', related_name="cart_items", on_delete=models.CASCADE, null=True, blank=True)
     sweets_variation = models.ForeignKey('catering.SweetsItemVariation', related_name="cart_items", on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
-    
+
     # Item context (for weekly/monthly plans)
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
     heating_requested = models.BooleanField(default=False, null=True, blank=True)
-    
+
     # Plan Context (Moved to Item level for mixed carts)
     plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)
     plan_subtype = models.CharField(max_length=20, choices=PlanSubType.choices, default=PlanSubType.NONE)
@@ -389,7 +392,7 @@ class CartItem(models.Model):
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("cart", "menu_item", "sweets_item", "sweets_variation", "plan_type", "plan_subtype", "day_of_week", "week_number")
+        unique_together = ("cart", "menu_item", "master_item", "sweets_item", "sweets_variation", "plan_type", "plan_subtype", "day_of_week", "week_number")
 
     def __str__(self):
         if self.sweets_item:
@@ -397,12 +400,16 @@ class CartItem(models.Model):
             if self.sweets_variation:
                 name = f"{name} ({self.sweets_variation.weight})"
             return f"{name} x {self.quantity}"
+        if self.master_item:
+            return f"{self.master_item.name} x {self.quantity}"
         return f"{self.menu_item.name} x {self.quantity}"
 
     @property
     def subtotal(self):
         if self.menu_item:
             return self.menu_item.price * self.quantity
+        if self.master_item:
+            return self.master_item.default_price * self.quantity
         if self.sweets_item:
             price = self.sweets_variation.price if self.sweets_variation else self.sweets_item.price
             return price * self.quantity

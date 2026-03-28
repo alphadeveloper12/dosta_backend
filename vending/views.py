@@ -14,6 +14,7 @@ from .models import (
     VendingLocation,
     UserLocationSelection,
     Menu,
+    MenuItem,
     MenuType,
     DayOfWeek,
     PlanType,
@@ -1022,12 +1023,12 @@ class CartView(APIView):
                 heating_requested = item.get("heating_requested", False)
 
                 plan_type = item.get("plan_type", incoming_plan_type)
-                
+
                 if menu_item_id:
                     # Common args for update_or_create
                     create_kwargs = {
                         "cart": cart,
-                        "quantity": quantity, # FIX: Quantity was missing!
+                        "quantity": quantity,
                         "day_of_week": day_of_week,
                         "week_number": week_number,
                         "vending_good_uuid": vending_good_uuid,
@@ -1052,9 +1053,22 @@ class CartView(APIView):
                             day_of_week=day_of_week,
                             week_number=week_number,
                         )
-                    else:
+                    elif MenuItem.objects.filter(id=menu_item_id).exists():
+                        # Legacy: item is a scheduled MenuItem
                         CartItem.objects.update_or_create(
                             menu_item_id=menu_item_id,
+                            defaults=create_kwargs,
+                            cart=cart,
+                            plan_type=plan_type,
+                            plan_subtype=item.get("plan_subtype", incoming_plan_subtype),
+                            day_of_week=day_of_week,
+                            week_number=week_number,
+                        )
+                    elif MasterItem.objects.filter(id=menu_item_id).exists():
+                        # Item selected from master list (ORDER_NOW / SMART_GRAB)
+                        create_kwargs["master_item_id"] = menu_item_id
+                        CartItem.objects.update_or_create(
+                            master_item_id=menu_item_id,
                             defaults=create_kwargs,
                             cart=cart,
                             plan_type=plan_type,
