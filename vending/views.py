@@ -865,7 +865,7 @@ class RetryFulfillmentView(APIView):
             }, status=200)
 
         # Only retry for appropriate statuses
-        if order.status not in [OrderStatus.PENDING_FULFILLMENT, OrderStatus.CONFIRMED]:
+        if order.status not in [OrderStatus.PENDING_FULFILLMENT, OrderStatus.CONFIRMED, OrderStatus.PENDING]:
             return Response({
                 "error": f"Cannot retry fulfillment for order with status '{order.status}'."
             }, status=400)
@@ -877,9 +877,14 @@ class RetryFulfillmentView(APIView):
                 "error": "Maximum retry attempts reached. Please contact support."
             }, status=429)
 
+        # Backfill item_name_snapshot for any items that are missing it
+        for item in order.items.filter(item_name_snapshot__isnull=True):
+            item.save()  # triggers the save() snapshot logic
+
         from .services import VendingService
         order.fulfillment_attempts += 1
-        order.save(update_fields=['fulfillment_attempts'])
+        order.status = OrderStatus.CONFIRMED
+        order.save(update_fields=['fulfillment_attempts', 'status'])
 
         pickup_code = None
         try:

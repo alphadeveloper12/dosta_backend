@@ -204,11 +204,15 @@
         <li class="p-6 hover:bg-gray-50/50 transition-colors duration-150">
           <div class="flex items-start md:items-center gap-6">
             {% with item.menu_item as mi %}
+            {% with item.master_item as mai %}
             {% with item.sweets_item as si %}
             <!-- Image -->
             <div class="flex-shrink-0">
               {% if mi.image %}
               <img src="{{ mi.image.url }}" alt="{{ mi.name }}"
+                class="h-24 w-24 object-cover rounded-2xl shadow-sm border border-gray-100" />
+              {% elif mai.image %}
+              <img src="{{ mai.image.url }}" alt="{{ mai.name }}"
                 class="h-24 w-24 object-cover rounded-2xl shadow-sm border border-gray-100" />
               {% elif si.image %}
               <img src="{{ si.image.url }}" alt="{{ si.name }}"
@@ -231,7 +235,7 @@
             <div class="flex-grow min-w-0">
               <div class="flex justify-between items-center mb-1">
                 <h4 class="text-xl font-bold text-gray-900 truncate pr-4">
-                  {% if item.item_name_snapshot %}{{ item.item_name_snapshot }}{% elif mi %}{{ mi.name }}{% elif si %}{{ si.name }}{% if item.sweets_variation %} ({{ item.sweets_variation.weight }}){% endif %}{% elif item.variation_snapshot %}Meal ({{ item.variation_snapshot }}){% else %}Item Deleted{% endif %}
+                  {% if item.item_name_snapshot %}{{ item.item_name_snapshot }}{% elif mi %}{{ mi.name }}{% elif mai %}{{ mai.name }}{% elif si %}{{ si.name }}{% if item.sweets_variation %} ({{ item.sweets_variation.weight }}){% endif %}{% elif item.variation_snapshot %}Meal ({{ item.variation_snapshot }}){% else %}Item Deleted{% endif %}
                 </h4>
                 <span
                   class="flex-shrink-0 inline-flex items-center justify-center px-4 py-1.5 bg-gray-900 text-white font-bold rounded-lg text-sm shadow-sm">
@@ -242,6 +246,8 @@
               <p class="text-gray-500 mb-2 line-clamp-2 text-sm">
                 {% if mi %}
                 {{ mi.description|default:"No description available." }}
+                {% elif mai %}
+                {{ mai.description|default:"No description available." }}
                 {% elif si %}
                 {{ si.master_item.description|default:si.description|default:"No description available." }}
                 {% endif %}
@@ -295,6 +301,7 @@
               </div>
               {% endif %}
             </div>
+            {% endwith %}
             {% endwith %}
             {% endwith %}
           </div>

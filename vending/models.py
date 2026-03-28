@@ -302,6 +302,14 @@ class OrderItem(models.Model):
                     self.protein_snapshot = mi.protein
                     self.carbs_snapshot = mi.carbs
                     self.fats_snapshot = mi.fats
+            elif self.master_item:
+                self.item_name_snapshot = self.master_item.name
+                self.item_price_snapshot = self.master_item.default_price
+                self.item_type_snapshot = 'MEAL'
+                self.calories_snapshot = self.master_item.calories
+                self.protein_snapshot = self.master_item.protein
+                self.carbs_snapshot = self.master_item.carbs
+                self.fats_snapshot = self.master_item.fats
             elif self.sweets_item:
                 self.item_name_snapshot = self.sweets_item.name
                 self.item_price_snapshot = self.sweets_variation.price if self.sweets_variation else self.sweets_item.price
@@ -313,7 +321,7 @@ class OrderItem(models.Model):
         super().save(*args, **kwargs)
 
     def __str__(self):
-        name = self.item_name_snapshot or (self.menu_item.name if self.menu_item else "Unknown Item")
+        name = self.item_name_snapshot or (self.menu_item.name if self.menu_item else (self.master_item.name if self.master_item else "Unknown Item"))
         base = f"{name} x {self.quantity}"
         if self.week_number:
             return f"{base} (Week {self.week_number}, {self.day_of_week})"
