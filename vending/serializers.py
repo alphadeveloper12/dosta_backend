@@ -51,6 +51,7 @@ class OfferSerializer(serializers.ModelSerializer):
 
 class MenuItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
+    image2_url = serializers.SerializerMethodField()
     offers = OfferSerializer(many=True, read_only=True)
     heating = serializers.SerializerMethodField()
 
@@ -64,6 +65,7 @@ class MenuItemSerializer(serializers.ModelSerializer):
             'offer',
             'terms_and_conditions',
             'image_url',
+            'image2_url',
             'offers',
             'heating'
         ]
@@ -79,6 +81,24 @@ class MenuItemSerializer(serializers.ModelSerializer):
             return obj.image.url
         return None
 
+    def get_image2_url(self, obj):
+        """Returns image2 from the linked MasterItem, falling back to image."""
+        request = self.context.get('request')
+        # Prefer master_item.image2 → master_item.image → obj.image
+        master = getattr(obj, 'master_item', None)
+        if master and master.image2:
+            target = master.image2
+        elif master and master.image:
+            target = master.image
+        else:
+            target = obj.image  # fallback to MenuItem's own image
+
+        if target and request:
+            return request.build_absolute_uri(target.url)
+        elif target:
+            return target.url
+        return None
+
 
 class MenuSerializer(serializers.ModelSerializer):
     items = MenuItemSerializer(many=True, read_only=True)
@@ -90,13 +110,14 @@ class MenuSerializer(serializers.ModelSerializer):
 
 class MasterItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
+    image2_url = serializers.SerializerMethodField()
     price = serializers.DecimalField(source='default_price', max_digits=10, decimal_places=2)
     heating = serializers.SerializerMethodField()
     offers = serializers.SerializerMethodField()
 
     class Meta:
         model = MasterItem
-        fields = ['id', 'name', 'price', 'description', 'image_url', 'offers', 'heating', 'maximum_heating']
+        fields = ['id', 'name', 'price', 'description', 'image_url', 'image2_url', 'offers', 'heating', 'maximum_heating']
 
     def get_heating(self, obj):
         return "yes" if obj.heating else "no"
@@ -107,6 +128,17 @@ class MasterItemSerializer(serializers.ModelSerializer):
             return request.build_absolute_uri(obj.image.url)
         elif obj.image:
             return obj.image.url
+        return None
+
+    def get_image2_url(self, obj):
+        """Returns image2 URL, falling back to image URL when image2 is not set."""
+        request = self.context.get('request')
+        # Use image2 if available, otherwise fall back to image
+        target = obj.image2 if obj.image2 else obj.image
+        if target and request:
+            return request.build_absolute_uri(target.url)
+        elif target:
+            return target.url
         return None
 
     def get_offers(self, obj):
@@ -146,12 +178,18 @@ class OrderItemSerializer(serializers.ModelSerializer):
             image_url = None
             if master.image:
                 image_url = request.build_absolute_uri(master.image.url) if request else master.image.url
+            # image2_url falls back to image_url when image2 is not set
+            image2_target = master.image2 if master.image2 else master.image
+            image2_url = None
+            if image2_target:
+                image2_url = request.build_absolute_uri(image2_target.url) if request else image2_target.url
             data['menu_item'] = {
                 'id': master.id,
                 'name': master.name,
                 'price': str(master.default_price),
                 'description': master.description or '',
                 'image_url': image_url,
+                'image2_url': image2_url,
                 'heating': 'yes' if master.heating else 'no',
                 'maximum_heating': master.maximum_heating,
                 'offers': []
@@ -239,12 +277,18 @@ class CartItemSerializer(serializers.ModelSerializer):
             image_url = None
             if master.image:
                 image_url = request.build_absolute_uri(master.image.url) if request else master.image.url
+            # image2_url falls back to image_url when image2 is not set
+            image2_target = master.image2 if master.image2 else master.image
+            image2_url = None
+            if image2_target:
+                image2_url = request.build_absolute_uri(image2_target.url) if request else image2_target.url
             data['menu_item'] = {
                 'id': master.id,
                 'name': master.name,
                 'price': str(master.default_price),
                 'description': master.description or '',
                 'image_url': image_url,
+                'image2_url': image2_url,
                 'heating': 'yes' if master.heating else 'no',
                 'maximum_heating': master.maximum_heating,
                 'offers': []

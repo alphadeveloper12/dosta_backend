@@ -34,6 +34,26 @@ class MasterItemAdmin(admin.ModelAdmin):
     list_display = ("name", "calories", "heating", "created_at")
     search_fields = ("name", "description")
     ordering = ("name",)
+    readonly_fields = ("created_at", "updated_at")
+    fieldsets = (
+        ("Basic Info", {
+            "fields": ("name", "description", "ingredients")
+        }),
+        ("Pricing & Nutrition", {
+            "fields": ("default_price", "calories", "protein", "carbs", "fats")
+        }),
+        ("Heating", {
+            "fields": ("heating", "maximum_heating")
+        }),
+        ("Images", {
+            "description": "• image = shown on item cards  |  • image2 = shown in the sidebar detail panel (falls back to 'image' if not set)",
+            "fields": ("image_source_url", "image", "image2")
+        }),
+        ("Timestamps", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",)
+        }),
+    )
 
 
 @admin.register(MenuItem)

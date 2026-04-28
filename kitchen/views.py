@@ -42,17 +42,23 @@ class DashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
                 OrderStatus.PENDING,
                 OrderStatus.PREPARING,
                 OrderStatus.READY,
+                OrderStatus.CONFIRMED,
                 OrderStatus.PENDING_FULFILLMENT,
-            ],
-            items__plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'],
-            items__pickup_code__isnull=True
+            ]
         ).distinct().order_by('-created_at')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        from vending.models import VendingLocation, MasterItem
+        from catering.models import SweetsItem
         context['pending_fulfillment_orders'] = Order.objects.filter(
             status=OrderStatus.PENDING_FULFILLMENT
         ).order_by('-created_at')
+        context['locations'] = VendingLocation.objects.all().order_by('name')
+        
+        master_items = list(MasterItem.objects.values_list('name', flat=True))
+        sweets_items = list(SweetsItem.objects.values_list('name', flat=True))
+        context['item_names'] = sorted(list(set(master_items + sweets_items)))
         return context
 
 class TrackingView(LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -65,12 +71,51 @@ class TrackingView(LoginRequiredMixin, UserPassesTestMixin, ListView):
     ordering = ['-created_at']
 
     def get_queryset(self):
+        from django.db.models import Q
         # Tracking needs ALL orders
         qs = Order.objects.all().order_by('-created_at')
+        
         status_filter = self.request.GET.get('status')
         if status_filter:
             qs = qs.filter(status=status_filter)
+            
+        location_filters = self.request.GET.getlist('location')
+        if location_filters and any(location_filters):
+            # filter out empty strings
+            valid_locs = [loc for loc in location_filters if loc]
+            if valid_locs:
+                qs = qs.filter(location_id__in=valid_locs)
+            
+        item_filters = self.request.GET.getlist('item_search')
+        if item_filters and any(item_filters):
+            valid_items = [item for item in item_filters if item]
+            if valid_items:
+                item_q = Q()
+                for item_filter in valid_items:
+                    item_q |= Q(items__item_name_snapshot__icontains=item_filter)
+                    item_q |= Q(items__menu_item__name__icontains=item_filter)
+                    item_q |= Q(items__master_item__name__icontains=item_filter)
+                    item_q |= Q(items__sweets_item__name__icontains=item_filter)
+                qs = qs.filter(item_q).distinct()
+            
         return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from vending.models import VendingLocation, MasterItem
+        from catering.models import SweetsItem
+        context['status_choices'] = OrderStatus.choices
+        context['locations'] = VendingLocation.objects.all().order_by('name')
+        
+        master_items = list(MasterItem.objects.values_list('name', flat=True))
+        sweets_items = list(SweetsItem.objects.values_list('name', flat=True))
+        context['item_names'] = sorted(list(set(master_items + sweets_items)))
+        
+        # Pass selected filters back to template
+        context['selected_locations'] = self.request.GET.getlist('location')
+        context['selected_items'] = self.request.GET.getlist('item_search')
+        
+        return context
 
 class AnalyticsDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
     template_name = 'kitchen/analytics.html'
@@ -161,11 +206,24 @@ class OrderDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
 def update_order_status(request, pk):
     order = get_object_or_404(Order, pk=pk)
     new_status = request.POST.get('status')
-    
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+
     if new_status in OrderStatus.values:
         order.status = new_status
         order.save()
-    return redirect('kitchen:dashboard')
+        if is_ajax:
+            return JsonResponse({'success': True, 'new_status': new_status, 'display': order.get_status_display()})
+
+    if is_ajax:
+        return JsonResponse({'success': False, 'error': 'Invalid status'}, status=400)
+
+    # Non-AJAX: redirect back to wherever the user came from
+    referer = request.META.get('HTTP_REFERER', '')
+    from django.urls import reverse
+    if referer:
+        return redirect(referer)
+    return redirect('kitchen:tracking_dashboard')
+
 
 # -----------------------------------------------------------
 # ITEM STATUS UPDATE (Daily Orders)
@@ -282,6 +340,7 @@ def menu_upload_view(request):
                     master_id = img_info['master_id']
                     item_name = img_info['item_name']
                     picture_url = img_info['picture_url']
+                    field_name = img_info.get('field_name', 'image') # Default to primary image
                     
                     try:
                         direct_url = get_google_drive_direct_link(picture_url)
@@ -291,9 +350,9 @@ def menu_upload_view(request):
                             try:
                                 response = requests.get(direct_url, timeout=30)
                                 if response.status_code == 200:
-                                    filename = f"{slugify(item_name)}.jpg"
+                                    filename = f"{slugify(item_name)}_{field_name}.jpg"
                                     master = MasterItem.objects.get(id=master_id)
-                                    master.image.save(filename, ContentFile(response.content), save=True)
+                                    getattr(master, field_name).save(filename, ContentFile(response.content), save=True)
                                     break # Success
                                 elif response.status_code == 429:
                                     if attempt == max_retries - 1:
@@ -418,7 +477,7 @@ def import_vending_sheet(data_iter):
         desc = row.get('Description', row.get('Item Description', ''))
         price_val = parse_numeric(row.get('Price', row.get('Item Price', 0)))
         
-        # Parse Image URL
+        # Parse Image URLs
         picture_url = row.get('Image', row.get('Picture', '')).strip()
         if picture_url.startswith('=') or 'IMAGE(' in picture_url:
             url_match = re.search(r'(https?://[^\s"\'\)]+)', picture_url)
@@ -426,13 +485,21 @@ def import_vending_sheet(data_iter):
                 picture_url = url_match.group(1)
         picture_url = picture_url.strip('"\'')
 
+        picture_url2 = row.get('Image 2', row.get('Image2', row.get('Picture 2', ''))).strip()
+        if picture_url2.startswith('=') or 'IMAGE(' in picture_url2:
+            url_match2 = re.search(r'(https?://[^\s"\'\)]+)', picture_url2)
+            if url_match2:
+                picture_url2 = url_match2.group(1)
+        picture_url2 = picture_url2.strip('"\'')
+
         # Create MasterItem ALWAYS
         master, created = MasterItem.objects.get_or_create(
             name=item_name,
             defaults={
                 'description': desc,
                 'default_price': price_val,
-                'image_source_url': picture_url if picture_url.startswith('http') else None
+                'image_source_url': picture_url if picture_url.startswith('http') else None,
+                'image2_source_url': picture_url2 if picture_url2.startswith('http') else None
             }
         )
         if created:
@@ -442,7 +509,15 @@ def import_vending_sheet(data_iter):
                 pending_images.append({
                     'master_id': master.id,
                     'item_name': item_name,
-                    'picture_url': picture_url
+                    'picture_url': picture_url,
+                    'field_name': 'image'
+                })
+            if picture_url2 and picture_url2.startswith('http'):
+                pending_images.append({
+                    'master_id': master.id,
+                    'item_name': item_name,
+                    'picture_url': picture_url2,
+                    'field_name': 'image2'
                 })
         else:
             logs.append(f"Skipped duplicate MasterItem name: {item_name}")
@@ -483,6 +558,59 @@ import json
 @login_required
 @user_passes_test(is_kitchen_admin)
 @require_POST
+def vending_master_item_create_view(request):
+    """Creates a new MasterItem from the Add Item modal."""
+    from vending.models import MasterItem
+
+    name = request.POST.get('name', '').strip()
+    if not name:
+        messages.error(request, "Item name is required.")
+        return redirect('kitchen:vending_master_list')
+
+    master = MasterItem(
+        name=name,
+        description=request.POST.get('description', ''),
+        default_price=parse_numeric(request.POST.get('price', 0)),
+        heating=request.POST.get('heating') == 'true',
+        maximum_heating=int(request.POST.get('maximum_heating', 0) or 0),
+    )
+
+    if 'image' in request.FILES:
+        master.image = request.FILES['image']
+    if 'image2' in request.FILES:
+        master.image2 = request.FILES['image2']
+
+    try:
+        master.save()
+        messages.success(request, f"Master item '{master.name}' created successfully.")
+    except Exception as e:
+        from django.db import IntegrityError
+        if 'unique' in str(e).lower() or 'UNIQUE' in str(e):
+            messages.error(request, f"A master item named '{name}' already exists. Please choose a different name.")
+        else:
+            messages.error(request, f"Could not create item: {e}")
+    return redirect('kitchen:vending_master_list')
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def vending_master_item_delete_view(request, pk):
+    """Deletes a MasterItem and all its associated MenuItems."""
+    from vending.models import MasterItem
+    master = get_object_or_404(MasterItem, pk=pk)
+    name = master.name
+    try:
+        master.delete()
+        messages.success(request, f"Master item '{name}' deleted successfully.")
+    except Exception as e:
+        messages.error(request, f"Could not delete '{name}': {e}")
+    return redirect('kitchen:vending_master_list')
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
 def vending_master_item_edit_view(request, pk):
     """Handles the edit modal form submission"""
     from vending.models import MasterItem, Menu, MenuItem, DayOfWeek
@@ -498,6 +626,9 @@ def vending_master_item_edit_view(request, pk):
 
     if 'image' in request.FILES:
         master.image = request.FILES['image']
+
+    if 'image2' in request.FILES:
+        master.image2 = request.FILES['image2']
 
     master.save() # Triggers signal to update any existing menu items' name/desc
     
@@ -592,11 +723,9 @@ def get_active_orders_api(request):
     from django.urls import reverse
     
     orders = Order.objects.filter(
-        status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY],
-        items__plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'],
-        items__pickup_code__isnull=True
+        status__in=[OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY, OrderStatus.CONFIRMED, OrderStatus.PENDING_FULFILLMENT]
     ).select_related('user__profile').prefetch_related(
-        'items__menu_item', 
+        'items__menu_item',
         'items__sweets_item',
         'items__sweets_variation',
         'user__profile__addresses'
@@ -604,15 +733,8 @@ def get_active_orders_api(request):
     
     orders_data = []
     for order in orders:
-        # Filter items to only show those that need kitchen preparation
-        kitchen_items = order.items.filter(
-            plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'], 
-            pickup_code__isnull=True
-        )
-        
-        if not kitchen_items.exists():
-            continue
-
+        # Show all items for this order in the active card
+        kitchen_items = order.items.all()
         items_data = []
         for item in kitchen_items[:5]:  # Return up to 5 items for the dashboard
             name = item.item_name_snapshot
@@ -646,9 +768,21 @@ def get_active_orders_api(request):
             if default_address:
                 address_str = f"{default_address.address_line_1}, {default_address.city}"
 
+        searchable_names = []
+        for item in kitchen_items:
+            name = item.item_name_snapshot
+            if not name:
+                if item.menu_item: name = item.menu_item.name
+                elif hasattr(item, 'master_item') and item.master_item: name = item.master_item.name
+                elif item.sweets_item: name = item.sweets_item.name
+            if name: searchable_names.append(name.lower())
+            
         orders_data.append({
             'id': order.id,
             'city': order.city,
+            'location_name': order.location.name if order.location else None,
+            'location_id': order.location_id,
+            'searchable_items': "|".join(searchable_names),
             'status': order.status,
             'status_display': order.get_status_display(),
             'created_at': order.created_at.isoformat(),
@@ -657,7 +791,7 @@ def get_active_orders_api(request):
             'pickup_slot': order.pickup_slot.label if order.pickup_slot else None,
             'items_count': kitchen_items.count(),
             'items': items_data,
-            'has_meals': kitchen_items.filter(models.Q(menu_item__isnull=False) | models.Q(item_name_snapshot__isnull=False)).exists(),
+            'has_meals': kitchen_items.filter(models.Q(menu_item__isnull=False) | models.Q(item_name_snapshot__isnull=False) | models.Q(master_item__isnull=False)).exists(),
             'has_sweets': kitchen_items.filter(sweets_item__isnull=False).exists(), # Sweets are usually NOT wiped
             'detail_url': reverse('kitchen:order_detail', args=[order.id])
         })
@@ -1119,26 +1253,79 @@ class CateringMasterListView(LoginRequiredMixin, ListView):
         return queryset
 
     def post(self, request, *args, **kwargs):
-        # Quick inline update handler
+        form_mode = request.POST.get('form_mode', 'edit')
         item_id = request.POST.get('item_id')
-        new_name = request.POST.get('name')
-        new_desc = request.POST.get('description')
-        
+
+        # ── DELETE ───────────────────────────────────────────────────────────
+        if form_mode == 'delete':
+            if item_id:
+                try:
+                    item = CateringMasterItem.objects.get(id=item_id)
+                    name = item.name
+                    item.delete()
+                    messages.success(request, f"'{name}' deleted successfully.")
+                except CateringMasterItem.DoesNotExist:
+                    messages.error(request, "Item not found.")
+                except Exception as e:
+                    messages.error(request, f"Could not delete item: {e}")
+            return redirect('kitchen:catering_master_list')
+
+        # ── EDIT ─────────────────────────────────────────────────────────────
+        new_name = request.POST.get('name', '').strip()
+        new_desc = request.POST.get('description', '')
+
         if item_id and new_name:
             try:
                 item = CateringMasterItem.objects.get(id=item_id)
                 item.name = new_name
-                if new_desc is not None:
-                    item.description = new_desc
+                item.description = new_desc
                 if 'image' in request.FILES:
                     item.image = request.FILES['image']
-                
-                item.save() # This triggers the signal!
+                item.save()
                 messages.success(request, f"Updated '{item.name}' successfully.")
+            except CateringMasterItem.DoesNotExist:
+                messages.error(request, "Item not found.")
             except Exception as e:
-                messages.error(request, f"Error updating item: {e}")
-        
+                if 'unique' in str(e).lower() or 'UNIQUE' in str(e):
+                    messages.error(request, f"A catering item named '{new_name}' already exists.")
+                else:
+                    messages.error(request, f"Error updating item: {e}")
+
         return redirect('kitchen:catering_master_list')
+
+
+# -----------------------------------------------------------
+# CATERING MASTER ITEM — CREATE
+# -----------------------------------------------------------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def catering_master_item_create_view(request):
+    """Creates a new CateringMasterItem from the Add Item modal."""
+    from catering.models import CateringMasterItem
+    name = request.POST.get('name', '').strip()
+    if not name:
+        messages.error(request, "Item name is required.")
+        return redirect('kitchen:catering_master_list')
+
+    item = CateringMasterItem(
+        name=name,
+        description=request.POST.get('description', ''),
+    )
+    if 'image' in request.FILES:
+        item.image = request.FILES['image']
+
+    try:
+        item.save()
+        messages.success(request, f"Catering item '{item.name}' created successfully.")
+    except Exception as e:
+        if 'unique' in str(e).lower() or 'UNIQUE' in str(e):
+            messages.error(request, f"A catering item named '{name}' already exists. Please choose a different name.")
+        else:
+            messages.error(request, f"Could not create item: {e}")
+    return redirect('kitchen:catering_master_list')
+
 
 # -----------------------------------------------------------
 # SYNC MASTER ITEMS (Maintenance Tools)
@@ -1721,3 +1908,81 @@ def save_monthly_vending_assignment(request):
 
     messages.success(request, f"Successfully saved Monthly menu assignments.")
     return redirect(f"{reverse('kitchen:vending_monthly_assignment')}?day={active_day}&week={active_week}")
+
+
+# -----------------------------------------------------------
+# VENDING LOCATIONS MANAGEMENT
+# -----------------------------------------------------------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def locations_view(request):
+    """Lists all VendingLocations."""
+    from vending.models import VendingLocation
+    locations = VendingLocation.objects.all().order_by('name')
+    return render(request, 'kitchen/locations.html', {
+        'locations': locations,
+        'total_count': locations.count(),
+        'active_count': locations.filter(is_active=True).count(),
+        'inactive_count': locations.filter(is_active=False).count(),
+    })
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def locations_manage(request):
+    """Handles add / edit / delete of a VendingLocation via POST."""
+    from vending.models import VendingLocation
+
+    if request.method != 'POST':
+        return redirect('kitchen:locations')
+
+    action = request.POST.get('action')
+
+    # ── DELETE ────────────────────────────────────────────────────────
+    if action == 'delete':
+        loc = get_object_or_404(VendingLocation, pk=request.POST.get('location_id'))
+        name = loc.name
+        loc.delete()
+        messages.success(request, f"Location '{name}' deleted successfully.")
+        return redirect('kitchen:locations')
+
+    # ── ADD / EDIT ────────────────────────────────────────────────────
+    name = request.POST.get('name', '').strip()
+    info = request.POST.get('info', '').strip()
+    hours = request.POST.get('hours', '').strip()
+    serial = request.POST.get('serial_number', '').strip() or None
+    is_active = request.POST.get('is_active') == 'true'
+
+    try:
+        lat = float(request.POST.get('latitude', 0))
+        lng = float(request.POST.get('longitude', 0))
+    except (ValueError, TypeError):
+        messages.error(request, "Invalid latitude or longitude value.")
+        return redirect('kitchen:locations')
+
+    if not name:
+        messages.error(request, "Location name is required.")
+        return redirect('kitchen:locations')
+
+    if action == 'add':
+        VendingLocation.objects.create(
+            name=name, info=info, hours=hours,
+            latitude=lat, longitude=lng,
+            serial_number=serial, is_active=is_active
+        )
+        messages.success(request, f"Location '{name}' added successfully.")
+
+    elif action == 'edit':
+        loc = get_object_or_404(VendingLocation, pk=request.POST.get('location_id'))
+        loc.name = name
+        loc.info = info
+        loc.hours = hours
+        loc.latitude = lat
+        loc.longitude = lng
+        loc.serial_number = serial
+        loc.is_active = is_active
+        loc.save()
+        messages.success(request, f"Location '{name}' updated successfully.")
+
+    return redirect('kitchen:locations')

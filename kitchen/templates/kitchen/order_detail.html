@@ -3,13 +3,13 @@
 <div class="max-w-5xl mx-auto pb-12 animate-fade-in-up">
   <!-- Navigation -->
   <div class="mb-8">
-    <a href="{% url 'kitchen:dashboard' %}"
+    <a href="{% url 'kitchen:tracking_dashboard' %}"
       class="inline-flex items-center text-gray-500 hover:text-indigo-600 font-medium transition-colors group">
       <svg class="w-5 h-5 mr-1 group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor"
         viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
       </svg>
-      Back to Dashboard
+      Back to Tracking
     </a>
   </div>
 
@@ -120,9 +120,8 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
               </svg>
-              {% with order.user.profile.addresses.all|first as addr %}
-              {% if addr %}{{ addr.address_line_1 }}, {{ addr.city }}{% else %}No address{% endif %}
-              {% endwith %}
+              {{ order.location.name }}
+            </p>
             {% if order.city %}
             <p class="text-indigo-600 font-bold text-sm mt-3 flex items-center bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-100 w-fit">
               <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -292,9 +291,8 @@
               </div>
 
               <!-- Macros -->
-              {% if item.calories_snapshot or item.protein_snapshot or item.carbs_snapshot or item.fats_snapshot %}
+              {% if item.protein_snapshot or item.carbs_snapshot or item.fats_snapshot %}
               <div class="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                {% if item.calories_snapshot %}<span>Cal: {{ item.calories_snapshot }}</span>{% endif %}
                 {% if item.protein_snapshot %}<span>Prot: {{ item.protein_snapshot }}g</span>{% endif %}
                 {% if item.carbs_snapshot %}<span>Carb: {{ item.carbs_snapshot }}g</span>{% endif %}
                 {% if item.fats_snapshot %}<span>Fat: {{ item.fats_snapshot }}g</span>{% endif %}
@@ -320,20 +318,71 @@
 
 <style>
   @keyframes fadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(10px);
-    }
-
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
   }
-
-  .animate-fade-in-up {
-    animation: fadeInUp 0.4s ease-out forwards;
-  }
+  .animate-fade-in-up { animation: fadeInUp 0.4s ease-out forwards; }
 </style>
+
+<!-- Toast -->
+<div id="detailToast"
+ class="fixed bottom-6 right-6 z-50 hidden flex items-center gap-3 bg-gray-900 text-white px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-semibold">
+ <span id="detailToastIcon" class="text-lg">✓</span>
+ <span id="detailToastMsg">Status updated</span>
+</div>
+
+<script>
+ const CSRF = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] ?? '';
+
+ function showDetailToast(msg, isError = false) {
+  const t = document.getElementById('detailToast');
+  document.getElementById('detailToastMsg').textContent = msg;
+  document.getElementById('detailToastIcon').textContent = isError ? '✕' : '✓';
+  t.classList.remove('hidden');
+  t.classList.toggle('bg-red-700', isError);
+  t.classList.toggle('bg-gray-900', !isError);
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.add('hidden'), 3500);
+ }
+
+ // Intercept ALL status-change form submits on this page
+ document.querySelectorAll('form[action*="update-status"]').forEach(form => {
+  form.addEventListener('submit', function(e) {
+   e.preventDefault();
+   const btn = e.submitter;
+   const newStatus = btn?.value;
+   if (!newStatus) return;
+
+   const originalText = btn.innerHTML;
+   btn.disabled = true;
+   btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg> Updating...';
+
+   const body = new URLSearchParams({ status: newStatus });
+
+   fetch(form.action, {
+    method: 'POST',
+    headers: { 'X-CSRFToken': CSRF, 'X-Requested-With': 'XMLHttpRequest' },
+    body: body,
+   })
+   .then(r => r.json())
+   .then(data => {
+    if (data.success) {
+     showDetailToast(`Status updated → ${data.display}`);
+     // Reload the header section to show the new action button
+     setTimeout(() => location.reload(), 800);
+    } else {
+     showDetailToast('Failed to update status', true);
+     btn.disabled = false;
+     btn.innerHTML = originalText;
+    }
+   })
+   .catch(() => {
+    showDetailToast('Network error — try again', true);
+    btn.disabled = false;
+    btn.innerHTML = originalText;
+   });
+  });
+ });
+</script>
 
 {% endblock %}

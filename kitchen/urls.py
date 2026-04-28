@@ -33,15 +33,22 @@ urlpatterns = [
     path('master-items/vending/weekly/save/', views.save_weekly_vending_assignment, name='save_vending_weekly_assignment'),
     path('master-items/vending/monthly/', views.MonthlyVendingAssignmentView.as_view(), name='vending_monthly_assignment'),
     path('master-items/vending/monthly/save/', views.save_monthly_vending_assignment, name='save_vending_monthly_assignment'),
+    path('master-items/vending/create/', views.vending_master_item_create_view, name='vending_master_item_create'),
     path('master-items/vending/<int:pk>/edit/', views.vending_master_item_edit_view, name='vending_master_item_edit'),
+    path('master-items/vending/<int:pk>/delete/', views.vending_master_item_delete_view, name='vending_master_item_delete'),
     path('master-items/vending/<int:pk>/schedule/', views.vending_master_schedule_api, name='vending_master_schedule_api'),
     path('master-items/vending/sync/', views.sync_vending_master_items, name='sync_vending_master'),
     path('master-items/catering/', views.CateringMasterListView.as_view(), name='catering_master_list'),
+    path('master-items/catering/create/', views.catering_master_item_create_view, name='catering_master_item_create'),
     path('master-items/catering/sync/', views.sync_catering_master_items, name='sync_catering_master'),
     
     # Fulfillment management
     path('order/<int:order_id>/retry-fulfillment/', views.kitchen_retry_fulfillment, name='retry_fulfillment'),
     path('order/<int:order_id>/mark-qr-used/', views.kitchen_mark_qr_used, name='mark_qr_used'),
+
+    # Locations
+    path('locations/', views.locations_view, name='locations'),
+    path('locations/manage/', views.locations_manage, name='locations_manage'),
 
     # Logout
     path('logout/', views.kitchen_logout_view, name='logout'),

@@ -79,7 +79,9 @@ class MasterItem(models.Model):
     maximum_heating = models.PositiveIntegerField(default=0, help_text="Maximum heating duration in minutes (0 = no limit)")
     default_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Price from sheet or admin edit. Used when creating MenuItem schedule links.")
     image_source_url = models.URLField(max_length=500, blank=True, null=True)
+    image2_source_url = models.URLField(max_length=500, blank=True, null=True)
     image = models.ImageField(upload_to='menu_images/', blank=True, null=True)
+    image2 = models.ImageField(upload_to='menu_images/', blank=True, null=True, help_text="Detail/sidebar image. Shown when user opens item detail panel.")
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -232,9 +234,21 @@ class Order(models.Model):
         self.save(update_fields=["total_amount"])
 
     @property
+    def searchable_items(self):
+        names = []
+        for item in self.items.all():
+            name = item.item_name_snapshot
+            if not name:
+                if item.menu_item: name = item.menu_item.name
+                elif item.master_item: name = item.master_item.name
+                elif getattr(item, 'sweets_item', None): name = item.sweets_item.name
+            if name: names.append(name.lower())
+        return "|".join(names)
+
+    @property
     def kitchen_items(self):
-        """Returns items that require kitchen preparation and aren't fulfilled yet."""
-        return self.items.filter(plan_type__in=['START_PLAN', 'ORDER_NOW', 'SMART_GRAB'], pickup_code__isnull=True)
+        """Returns items that require kitchen preparation."""
+        return self.items.all()
 
     @property
     def has_meals(self):
@@ -513,6 +527,7 @@ def propagate_master_changes(sender, instance, created, **kwargs):
         
     instance.menu_items.update(
         name=instance.name,
+        price=instance.default_price,
         description=instance.description,
         ingredients=instance.ingredients,
         calories=instance.calories,
@@ -520,8 +535,6 @@ def propagate_master_changes(sender, instance, created, **kwargs):
         carbs=instance.carbs,
         fats=instance.fats,
         heating=instance.heating,
-        # We don't necessarily overwrite image/source_url if they are blank in Master
-        # but for full sync we often should. Let's do partial updates if not blank.
     )
 
     # Handle nullable fields cleaner

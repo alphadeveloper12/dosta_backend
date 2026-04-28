@@ -402,7 +402,7 @@ class PlanMenuView(APIView):
         if subtype == "WEEKLY":
             week_data = {}
             for day, _ in DayOfWeek.choices:
-                menu = Menu.objects.filter(day_of_week=day, menu_type=MenuType.WEEKLY).first()
+                menu = Menu.objects.filter(day_of_week=day, menu_type=MenuType.WEEKLY).prefetch_related('items__master_item').first()
                 week_data[day] = MenuSerializer(menu, context={'request': request}).data if menu else None
             return Response({
                 "plan_subtype": "WEEKLY",
@@ -415,7 +415,7 @@ class PlanMenuView(APIView):
             for week in range(1, 5):
                 week_menu = {}
                 for day, _ in DayOfWeek.choices:
-                    menu = Menu.objects.filter(day_of_week=day, week_number=week, menu_type=MenuType.MONTHLY).first()
+                    menu = Menu.objects.filter(day_of_week=day, week_number=week, menu_type=MenuType.MONTHLY).prefetch_related('items__master_item').first()
                     week_menu[day] = MenuSerializer(menu, context={'request': request}).data if menu else None
                 month_data.append({"week": week, "menu": week_menu})
 
@@ -467,6 +467,22 @@ class ConfirmOrderView(APIView):
     """
     def post(self, request):
         data = request.data
+
+        # ── UAE Order Time Restriction (WEEKLY / MONTHLY / SWEETS) ──────────
+        plan_subtype = data.get("plan_subtype", "NONE")
+        plan_type = data.get("plan_type", "")
+        if plan_subtype in ("WEEKLY", "MONTHLY") or plan_type == "SWEETS":
+            from django.utils import timezone
+            import pytz
+            uae_tz = pytz.timezone("Asia/Dubai")
+            uae_now = timezone.now().astimezone(uae_tz)
+            # Allow 07:00 (inclusive) → 18:00 (exclusive)
+            if uae_now.hour < 7 or uae_now.hour >= 18:
+                return Response(
+                    {"error": "Weekly, Monthly & Sweets orders can only be placed between 7:00 AM and 6:00 PM UAE time."},
+                    status=400,
+                )
+        # ─────────────────────────────────────────────────────────────────────
 
         loc_id = data.get("location_id")
         valid_loc_id = loc_id if loc_id and VendingLocation.objects.filter(id=loc_id).exists() else None
