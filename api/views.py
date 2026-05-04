@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+from django.db import transaction
 from rest_framework.authtoken.models import Token
 from .serializers import SignupSerializer, LoginSerializer
 from .models import Profile, Address, PaymentMethod
@@ -187,3 +188,40 @@ class PaymentMethodDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return self.request.user.profile.payment_methods.all()
+
+
+# ✅ Delete Account View
+# Required by Apple App Store guideline 5.1.1(v): apps that support account
+# creation must offer in-app account deletion.
+class DeleteAccountView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        confirmation = (request.data.get('confirmation') or '').strip().upper()
+        password = request.data.get('password') or ''
+
+        if confirmation != 'DELETE':
+            return Response(
+                {"message": "Please type DELETE to confirm account deletion."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Users created via Google OAuth have no usable password — for them
+        # the typed "DELETE" confirmation alone is sufficient. Anyone with a
+        # local password must re-enter it to authorize the deletion.
+        if user.has_usable_password():
+            if not password or not user.check_password(password):
+                return Response(
+                    {"message": "Incorrect password."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        with transaction.atomic():
+            Token.objects.filter(user=user).delete()
+            user.delete()
+
+        return Response(
+            {"message": "Account deleted successfully."},
+            status=status.HTTP_200_OK,
+        )
