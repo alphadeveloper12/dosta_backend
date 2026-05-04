@@ -69,6 +69,7 @@ class SignupView(APIView):
         email = request.data.get('email')
         password = request.data.get('password')
         phone_number = request.data.get('phone_number')
+        two_factor_enabled = request.data.get('two_factor_enabled', False)
 
         if not email or not password:
             return Response({"message": "Email and password are required."}, status=400)
@@ -81,14 +82,22 @@ class SignupView(APIView):
         # ✅ Use the profile created by the signal
         profile = user.profile
         profile.phone_number = phone_number
+        profile.two_factor_enabled = two_factor_enabled
         profile.otp_secret = pyotp.random_base32()
         profile.save()
 
-        # ✅ Generate OTP and send via Twilio
-        otp = pyotp.TOTP(profile.otp_secret).now()
-        # self.send_otp_to_phone(phone_number, otp) # Placeholder
+        if two_factor_enabled:
+            # ✅ Generate OTP and send via Twilio
+            otp = pyotp.TOTP(profile.otp_secret).now()
+            # self.send_otp_to_phone(phone_number, otp) # Placeholder
+            return Response({"message": "User created. Please verify OTP."}, status=201)
 
-        return Response({"message": "User created. Please verify OTP."}, status=201)
+        # ✅ If 2FA is false, log them in immediately
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response({
+            "token": token.key,
+            "user": ProfileSerializer(profile).data
+        }, status=201)
 
 
 # ✅ Login View
