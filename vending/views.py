@@ -360,9 +360,18 @@ class MenuByTypeView(APIView):
 
     def get(self, request, plan_type):
         items = MasterItem.objects.all().order_by('name')
-        serializer = MasterItemSerializer(items, many=True, context={'request': request})
+        location_id = request.GET.get('location_id') or request.GET.get('location')
+        try:
+            location_id = int(location_id) if location_id else None
+        except (TypeError, ValueError):
+            location_id = None
+        serializer = MasterItemSerializer(
+            items, many=True,
+            context={'request': request, 'location_id': location_id},
+        )
         return Response({
             "plan_type": plan_type,
+            "location_id": location_id,
             "menus": [{"id": None, "day_of_week": None, "date": None, "items": serializer.data}],
             "allow_multiple_selection": True,
             "next_step": "confirm_order"
@@ -399,11 +408,17 @@ class PlanMenuView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, subtype):
+        location_id = request.GET.get('location_id') or request.GET.get('location')
+        try:
+            location_id = int(location_id) if location_id else None
+        except (TypeError, ValueError):
+            location_id = None
+
         if subtype == "WEEKLY":
             week_data = {}
             for day, _ in DayOfWeek.choices:
                 menu = Menu.objects.filter(day_of_week=day, menu_type=MenuType.WEEKLY).prefetch_related('items__master_item').first()
-                week_data[day] = MenuSerializer(menu, context={'request': request}).data if menu else None
+                week_data[day] = MenuSerializer(menu, context={'request': request, 'location_id': location_id}).data if menu else None
             return Response({
                 "plan_subtype": "WEEKLY",
                 "week_menu": week_data,
@@ -416,7 +431,7 @@ class PlanMenuView(APIView):
                 week_menu = {}
                 for day, _ in DayOfWeek.choices:
                     menu = Menu.objects.filter(day_of_week=day, week_number=week, menu_type=MenuType.MONTHLY).prefetch_related('items__master_item').first()
-                    week_menu[day] = MenuSerializer(menu, context={'request': request}).data if menu else None
+                    week_menu[day] = MenuSerializer(menu, context={'request': request, 'location_id': location_id}).data if menu else None
                 month_data.append({"week": week, "menu": week_menu})
 
             return Response({
@@ -1474,6 +1489,15 @@ class ExternalMachineGoodsView(APIView):
                 slots = api_data.get("data") or []
                 shelves = {}
                 
+                # --- NEW: Name-based Mapping to Internal MasterItems for high-quality images ---
+                import re
+                def normalize(name):
+                    return re.sub(r'[^a-zA-Z0-9]', '', str(name)).lower()
+                
+                all_masters = MasterItem.objects.all()
+                master_lookup = {normalize(m.name): m for m in all_masters}
+                # ------------------------------------------------------------------------------
+
                 # Diagnostic: Count total slots per product to help debug discrepancies
                 product_slot_counts = {}
                 for slot in slots:
@@ -1503,6 +1527,7 @@ class ExternalMachineGoodsView(APIView):
                     
                     if goods:
                         uuid_str = str(goods.get("uuid"))
+                        goods_name = goods.get("goodsName")
                         
                         # Apply sequential locking
                         is_slot_locked = False
@@ -1511,13 +1536,26 @@ class ExternalMachineGoodsView(APIView):
                             is_slot_locked = True
                             lock_counts[uuid_str] -= 1
                         
+                        # --- Internal Image Resolution ---
+                        resolved_img = goods.get("goodsUrl")
+                        norm_name = normalize(goods_name)
+                        if norm_name in master_lookup:
+                            m = master_lookup[norm_name]
+                            if m.image:
+                                try:
+                                    # Fallback to relative URL if build_absolute_uri fails
+                                    resolved_img = request.build_absolute_uri(m.image.url)
+                                except:
+                                    resolved_img = m.image.url
+                        # ---------------------------------
+
                         print(f"DEBUG: Slot Processing - UUID: {uuid_str}, Spot: {slot.get('arrivalName')}, Budget Remaining: {lock_counts.get(uuid_str, 0)}, Locked: {is_slot_locked}")
                             
                         slot_data["goods"] = {
                             "uuid": uuid_str,
-                            "goodsName": goods.get("goodsName"),
+                            "goodsName": goods_name, 
                             "goodsPrice": goods.get("goodsPrice"),
-                            "goodsUrl": goods.get("goodsUrl"),
+                            "goodsUrl": resolved_img,
                             "goodsCode": goods.get("goodsCode"),
                             "goodsDesc": goods.get("goodsDesc"),
                             "locked": is_slot_locked
@@ -1812,5 +1850,7 @@ class ExternalUpdateCommodityView(APIView):
                 return Response({"result": "unknown", "raw": response.text}, status=response.status_code)
             
         except Exception as e:
+            print(f"DEBUG: Exception in ExternalUpdateCommodityView: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
             print(f"DEBUG: Exception in ExternalUpdateCommodityView: {str(e)}")
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

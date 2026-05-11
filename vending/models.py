@@ -199,6 +199,27 @@ class Order(models.Model):
     def __str__(self):
         return f"Order #{self.id} - {self.user}"
 
+    def save(self, *args, **kwargs):
+        # Auto-generate QR code if pickup_code is set
+        qr_updated = False
+        if self.pickup_code and not self.qr_code_url:
+            self.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={self.pickup_code}"
+            qr_updated = True
+        
+        # Fallback for Plan orders (Weekly/Monthly) that are confirmed but don't have a specific pickup code yet
+        if not self.qr_code_url and self.status in [OrderStatus.CONFIRMED, OrderStatus.READY, OrderStatus.COMPLETED]:
+             data = self.pickup_code if self.pickup_code else f"DOSTA-ORDER-{self.id}"
+             self.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={data}"
+             qr_updated = True
+
+        if qr_updated and "update_fields" in kwargs and kwargs["update_fields"] is not None:
+            fields = list(kwargs["update_fields"])
+            if "qr_code_url" not in fields:
+                fields.append("qr_code_url")
+            kwargs["update_fields"] = fields
+             
+        super().save(*args, **kwargs)
+
     @property
     def is_weekly(self):
         return self.plan_subtype == PlanSubType.WEEKLY
@@ -217,19 +238,22 @@ class Order(models.Model):
         for item in self.items.all():
             # Prioritize snapshot price (frozen history)
             price = item.item_price_snapshot
-            
+
             # Fallback to current price if snapshot not yet taken (active order)
             if price is None:
                 if item.menu_item:
-                    price = item.menu_item.price
+                    if item.menu_item.master_item:
+                        price = resolve_master_price(item.menu_item.master_item, self.location_id)
+                    else:
+                        price = item.menu_item.price
                 elif item.master_item:
-                    price = item.master_item.default_price
+                    price = resolve_master_price(item.master_item, self.location_id)
                 elif item.sweets_item:
                     price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
-            
+
             if price is not None:
                 total += Decimal(str(price)) * item.quantity
-        
+
         self.total_amount = total + Decimal(str(self.delivery_charge))
         self.save(update_fields=["total_amount"])
 
@@ -307,7 +331,11 @@ class OrderItem(models.Model):
         if not self.item_name_snapshot:
             if self.menu_item:
                 self.item_name_snapshot = self.menu_item.name
-                self.item_price_snapshot = self.menu_item.price
+                if self.menu_item.master_item:
+                    loc_id = self.order.location_id if self.order_id else None
+                    self.item_price_snapshot = resolve_master_price(self.menu_item.master_item, loc_id)
+                else:
+                    self.item_price_snapshot = self.menu_item.price
                 self.item_type_snapshot = 'MEAL'
                 # Capture nutrition from master
                 if self.menu_item.master_item:
@@ -318,7 +346,8 @@ class OrderItem(models.Model):
                     self.fats_snapshot = mi.fats
             elif self.master_item:
                 self.item_name_snapshot = self.master_item.name
-                self.item_price_snapshot = self.master_item.default_price
+                loc_id = self.order.location_id if self.order_id else None
+                self.item_price_snapshot = resolve_master_price(self.master_item, loc_id)
                 self.item_type_snapshot = 'MEAL'
                 self.calories_snapshot = self.master_item.calories
                 self.protein_snapshot = self.master_item.protein
@@ -386,9 +415,14 @@ class Cart(models.Model):
         total = Decimal('0.00')
         for item in self.items.all():
             if item.menu_item:
-                total += Decimal(str(item.menu_item.price)) * item.quantity
+                if item.menu_item.master_item:
+                    price = resolve_master_price(item.menu_item.master_item, self.location_id)
+                    total += Decimal(str(price)) * item.quantity
+                else:
+                    total += Decimal(str(item.menu_item.price)) * item.quantity
             elif item.master_item:
-                total += Decimal(str(item.master_item.default_price)) * item.quantity
+                price = resolve_master_price(item.master_item, self.location_id)
+                total += Decimal(str(price)) * item.quantity
             elif item.sweets_item:
                 price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
                 if price:
@@ -436,9 +470,13 @@ class CartItem(models.Model):
     @property
     def subtotal(self):
         if self.menu_item:
+            if self.menu_item.master_item:
+                loc_id = self.cart.location_id if self.cart_id else None
+                return resolve_master_price(self.menu_item.master_item, loc_id) * self.quantity
             return self.menu_item.price * self.quantity
         if self.master_item:
-            return self.master_item.default_price * self.quantity
+            loc_id = self.cart.location_id if self.cart_id else None
+            return resolve_master_price(self.master_item, loc_id) * self.quantity
         if self.sweets_item:
             price = self.sweets_variation.price if self.sweets_variation else self.sweets_item.price
             return price * self.quantity
@@ -508,6 +546,48 @@ class VendingMachineStock(models.Model):
 
     def __str__(self):
         return f"{self.goods_name} ({self.quantity})"
+
+
+# -----------------------------------------------------------
+# LOCATION-BASED ITEM PRICING
+# -----------------------------------------------------------
+
+class LocationItemPrice(models.Model):
+    """
+    Per-machine/location override for a MasterItem's price.
+    When present, takes precedence over MasterItem.default_price for any
+    order / cart / menu request scoped to that location.
+    """
+    location = models.ForeignKey(VendingLocation, related_name="item_prices", on_delete=models.CASCADE)
+    master_item = models.ForeignKey(MasterItem, related_name="location_prices", on_delete=models.CASCADE)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("location", "master_item")
+        indexes = [models.Index(fields=["location", "master_item"])]
+
+    def __str__(self):
+        return f"{self.location.name} → {self.master_item.name}: {self.price}"
+
+
+def resolve_master_price(master_item, location_id=None):
+    """
+    Return the effective price for a MasterItem at a given location.
+    Falls back to master_item.default_price when no override exists.
+    """
+    if master_item is None:
+        return None
+    if location_id:
+        try:
+            override = LocationItemPrice.objects.get(
+                location_id=location_id, master_item_id=master_item.id
+            )
+            return override.price
+        except LocationItemPrice.DoesNotExist:
+            pass
+    return master_item.default_price
 
 # -----------------------------------------------------------
 # SIGNALS FOR DATA SYNC

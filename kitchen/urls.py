@@ -12,6 +12,7 @@ urlpatterns = [
     path('order/<int:pk>/update-status/', views.update_order_status, name='update_order_status'),
     path('api/active-orders/', views.get_active_orders_api, name='active_orders_api'),
     path('analytics/', views.AnalyticsDashboardView.as_view(), name='analytics_dashboard'),
+    path('accounts/', views.AccountsDashboardView.as_view(), name='accounts_dashboard'),
     path('order-item/<int:pk>/update-status/', views.update_item_status, name='update_item_status'),
     path('menu-upload/', views.menu_upload_view, name='menu_upload'),
     path('vending-prices/', views.vending_prices_view, name='vending_prices'),
@@ -49,6 +50,11 @@ urlpatterns = [
     # Locations
     path('locations/', views.locations_view, name='locations'),
     path('locations/manage/', views.locations_manage, name='locations_manage'),
+
+    # Location-based item prices (per-machine pricing)
+    path('location-prices/', views.location_based_prices_view, name='location_based_prices'),
+    path('location-prices/set/', views.location_price_set, name='location_price_set'),
+    path('location-prices/clear/', views.location_price_clear, name='location_price_clear'),
 
     # Logout
     path('logout/', views.kitchen_logout_view, name='logout'),

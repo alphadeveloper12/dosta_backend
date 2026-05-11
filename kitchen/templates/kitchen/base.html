@@ -198,6 +198,22 @@
           <span>Analytics</span>
         </a>
 
+        <a href="{% url 'kitchen:accounts_dashboard' %}"
+          class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'accounts_dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
+          {% if request.resolver_match.url_name == 'accounts_dashboard' %}
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          {% endif %}
+          <span
+            class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'accounts_dashboard' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z">
+              </path>
+            </svg>
+          </span>
+          <span>Accounts</span>
+        </a>
+
         <a href="{% url 'kitchen:agent_dashboard' %}"
           class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'agent_dashboard' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
           {% if request.resolver_match.url_name == 'agent_dashboard' %}
@@ -326,6 +342,21 @@
             </svg>
           </span>
           <span>Locations</span>
+        </a>
+
+        <a href="{% url 'kitchen:location_based_prices' %}"
+          class="flex items-center px-3 py-2.5 rounded-lg transition-all duration-200 group relative mb-1 {% if request.resolver_match.url_name == 'location_based_prices' %}bg-indigo-50 text-indigo-700 font-bold{% else %}hover:bg-gray-50 text-gray-600 hover:text-gray-900 font-medium{% endif %}">
+          {% if request.resolver_match.url_name == 'location_based_prices' %}
+          <div class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-indigo-600 rounded-r-full"></div>
+          {% endif %}
+          <span
+            class="w-8 h-8 rounded-lg flex items-center justify-center mr-2 {% if request.resolver_match.url_name == 'location_based_prices' %}bg-white text-indigo-600 shadow-sm{% else %}bg-gray-50 text-gray-400 group-hover:bg-white group-hover:shadow-sm group-hover:text-gray-600{% endif %} transition-all">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 10h18M5 6h14a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2zm4 8h.01M12 14h.01M15 14h.01"/>
+            </svg>
+          </span>
+          <span>Location Prices</span>
         </a>
       </nav>
 

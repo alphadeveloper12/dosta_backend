@@ -192,6 +192,111 @@ class AnalyticsDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateVi
         })
         return context
 
+class AccountsDashboardView(LoginRequiredMixin, UserPassesTestMixin, TemplateView):
+    template_name = 'kitchen/accounts.html'
+
+    def test_func(self):
+        return is_kitchen_admin(self.request.user)
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        from django.db.models.functions import TruncDate
+        
+        # 1. Date Filtering
+        start_date_str = self.request.GET.get('start_date')
+        end_date_str = self.request.GET.get('end_date')
+        period = self.request.GET.get('period', 'custom')
+        
+        today = timezone.localtime().date()
+        
+        if period == 'weekly':
+            start_date = today - datetime.timedelta(days=7)
+            end_date = today
+        elif period == 'monthly':
+            start_date = today - datetime.timedelta(days=30)
+            end_date = today
+        else:
+            if start_date_str:
+                start_date = parse_date(start_date_str)
+            else:
+                start_date = today - datetime.timedelta(days=30)
+            if end_date_str:
+                end_date = parse_date(end_date_str)
+            else:
+                end_date = today
+            
+        # Ensure we cover the full end day
+        end_datetime = datetime.datetime.combine(end_date, datetime.time.max)
+        if timezone.is_naive(end_datetime):
+            end_datetime = timezone.make_aware(end_datetime)
+            
+        start_datetime = datetime.datetime.combine(start_date, datetime.time.min)
+        if timezone.is_naive(start_datetime):
+             start_datetime = timezone.make_aware(start_datetime)
+
+        # 2. Filtered Orders
+        base_qs = Order.objects.filter(
+            created_at__range=(start_datetime, end_datetime)
+        ).exclude(status=OrderStatus.DRAFT)
+
+        total_orders = base_qs.count()
+        completed_orders = base_qs.filter(status=OrderStatus.COMPLETED).count()
+        ready_orders = base_qs.filter(status=OrderStatus.READY).count()
+        preparing_orders = base_qs.filter(status__in=[OrderStatus.PREPARING, OrderStatus.CONFIRMED]).count()
+        pending_orders = base_qs.filter(status=OrderStatus.PENDING).count()
+        
+        total_earnings = base_qs.aggregate(total=Sum('total_amount'))['total'] or 0.00
+        
+        # 3. Daily Stats for Chart (Fill missing dates with 0)
+        query_stats = base_qs.annotate(date=TruncDate('created_at')) \
+            .values('date') \
+            .annotate(
+                count=Count('id'),
+                earnings=Sum('total_amount')
+            ).order_by('date')
+        
+        stats_map = {s['date']: s for s in query_stats}
+        full_daily_stats = []
+        curr = start_date
+        while curr <= end_date:
+            if curr in stats_map:
+                full_daily_stats.append(stats_map[curr])
+            else:
+                full_daily_stats.append({
+                    'date': curr,
+                    'count': 0,
+                    'earnings': 0
+                })
+            curr += datetime.timedelta(days=1)
+
+        # 4. Location Stats
+        location_stats = base_qs.values('location__name') \
+            .annotate(
+                order_count=Count('id'),
+                earnings=Sum('total_amount')
+            ).order_by('-earnings')
+
+        # 5. Pre-calculate rates for template
+        avg_ticket = float(total_earnings) / total_orders if total_orders > 0 else 0
+        completion_rate = (completed_orders / total_orders * 100) if total_orders > 0 else 0
+
+        context.update({
+            'start_date': start_date.strftime('%Y-%m-%d'),
+            'end_date': end_date.strftime('%Y-%m-%d'),
+            'period': period,
+            'total_orders': total_orders,
+            'completed_orders': completed_orders,
+            'ready_orders': ready_orders,
+            'preparing_orders': preparing_orders,
+            'pending_orders': pending_orders,
+            'total_earnings': total_earnings,
+            'avg_ticket': avg_ticket,
+            'completion_rate': completion_rate,
+            'daily_stats': full_daily_stats,
+            'location_stats': location_stats,
+        })
+        return context
+
 class OrderDetailView(LoginRequiredMixin, UserPassesTestMixin, DetailView):
     model = Order
     template_name = 'kitchen/order_detail.html'
@@ -1986,3 +2091,136 @@ def locations_manage(request):
         messages.success(request, f"Location '{name}' updated successfully.")
 
     return redirect('kitchen:locations')
+
+
+# -----------------------------------------------------------
+# LOCATION-BASED PRICES (Per-Machine Pricing)
+# -----------------------------------------------------------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def location_based_prices_view(request):
+    """
+    Admin tab where prices can be overridden per machine/location.
+    - No location selected → renders machine picker.
+    - Location selected (?location_id=) → renders all vending master items
+      with their effective price for that location and any override badge.
+    """
+    from vending.models import VendingLocation, MasterItem, LocationItemPrice
+
+    locations = VendingLocation.objects.filter(is_active=True).order_by('name')
+
+    raw_loc = request.GET.get('location_id')
+    try:
+        location_id = int(raw_loc) if raw_loc else None
+    except (TypeError, ValueError):
+        location_id = None
+
+    selected_location = None
+    items_data = []
+    overrides_count = 0
+
+    if location_id:
+        selected_location = locations.filter(id=location_id).first()
+        if not selected_location:
+            messages.error(request, "Selected machine not found.")
+            return redirect('kitchen:location_based_prices')
+
+        query = (request.GET.get('q') or '').strip()
+
+        overrides_qs = LocationItemPrice.objects.filter(location=selected_location)
+        overrides_map = {o.master_item_id: o for o in overrides_qs}
+        overrides_count = len(overrides_map)
+
+        items_qs = MasterItem.objects.all().order_by('name')
+        if query:
+            items_qs = items_qs.filter(name__icontains=query)
+
+        for item in items_qs:
+            override = overrides_map.get(item.id)
+            items_data.append({
+                'id': item.id,
+                'name': item.name,
+                'default_price': item.default_price,
+                'effective_price': override.price if override else item.default_price,
+                'has_override': override is not None,
+                'override_updated_at': override.updated_at if override else None,
+                'image_url': item.image.url if item.image else None,
+            })
+
+    return render(request, 'kitchen/location_based_prices.html', {
+        'locations': locations,
+        'selected_location': selected_location,
+        'items': items_data,
+        'overrides_count': overrides_count,
+        'search_query': request.GET.get('q', ''),
+    })
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def location_price_set(request):
+    """
+    POST: location_id, master_item_id, price → creates or updates an override.
+    """
+    from vending.models import VendingLocation, MasterItem, LocationItemPrice
+    from decimal import Decimal, InvalidOperation
+
+    location_id = request.POST.get('location_id')
+    master_item_id = request.POST.get('master_item_id')
+    raw_price = (request.POST.get('price') or '').strip()
+
+    if not (location_id and master_item_id and raw_price):
+        messages.error(request, "Missing location, item, or price.")
+        return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id or ''}")
+
+    try:
+        price = Decimal(raw_price)
+    except (InvalidOperation, ValueError):
+        messages.error(request, f"Invalid price: {raw_price}")
+        return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")
+
+    if price < 0:
+        messages.error(request, "Price cannot be negative.")
+        return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")
+
+    location = get_object_or_404(VendingLocation, pk=location_id)
+    master = get_object_or_404(MasterItem, pk=master_item_id)
+
+    obj, created = LocationItemPrice.objects.update_or_create(
+        location=location,
+        master_item=master,
+        defaults={'price': price},
+    )
+
+    if created:
+        messages.success(request, f"Set price for '{master.name}' at {location.name}: AED {price}")
+    else:
+        messages.success(request, f"Updated price for '{master.name}' at {location.name}: AED {price}")
+
+    return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def location_price_clear(request):
+    """
+    POST: location_id, master_item_id → removes the override (reverts to master default).
+    """
+    from vending.models import LocationItemPrice
+
+    location_id = request.POST.get('location_id')
+    master_item_id = request.POST.get('master_item_id')
+
+    if not (location_id and master_item_id):
+        messages.error(request, "Missing location or item.")
+        return redirect('kitchen:location_based_prices')
+
+    LocationItemPrice.objects.filter(
+        location_id=location_id, master_item_id=master_item_id
+    ).delete()
+    messages.success(request, "Price override removed. Master default will be used.")
+
+    return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")

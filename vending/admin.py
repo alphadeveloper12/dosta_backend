@@ -6,7 +6,8 @@ from .models import (
     Order, OrderItem,
     Cart, CartItem,
     MealPlan, MealPlanItem,
-    FavoriteMenuItem, VendingMachineStock
+    FavoriteMenuItem, VendingMachineStock,
+    LocationItemPrice,
 )
 
 # -----------------------------------------------------------
@@ -251,3 +252,12 @@ class VendingMachineStockAdmin(admin.ModelAdmin):
     list_display = ("vending_good_uuid", "goods_name", "quantity", "updated_at")
     search_fields = ("goods_name", "vending_good_uuid")
     ordering = ("goods_name",)
+
+
+@admin.register(LocationItemPrice)
+class LocationItemPriceAdmin(admin.ModelAdmin):
+    list_display = ("location", "master_item", "price", "updated_at")
+    list_filter = ("location",)
+    search_fields = ("location__name", "master_item__name")
+    ordering = ("location", "master_item")
+    autocomplete_fields = ("location", "master_item")
