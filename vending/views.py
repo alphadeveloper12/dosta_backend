@@ -1,5 +1,6 @@
 from rest_framework import viewsets, permissions, filters, status
 import os
+import concurrent.futures
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -1403,6 +1404,25 @@ class ExternalCheckUserView(APIView):
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+def _retrying_get(url, *, params=None, headers=None, timeout=(10, 30), attempts=2, backoff_seconds=1.0, label="upstream"):
+    """
+    Two-attempt server-side retry for transient upstream blips.
+    Retries only on requests.Timeout / requests.ConnectionError so genuine 4xx/5xx
+    aren't looped. Raises the last exception if both attempts fail.
+    """
+    import time
+    last_err = None
+    for i in range(1, attempts + 1):
+        try:
+            return requests.get(url, params=params, headers=headers, timeout=timeout)
+        except (requests.Timeout, requests.ConnectionError) as err:
+            last_err = err
+            print(f"DEBUG: {label} attempt {i}/{attempts} failed: {err.__class__.__name__}: {err}")
+            if i < attempts:
+                time.sleep(backoff_seconds)
+    raise last_err
+
+
 class ExternalMachineGoodsView(APIView):
     """
     Proxies request to:
@@ -1418,51 +1438,66 @@ class ExternalMachineGoodsView(APIView):
             "userName": "C202405128888",
             "password": "8888"
         }
-        
+
         print(f"DEBUG: Fetching token for MachineGoods from {token_url}")
         try:
-            token_response = requests.get(token_url, params=token_params, timeout=8)
+            try:
+                token_response = _retrying_get(token_url, params=token_params, label="token")
+            except (requests.Timeout, requests.ConnectionError) as token_err:
+                return Response(
+                    {"status": "upstream_timeout", "error": f"Token fetch failed: {token_err}"},
+                    status=status.HTTP_504_GATEWAY_TIMEOUT,
+                )
             print(f"DEBUG: Token response status: {token_response.status_code}")
             token_data = token_response.json()
             print(f"DEBUG: Token response data: {token_data}")
             token = token_data.get("data") or token_data.get("token")
             print(f"DEBUG: Extracted token: {token}")
-            
+
             if not token:
                 return Response({"error": "Could not fetch external vending token", "details": token_data}, status=status.HTTP_502_BAD_GATEWAY)
 
-            # 2. Fetch Machine Goods using the token
+            # 2. Fetch Machine Goods + Stock in parallel (each with its own retry)
             params = request.query_params.dict()
+            machine_uuid = params.get("machineUuid")
             goods_url = "http://www.hnzczy.cn:8087/commodityinfo/querycommodityinfo"
+            stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
             headers = {"Authorization": token}
             print(f"DEBUG: Fetching goods from {goods_url} with params {params} and headers {headers}")
-            
-            response = requests.get(goods_url, params=params, headers=headers, timeout=8)
-            api_data = response.json()
-            
-            # 3. Fetch Stock / Lock Information
-            lock_counts = {}
-            machine_uuid = params.get("machineUuid")
 
-            # PRIMARY: Try external queryGoodsStock API
-            try:
-                stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
-                stock_res = requests.get(stock_url, params={"machineUuid": machine_uuid}, headers=headers, timeout=8)
-                stock_data = stock_res.json()
-                print(f"DEBUG: Stock response data: {stock_data}")
-                if stock_data.get("result") == "200" and stock_data.get("data"):
-                    for stock_item in stock_data["data"]:
-                        g_uuid = str(stock_item.get("goodsUuid"))
-                        inv = stock_item.get("inventory") or 0
-                        avail = stock_item.get("availableInventory") or 0
-                        lock = stock_item.get("lockInventory") or 0
-                        count_to_lock = max(lock, inv - avail)
-                        if count_to_lock > 0:
-                            lock_counts[g_uuid] = count_to_lock
-                        print(f"DEBUG: Stock Check - UUID: {g_uuid}, Inv: {inv}, Avail: {avail}, Lock: {lock} -> Count to Lock: {count_to_lock}")
-                print(f"DEBUG: Final Lock Counts from external API: {lock_counts}")
-            except Exception as stock_err:
-                print(f"DEBUG: Could not fetch stock info from external API: {stock_err}")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+                fut_goods = ex.submit(_retrying_get, goods_url, params=params, headers=headers, label="goods")
+                fut_stock = ex.submit(_retrying_get, stock_url, params={"machineUuid": machine_uuid}, headers=headers, label="stock")
+
+                # Goods is required — fail with structured 504 if it can't be obtained
+                try:
+                    response = fut_goods.result()
+                except (requests.Timeout, requests.ConnectionError) as goods_err:
+                    return Response(
+                        {"status": "upstream_timeout", "error": f"Goods fetch failed: {goods_err}"},
+                        status=status.HTTP_504_GATEWAY_TIMEOUT,
+                    )
+                api_data = response.json()
+
+                # Stock is best-effort — fall through to DB-based lock fallback if it fails
+                lock_counts = {}
+                try:
+                    stock_res = fut_stock.result()
+                    stock_data = stock_res.json()
+                    print(f"DEBUG: Stock response data: {stock_data}")
+                    if stock_data.get("result") == "200" and stock_data.get("data"):
+                        for stock_item in stock_data["data"]:
+                            g_uuid = str(stock_item.get("goodsUuid"))
+                            inv = stock_item.get("inventory") or 0
+                            avail = stock_item.get("availableInventory") or 0
+                            lock = stock_item.get("lockInventory") or 0
+                            count_to_lock = max(lock, inv - avail)
+                            if count_to_lock > 0:
+                                lock_counts[g_uuid] = count_to_lock
+                            print(f"DEBUG: Stock Check - UUID: {g_uuid}, Inv: {inv}, Avail: {avail}, Lock: {lock} -> Count to Lock: {count_to_lock}")
+                    print(f"DEBUG: Final Lock Counts from external API: {lock_counts}")
+                except Exception as stock_err:
+                    print(f"DEBUG: Could not fetch stock info from external API: {stock_err}")
 
             # FALLBACK: Supplement with our own READY orders (QR generated but not yet collected)
             # This ensures items reserved for a user are shown as locked even if external API is down
