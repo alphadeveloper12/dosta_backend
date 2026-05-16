@@ -2132,7 +2132,7 @@ def location_based_prices_view(request):
         overrides_map = {o.master_item_id: o for o in overrides_qs}
         overrides_count = len(overrides_map)
 
-        items_qs = MasterItem.objects.all().order_by('name')
+        items_qs = MasterItem.objects.all()
         if query:
             items_qs = items_qs.filter(name__icontains=query)
 
@@ -2147,6 +2147,15 @@ def location_based_prices_view(request):
                 'override_updated_at': override.updated_at if override else None,
                 'image_url': item.image.url if item.image else None,
             })
+
+        # SORTING: Items with recent overrides first, then by name
+        # We use a large dummy date for items without overrides to sort them after
+        from datetime import datetime
+        items_data.sort(key=lambda x: (
+            0 if x['has_override'] else 1,
+            -x['override_updated_at'].timestamp() if x['override_updated_at'] else 0,
+            x['name']
+        ))
 
     return render(request, 'kitchen/location_based_prices.html', {
         'locations': locations,
@@ -2194,11 +2203,18 @@ def location_price_set(request):
         defaults={'price': price},
     )
 
-    if created:
-        messages.success(request, f"Set price for '{master.name}' at {location.name}: AED {price}")
-    else:
-        messages.success(request, f"Updated price for '{master.name}' at {location.name}: AED {price}")
+    msg = f"Set price for '{master.name}' at {location.name}: AED {price}" if created else f"Updated price for '{master.name}' at {location.name}: AED {price}"
+    
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return JsonResponse({
+            'status': 'success',
+            'message': msg,
+            'effective_price': str(price),
+            'has_override': True,
+            'updated_at': obj.updated_at.strftime("%b %d, %H:%M")
+        })
 
+    messages.success(request, msg)
     return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")
 
 
@@ -2221,6 +2237,18 @@ def location_price_clear(request):
     LocationItemPrice.objects.filter(
         location_id=location_id, master_item_id=master_item_id
     ).delete()
-    messages.success(request, "Price override removed. Master default will be used.")
 
+    msg = "Price override removed. Master default will be used."
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        # Need to find the master item to return its default price
+        from vending.models import MasterItem
+        master = MasterItem.objects.get(pk=master_item_id)
+        return JsonResponse({
+            'status': 'success',
+            'message': msg,
+            'effective_price': str(master.default_price),
+            'has_override': False
+        })
+
+    messages.success(request, msg)
     return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")

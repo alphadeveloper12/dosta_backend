@@ -143,9 +143,9 @@
               <th class="text-right px-6 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Action</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100">
+          <tbody id="items-table-body" class="divide-y divide-gray-100">
             {% for item in items %}
-              <tr class="hover:bg-gray-50/50">
+              <tr id="item-row-{{ item.id }}" class="hover:bg-gray-50/50 transition-all duration-300">
                 <td class="px-6 py-4">
                   <div class="flex items-center gap-3">
                     {% if item.image_url %}
@@ -157,27 +157,29 @@
                     {% endif %}
                     <div>
                       <p class="font-semibold text-gray-900">{{ item.name }}</p>
-                      {% if item.has_override %}
-                      <p class="text-[10px] text-blue-700 font-bold uppercase tracking-wide flex items-center gap-1 mt-0.5">
-                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                        Updated for this location
-                        {% if item.override_updated_at %}
-                          <span class="text-gray-400 font-medium normal-case tracking-normal">· {{ item.override_updated_at|date:"M j, H:i" }}</span>
+                      <div class="override-badge-container">
+                        {% if item.has_override %}
+                        <p class="text-[10px] text-blue-700 font-bold uppercase tracking-wide flex items-center gap-1 mt-0.5">
+                          <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                          Updated for this location
+                          {% if item.override_updated_at %}
+                            <span class="text-gray-400 font-medium normal-case tracking-normal">· {{ item.override_updated_at|date:"M j, H:i" }}</span>
+                          {% endif %}
+                        </p>
                         {% endif %}
-                      </p>
-                      {% endif %}
+                      </div>
                     </div>
                   </div>
                 </td>
                 <td class="px-6 py-4 text-gray-500 text-sm">AED {{ item.default_price }}</td>
                 <td class="px-6 py-4">
-                  <span class="text-lg font-bold {% if item.has_override %}text-blue-700{% else %}text-gray-900{% endif %}">
+                  <span class="effective-price-display text-lg font-bold {% if item.has_override %}text-blue-700{% else %}text-gray-900{% endif %}">
                     AED {{ item.effective_price }}
                   </span>
                 </td>
                 <td class="px-6 py-4 text-right">
                   <div class="flex items-center justify-end gap-2">
-                    <form method="post" action="{% url 'kitchen:location_price_set' %}" class="flex items-center gap-2">
+                    <form method="post" action="{% url 'kitchen:location_price_set' %}" class="ajax-price-form flex items-center gap-2">
                       {% csrf_token %}
                       <input type="hidden" name="location_id" value="{{ selected_location.id }}"/>
                       <input type="hidden" name="master_item_id" value="{{ item.id }}"/>
@@ -185,22 +187,24 @@
                              value="{{ item.effective_price }}"
                              class="w-24 px-3 py-1.5 border border-gray-200 rounded-md text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"/>
                       <button type="submit"
-                              class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm">
+                              class="submit-btn bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm">
                         {% if item.has_override %}Update{% else %}Set{% endif %}
                       </button>
                     </form>
-                    {% if item.has_override %}
-                      <form method="post" action="{% url 'kitchen:location_price_clear' %}"
-                            onsubmit="return confirm('Remove the price override for {{ item.name|escapejs }} at this machine?');">
-                        {% csrf_token %}
-                        <input type="hidden" name="location_id" value="{{ selected_location.id }}"/>
-                        <input type="hidden" name="master_item_id" value="{{ item.id }}"/>
-                        <button type="submit"
-                                class="text-xs font-bold text-red-600 hover:text-red-800 px-2 py-1.5 rounded-md hover:bg-red-50">
-                          Reset
-                        </button>
-                      </form>
-                    {% endif %}
+                    <div class="reset-form-container">
+                      {% if item.has_override %}
+                        <form method="post" action="{% url 'kitchen:location_price_clear' %}" class="ajax-reset-form"
+                              onsubmit="return confirm('Remove the price override for {{ item.name|escapejs }} at this machine?');">
+                          {% csrf_token %}
+                          <input type="hidden" name="location_id" value="{{ selected_location.id }}"/>
+                          <input type="hidden" name="master_item_id" value="{{ item.id }}"/>
+                          <button type="submit"
+                                  class="text-xs font-bold text-red-600 hover:text-red-800 px-2 py-1.5 rounded-md hover:bg-red-50">
+                            Reset
+                          </button>
+                        </form>
+                      {% endif %}
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -218,8 +222,123 @@
           </tbody>
         </table>
       </div>
-    </div>
 
+      <script>
+        document.addEventListener('DOMContentLoaded', function() {
+          const tableBody = document.getElementById('items-table-body');
+          
+          function handleFormSubmit(e) {
+            if (e.target.classList.contains('ajax-price-form') || e.target.classList.contains('ajax-reset-form')) {
+              e.preventDefault();
+              const form = e.target;
+              const formData = new FormData(form);
+              const url = form.action;
+              const row = form.closest('tr');
+              const submitBtn = form.querySelector('button[type="submit"]');
+              
+              const originalBtnHtml = submitBtn.innerHTML;
+              submitBtn.disabled = true;
+              submitBtn.innerHTML = '<svg class="animate-spin h-4 w-4 text-white mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+
+              fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                  'X-Requested-With': 'XMLHttpRequest',
+                  'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+              })
+              .then(response => response.json())
+              .then(data => {
+                if (data.status === 'success') {
+                  // Update Price Display
+                  const priceDisplay = row.querySelector('.effective-price-display');
+                  priceDisplay.textContent = 'AED ' + data.effective_price;
+                  
+                  if (data.has_override) {
+                    priceDisplay.classList.add('text-blue-700');
+                    priceDisplay.classList.remove('text-gray-900');
+                  } else {
+                    priceDisplay.classList.remove('text-blue-700');
+                    priceDisplay.classList.add('text-gray-900');
+                  }
+
+                  // Update Badge
+                  const badgeContainer = row.querySelector('.override-badge-container');
+                  if (data.has_override) {
+                    badgeContainer.innerHTML = `
+                      <p class="text-[10px] text-blue-700 font-bold uppercase tracking-wide flex items-center gap-1 mt-0.5">
+                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                        Updated for this location
+                        <span class="text-gray-400 font-medium normal-case tracking-normal">· ${data.updated_at || 'Just now'}</span>
+                      </p>
+                    `;
+                  } else {
+                    badgeContainer.innerHTML = '';
+                  }
+
+                  // Update Buttons
+                  const priceForm = row.querySelector('.ajax-price-form');
+                  const setUpdateBtn = priceForm.querySelector('.submit-btn');
+                  setUpdateBtn.textContent = data.has_override ? 'Update' : 'Set';
+                  
+                  const resetContainer = row.querySelector('.reset-form-container');
+                  if (data.has_override) {
+                    const masterItemId = formData.get('master_item_id');
+                    const locationId = formData.get('location_id');
+                    const csrf = formData.get('csrfmiddlewaretoken');
+                    resetContainer.innerHTML = `
+                      <form method="post" action="{% url 'kitchen:location_price_clear' %}" class="ajax-reset-form"
+                            onsubmit="return confirm('Remove the price override for this item at this machine?');">
+                        <input type="hidden" name="csrfmiddlewaretoken" value="${csrf}"/>
+                        <input type="hidden" name="location_id" value="${locationId}"/>
+                        <input type="hidden" name="master_item_id" value="${masterItemId}"/>
+                        <button type="submit"
+                                class="text-xs font-bold text-red-600 hover:text-red-800 px-2 py-1.5 rounded-md hover:bg-red-50">
+                          Reset
+                        </button>
+                      </form>
+                    `;
+                  } else {
+                    resetContainer.innerHTML = '';
+                    // Also update input value to default price
+                    priceForm.querySelector('input[name="price"]').value = data.effective_price;
+                  }
+
+                  // MOVE TO TOP
+                  row.style.backgroundColor = '#f0f9ff'; // Highlight blue
+                  tableBody.prepend(row);
+                  
+                  setTimeout(() => {
+                    row.style.backgroundColor = '';
+                  }, 2000);
+
+                  // Show a small success toast if possible (optional, but good)
+                  console.log(data.message);
+                } else {
+                  alert('Error: ' + data.message);
+                }
+              })
+              .catch(error => {
+                console.error('Error:', error);
+                alert('Something went wrong. Please try again.');
+              })
+              .finally(() => {
+                submitBtn.disabled = false;
+                if (submitBtn.classList.contains('submit-btn')) {
+                  submitBtn.textContent = originalBtnHtml; // Reset to text
+                } else {
+                   submitBtn.innerHTML = originalBtnHtml;
+                }
+              });
+            }
+          }
+
+          tableBody.addEventListener('submit', handleFormSubmit);
+        });
+      </script>
+    </div>
+    
   {% endif %}
 </div>
 {% endblock %}
