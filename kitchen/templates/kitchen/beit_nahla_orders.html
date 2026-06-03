@@ -1,0 +1,236 @@
+{% extends 'kitchen/base.html' %}
+{% load static %}
+{% block content %}
+<div class="max-w-7xl mx-auto">
+ <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+  <div>
+   <h2 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-700">
+    Beit Nahla Orders
+   </h2>
+   <p class="text-gray-500 mt-1 text-sm">
+    Live orders from the Beit Nahla checkout flow. Status updates save instantly.
+   </p>
+  </div>
+  <a href="{% url 'kitchen:beit_nahla_panel' %}"
+     class="text-sm font-bold text-indigo-600 hover:text-indigo-800">← Back to Beit Nahla setup</a>
+ </div>
+
+ <div id="bn-orders-list" class="space-y-4"></div>
+ <p id="bn-orders-empty" class="hidden text-gray-400 text-center py-12">No orders yet.</p>
+</div>
+
+<!-- Toast Notification Container -->
+<div id="toast-container" class="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
+
+{{ orders_json|json_script:"bn-orders-data" }}
+{{ status_choices|json_script:"bn-status-data" }}
+
+<script>
+(function() {
+ const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+ const list = document.getElementById('bn-orders-list');
+ const empty = document.getElementById('bn-orders-empty');
+ let orders = JSON.parse(document.getElementById('bn-orders-data').textContent);
+ const statuses = JSON.parse(document.getElementById('bn-status-data').textContent);
+
+ function playNotification() {
+  if (window.playNotificationSound) {
+   window.playNotificationSound();
+  }
+ }
+
+ function showToast(message, type = "info") {
+  const container = document.getElementById("toast-container");
+  if (!container) return;
+  const toast = document.createElement("div");
+
+  const styles = {
+   success: "bg-white border-l-4 border-green-500 text-gray-800",
+   error: "bg-white border-l-4 border-red-500 text-gray-800",
+   info: "bg-white border-l-4 border-indigo-500 text-gray-800"
+  };
+  const icons = {
+   success: `<svg class="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+   error: `<svg class="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`,
+   info: `<svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>`
+  };
+
+  toast.className = `${styles[type] || styles.info} pointer-events-auto p-4 rounded-lg shadow-xl shadow-gray-200/50 flex items-center gap-4 transform transition-all duration-500 translate-x-32 opacity-0 min-w-[300px] z-[60]`;
+  toast.innerHTML = `
+    <div class="flex-shrink-0">${icons[type] || icons.info}</div>
+    <div class="flex-grow">
+        <p class="font-bold text-sm uppercase tracking-wide opacity-80 mb-0.5">${type}</p>
+        <p class="font-medium">${message}</p>
+    </div>
+    <button onclick="this.parentElement.remove()" class="text-gray-400 hover:text-gray-600 transition-colors">
+       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+    </button>
+  `;
+
+  container.appendChild(toast);
+
+  // Animate in
+  requestAnimationFrame(() => {
+   toast.classList.remove("translate-x-32", "opacity-0");
+  });
+
+  // Remove after 5s
+  setTimeout(() => {
+   toast.classList.add("translate-x-32", "opacity-0");
+   setTimeout(() => toast.remove(), 500);
+  }, 5000);
+ }
+
+ function esc(s){return String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+ function badge(status) {
+  const m = {
+   PENDING:          'bg-yellow-50 text-yellow-700 border border-yellow-200',
+   CONFIRMED:        'bg-blue-50 text-blue-700 border border-blue-200',
+   PREPARING:        'bg-indigo-50 text-indigo-700 border border-indigo-200',
+   OUT_FOR_DELIVERY: 'bg-purple-50 text-purple-700 border border-purple-200',
+   DELIVERED:        'bg-green-50 text-green-700 border border-green-200',
+   CANCELLED:        'bg-red-50 text-red-700 border border-red-200',
+  };
+  return m[status] || 'bg-gray-50 text-gray-700 border border-gray-200';
+ }
+
+ function orderCard(o) {
+  const itemRows = (o.items || []).map(it => `
+   <div class="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+    <div class="min-w-0">
+     <div class="font-bold text-sm text-gray-900">${esc(it.box_name)} <span class="text-gray-400 font-medium">× ${it.quantity}</span></div>
+     ${it.selections_summary ? `<div class="text-xs text-gray-500 mt-0.5">${esc(it.selections_summary)}</div>` : ''}
+    </div>
+    <div class="text-sm font-bold text-gray-700 whitespace-nowrap">AED ${Number(it.unit_price).toFixed(2)}</div>
+   </div>
+  `).join('') || '<p class="text-xs text-gray-400 italic">No items recorded.</p>';
+
+  const statusOptions = statuses.map(s =>
+   `<option value="${s.value}" ${s.value === o.status ? 'selected' : ''}>${esc(s.label)}</option>`
+  ).join('');
+
+  const modeBadge = o.mode === 'WEEKLY'
+   ? '<span class="bg-purple-50 text-purple-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-purple-200 ml-2">Weekly</span>'
+   : '<span class="bg-blue-50 text-blue-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-blue-200 ml-2">Order Now</span>';
+
+  return `
+   <div data-id="${o.id}" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gray-50/40">
+     <div class="flex items-center gap-3">
+      <span class="font-mono text-sm font-bold text-gray-900">${esc(o.order_id)}</span>
+      ${modeBadge}
+      <span class="text-xs px-2.5 py-1 rounded-full font-bold ${badge(o.status)}">${esc(o.status_display)}</span>
+     </div>
+     <div class="flex items-center gap-2">
+      <select data-action="status" class="text-xs h-8 px-2 rounded-lg border border-gray-200 bg-white focus:border-indigo-500 outline-none">
+       ${statusOptions}
+      </select>
+      <span class="text-xs text-gray-400">${new Date(o.created_at).toLocaleString()}</span>
+     </div>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-0">
+     <div class="md:col-span-2 p-5 border-b md:border-b-0 md:border-r border-gray-100">
+      <h4 class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Items</h4>
+      ${itemRows}
+     </div>
+
+     <div class="p-5 text-sm space-y-2">
+      <div>
+       <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Customer</div>
+       <div class="text-gray-900 font-bold">${esc(o.customer_name || 'No Name')}</div>
+       <div class="text-xs text-gray-600 font-medium">${esc(o.customer_phone)}</div>
+       ${o.user ? `<div class="text-xs text-gray-400">${esc(o.user)}</div>` : '<div class="text-xs text-gray-400 italic">Guest</div>'}
+      </div>
+      <div>
+       <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 mt-2">Delivery</div>
+       <div class="text-gray-700 text-xs leading-snug font-semibold">
+        ${o.appt ? `Appt ${esc(o.appt)}, ` : ''}${o.building ? `${esc(o.building)}, ` : ''}${o.street ? `${esc(o.street)}, ` : ''}
+       </div>
+       <div class="text-gray-500 text-xs mt-1 leading-normal">${esc(o.delivery_address)}</div>
+       <div class="text-xs text-gray-400 mt-1">
+        ${o.distance_km ? Number(o.distance_km).toFixed(2) + ' km' : '–'} ${o.tier_label ? ' · ' + esc(o.tier_label) : ''}
+       </div>
+      </div>
+      <div class="pt-3 border-t border-gray-100 mt-2 space-y-1 text-xs">
+       <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span class="font-medium text-gray-700">AED ${Number(o.subtotal).toFixed(2)}</span></div>
+       <div class="flex justify-between"><span class="text-gray-500">VAT</span><span class="font-medium text-gray-700">AED ${Number(o.vat).toFixed(2)}</span></div>
+       ${Number(o.discount) > 0 ? `<div class="flex justify-between"><span class="text-gray-500">Discount</span><span class="font-medium text-gray-700">- AED ${Number(o.discount).toFixed(2)}</span></div>` : ''}
+       <div class="flex justify-between"><span class="text-gray-500">Service</span><span class="font-medium text-gray-700">AED ${Number(o.service_charge).toFixed(2)}</span></div>
+       <div class="flex justify-between"><span class="text-gray-500">Delivery</span><span class="font-medium text-gray-700">AED ${Number(o.delivery_charge).toFixed(2)}</span></div>
+       <div class="flex justify-between pt-1 border-t border-gray-100 font-bold text-gray-900">
+        <span>Total</span><span class="text-indigo-700">AED ${Number(o.total_amount).toFixed(2)}</span>
+       </div>
+      </div>
+     </div>
+    </div>
+   </div>`;
+ }
+
+ function render() {
+  if (orders.length === 0) {
+   list.innerHTML = '';
+   empty.classList.remove('hidden');
+   return;
+  }
+  empty.classList.add('hidden');
+  list.innerHTML = orders.map(orderCard).join('');
+ }
+ render();
+
+ list.addEventListener('change', async (e) => {
+  const sel = e.target;
+  if (!sel.matches('select[data-action="status"]')) return;
+  const card = sel.closest('[data-id]');
+  const id = card.dataset.id;
+  const prev = sel.dataset.prev || sel.value;
+  try {
+   const fdata = new FormData();
+   fdata.append('status', sel.value);
+   const res = await fetch(`/kitchen/beit-nahla/api/orders/${id}/status/`, {
+    method: 'POST', body: fdata, headers: { 'X-CSRFToken': csrftoken }
+   });
+   const data = await res.json();
+   if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+   // Update in-memory order + re-render the badge
+   const idx = orders.findIndex(o => String(o.id) === id);
+   if (idx >= 0) orders[idx] = data.order;
+   render();
+  } catch (err) {
+   showToast('Failed to update status: ' + err.message, 'error');
+   sel.value = prev;
+  }
+ });
+
+ const pollInterval = 5000;
+
+ function syncBeitNahlaOrders() {
+  fetch('{% url "kitchen:bn_active_orders_api" %}')
+   .then((response) => response.json())
+   .then((data) => {
+    if (!data.ok || !data.orders) return;
+
+    // Process active orders to check for new ones
+    data.orders.forEach(order => {
+     const existingOrder = orders.find(o => o.id === order.id);
+
+     if (!existingOrder) {
+      playNotification();
+      showToast(`New Beit Nahla Order #${order.order_id} Received!`, "success");
+     } else if (existingOrder.status !== order.status) {
+      showToast(`Beit Nahla Order #${order.order_id} status updated to ${order.status_display}!`, "info");
+     }
+    });
+
+    // Update local in-memory array and render
+    orders = data.orders;
+    render();
+   })
+   .catch((err) => console.error("Beit Nahla sync error:", err));
+ }
+
+ setInterval(syncBeitNahlaOrders, pollInterval);
+})();
+</script>
+{% endblock %}

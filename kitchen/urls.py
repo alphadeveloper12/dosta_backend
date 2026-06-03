@@ -56,6 +56,27 @@ urlpatterns = [
     path('location-prices/set/', views.location_price_set, name='location_price_set'),
     path('location-prices/clear/', views.location_price_clear, name='location_price_clear'),
 
+    # Beit Nahla panel (single-page AJAX CRUD)
+    path('beit-nahla/', views.beit_nahla_panel_view, name='beit_nahla_panel'),
+    path('beit-nahla/api/settings/', views.beit_nahla_settings_api, name='bn_settings_api'),
+    path('beit-nahla/api/tiers/create/', views.beit_nahla_tier_create_api, name='bn_tier_create'),
+    path('beit-nahla/api/tiers/<int:pk>/update/', views.beit_nahla_tier_update_api, name='bn_tier_update'),
+    path('beit-nahla/api/tiers/<int:pk>/delete/', views.beit_nahla_tier_delete_api, name='bn_tier_delete'),
+    path('beit-nahla/api/boxes/create/', views.beit_nahla_meal_box_create_api, name='bn_box_create'),
+    path('beit-nahla/api/boxes/<int:pk>/update/', views.beit_nahla_meal_box_update_api, name='bn_box_update'),
+    path('beit-nahla/api/boxes/<int:pk>/delete/', views.beit_nahla_meal_box_delete_api, name='bn_box_delete'),
+    path('beit-nahla/api/categories/create/', views.beit_nahla_category_create_api, name='bn_cat_create'),
+    path('beit-nahla/api/categories/<int:pk>/update/', views.beit_nahla_category_update_api, name='bn_cat_update'),
+    path('beit-nahla/api/categories/<int:pk>/delete/', views.beit_nahla_category_delete_api, name='bn_cat_delete'),
+    path('beit-nahla/api/items/create/', views.beit_nahla_item_create_api, name='bn_item_create'),
+    path('beit-nahla/api/items/<int:pk>/update/', views.beit_nahla_item_update_api, name='bn_item_update'),
+    path('beit-nahla/api/items/<int:pk>/delete/', views.beit_nahla_item_delete_api, name='bn_item_delete'),
+
+    # Beit Nahla orders
+    path('beit-nahla/orders/', views.beit_nahla_orders_view, name='bn_orders'),
+    path('beit-nahla/api/orders/<int:pk>/status/', views.beit_nahla_order_status_api, name='bn_order_status'),
+    path('beit-nahla/api/active-orders/', views.get_active_beit_nahla_orders_api, name='bn_active_orders_api'),
+
     # Logout
     path('logout/', views.kitchen_logout_view, name='logout'),
 ]

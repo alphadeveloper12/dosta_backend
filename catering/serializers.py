@@ -289,6 +289,93 @@ class SweetsItemSerializer(serializers.ModelSerializer):
         return None
 
 
+# ========== BEIT NAHLA SERIALIZERS ==========
+
+class BeitNahlaDistanceTierSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BeitNahlaDistanceTier
+        fields = ['id', 'label', 'min_km', 'max_km', 'service_charge', 'delivery_charge']
+
+
+class BeitNahlaSettingsSerializer(serializers.ModelSerializer):
+    tiers = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BeitNahlaSettings
+        fields = [
+            'order_now_price', 'weekly_price',
+            'restaurant_name', 'restaurant_latitude', 'restaurant_longitude',
+            'max_deliverable_km',
+            'opening_time', 'closing_time',
+            'tiers',
+        ]
+
+    def get_tiers(self, obj):
+        tiers = BeitNahlaDistanceTier.objects.filter(is_active=True).order_by('min_km')
+        return BeitNahlaDistanceTierSerializer(tiers, many=True).data
+
+
+class BeitNahlaMealBoxImageSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BeitNahlaMealBoxImage
+        fields = ['id', 'image_url', 'alt_text', 'order']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        if obj.image:
+            return obj.image.url
+        return None
+
+
+class BeitNahlaMealBoxSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+    images = BeitNahlaMealBoxImageSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = BeitNahlaMealBox
+        fields = ['id', 'name', 'description', 'image_url', 'images', 'display_order']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        if obj.image:
+            return obj.image.url
+        return None
+
+
+class BeitNahlaOptionItemSerializer(serializers.ModelSerializer):
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BeitNahlaOptionItem
+        fields = ['id', 'name', 'description', 'image_url', 'display_order']
+
+    def get_image_url(self, obj):
+        request = self.context.get('request')
+        if obj.image and request:
+            return request.build_absolute_uri(obj.image.url)
+        if obj.image:
+            return obj.image.url
+        return None
+
+
+class BeitNahlaOptionCategorySerializer(serializers.ModelSerializer):
+    items = serializers.SerializerMethodField()
+
+    class Meta:
+        model = BeitNahlaOptionCategory
+        fields = ['id', 'name', 'description', 'display_order', 'items']
+
+    def get_items(self, obj):
+        items = obj.items.filter(is_active=True).order_by('display_order', 'name')
+        return BeitNahlaOptionItemSerializer(items, many=True, context=self.context).data
+
+
 # ========== RAMADAN MENU SERIALIZERS ==========
 
 class RamadanMenuItemSerializer(serializers.ModelSerializer):

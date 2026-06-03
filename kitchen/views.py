@@ -55,10 +55,23 @@ class DashboardView(LoginRequiredMixin, UserPassesTestMixin, ListView):
             status=OrderStatus.PENDING_FULFILLMENT
         ).order_by('-created_at')
         context['locations'] = VendingLocation.objects.all().order_by('name')
-        
+
         master_items = list(MasterItem.objects.values_list('name', flat=True))
         sweets_items = list(SweetsItem.objects.values_list('name', flat=True))
         context['item_names'] = sorted(list(set(master_items + sweets_items)))
+
+        # Beit Nahla orders are rendered in their own tab on this dashboard
+        # (the user prefers a single Active Orders screen over a separate
+        # sidebar entry).
+        bn_orders = (
+            BeitNahlaOrder.objects
+            .prefetch_related('items')
+            .order_by('-created_at')[:200]
+        )
+        context['bn_orders_json'] = [_bn_order_payload(o) for o in bn_orders]
+        context['bn_status_choices'] = [
+            {'value': v, 'label': l} for v, l in BeitNahlaOrderStatus.choices
+        ]
         return context
 
 class TrackingView(LoginRequiredMixin, UserPassesTestMixin, ListView):
@@ -2252,3 +2265,444 @@ def location_price_clear(request):
 
     messages.success(request, msg)
     return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")
+
+
+# ==========================================================================
+# BEIT NAHLA KITCHEN PANEL
+# ==========================================================================
+# Single-page panel with AJAX-only CRUD so changes don't reload the screen.
+# All write endpoints return JSON; the template manipulates DOM in place.
+
+from catering.models import (
+    BeitNahlaSettings, BeitNahlaDistanceTier,
+    BeitNahlaMealBox, BeitNahlaMealBoxImage,
+    BeitNahlaOptionCategory, BeitNahlaOptionItem,
+    BeitNahlaOrder, BeitNahlaOrderItem, BeitNahlaOrderStatus,
+)
+from django.views.decorators.http import require_http_methods
+
+
+def _bn_meal_box_payload(box, request):
+    images = [
+        {
+            "id": img.id,
+            "url": request.build_absolute_uri(img.image.url) if img.image else None,
+            "order": img.order,
+        }
+        for img in box.images.all().order_by("order", "id")
+    ]
+    return {
+        "id": box.id,
+        "name": box.name,
+        "description": box.description or "",
+        "image_url": request.build_absolute_uri(box.image.url) if box.image else None,
+        "images": images,
+        "display_order": box.display_order,
+        "is_active": box.is_active,
+    }
+
+
+def _bn_category_payload(cat):
+    return {
+        "id": cat.id,
+        "name": cat.name,
+        "description": cat.description or "",
+        "display_order": cat.display_order,
+        "is_active": cat.is_active,
+        "items_count": cat.items.count(),
+    }
+
+
+def _bn_item_payload(item, request):
+    return {
+        "id": item.id,
+        "category_id": item.category_id,
+        "name": item.name,
+        "description": item.description or "",
+        "image_url": request.build_absolute_uri(item.image.url) if item.image else None,
+        "display_order": item.display_order,
+        "is_active": item.is_active,
+    }
+
+
+def _bn_tier_payload(tier):
+    return {
+        "id": tier.id,
+        "label": tier.label or "",
+        "min_km": str(tier.min_km),
+        "max_km": str(tier.max_km),
+        "service_charge": str(tier.service_charge),
+        "delivery_charge": str(tier.delivery_charge),
+        "is_active": tier.is_active,
+    }
+
+
+def _bn_settings_payload(cfg):
+    return {
+        "order_now_price": str(cfg.order_now_price),
+        "weekly_price": str(cfg.weekly_price),
+        "restaurant_name": cfg.restaurant_name,
+        "restaurant_latitude": str(cfg.restaurant_latitude),
+        "restaurant_longitude": str(cfg.restaurant_longitude),
+        "max_deliverable_km": str(cfg.max_deliverable_km),
+        "opening_time": cfg.opening_time.strftime("%H:%M"),
+        "closing_time": cfg.closing_time.strftime("%H:%M"),
+    }
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def beit_nahla_panel_view(request):
+    """Render the single Beit Nahla admin page (loads initial JSON inline)."""
+    cfg = BeitNahlaSettings.load()
+    boxes = BeitNahlaMealBox.objects.prefetch_related("images").order_by(
+        "display_order", "name"
+    )
+    categories = BeitNahlaOptionCategory.objects.prefetch_related("items").order_by(
+        "display_order", "name"
+    )
+    tiers = BeitNahlaDistanceTier.objects.order_by("min_km", "id")
+
+    context = {
+        "settings_json": _bn_settings_payload(cfg),
+        "boxes_json": [_bn_meal_box_payload(b, request) for b in boxes],
+        "categories_json": [
+            {
+                **_bn_category_payload(c),
+                "items": [_bn_item_payload(i, request) for i in c.items.all().order_by(
+                    "display_order", "name"
+                )],
+            }
+            for c in categories
+        ],
+        "tiers_json": [_bn_tier_payload(t) for t in tiers],
+    }
+    return render(request, "kitchen/beit_nahla.html", context)
+
+
+# ---------- Settings ----------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_settings_api(request):
+    cfg = BeitNahlaSettings.load()
+    fields = [
+        "order_now_price", "weekly_price",
+        "restaurant_name", "restaurant_latitude", "restaurant_longitude",
+        "max_deliverable_km", "opening_time", "closing_time",
+    ]
+    for f in fields:
+        if f in request.POST:
+            val = request.POST[f].strip()
+            if val == "":
+                continue
+            setattr(cfg, f, val)
+    try:
+        cfg.full_clean()
+        cfg.save()
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "settings": _bn_settings_payload(cfg)})
+
+
+# ---------- Distance tiers ----------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_tier_create_api(request):
+    try:
+        tier = BeitNahlaDistanceTier.objects.create(
+            label=request.POST.get("label", "").strip(),
+            min_km=request.POST.get("min_km") or 0,
+            max_km=request.POST.get("max_km") or 0,
+            service_charge=request.POST.get("service_charge") or 0,
+            delivery_charge=request.POST.get("delivery_charge") or 0,
+            is_active=request.POST.get("is_active", "true").lower() == "true",
+        )
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "tier": _bn_tier_payload(tier)})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_tier_update_api(request, pk):
+    tier = get_object_or_404(BeitNahlaDistanceTier, pk=pk)
+    for f in ("label", "min_km", "max_km", "service_charge", "delivery_charge"):
+        if f in request.POST:
+            v = request.POST[f].strip()
+            if f == "label":
+                setattr(tier, f, v)
+            elif v != "":
+                setattr(tier, f, v)
+    if "is_active" in request.POST:
+        tier.is_active = request.POST["is_active"].lower() == "true"
+    try:
+        tier.save()
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "tier": _bn_tier_payload(tier)})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_tier_delete_api(request, pk):
+    tier = get_object_or_404(BeitNahlaDistanceTier, pk=pk)
+    tier.delete()
+    return JsonResponse({"ok": True})
+
+
+# ---------- Meal boxes ----------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_meal_box_create_api(request):
+    try:
+        box = BeitNahlaMealBox.objects.create(
+            name=request.POST.get("name", "").strip(),
+            description=request.POST.get("description", "").strip(),
+            display_order=int(request.POST.get("display_order") or 0),
+            is_active=request.POST.get("is_active", "true").lower() == "true",
+        )
+        if "image" in request.FILES:
+            box.image = request.FILES["image"]
+            box.save()
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "box": _bn_meal_box_payload(box, request)})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_meal_box_update_api(request, pk):
+    box = get_object_or_404(BeitNahlaMealBox, pk=pk)
+    if "name" in request.POST:
+        box.name = request.POST["name"].strip()
+    if "description" in request.POST:
+        box.description = request.POST["description"].strip()
+    if "display_order" in request.POST:
+        try:
+            box.display_order = int(request.POST["display_order"] or 0)
+        except (TypeError, ValueError):
+            pass
+    if "is_active" in request.POST:
+        box.is_active = request.POST["is_active"].lower() == "true"
+    if "image" in request.FILES:
+        box.image = request.FILES["image"]
+    try:
+        box.save()
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "box": _bn_meal_box_payload(box, request)})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_meal_box_delete_api(request, pk):
+    box = get_object_or_404(BeitNahlaMealBox, pk=pk)
+    box.delete()
+    return JsonResponse({"ok": True})
+
+
+# ---------- Option categories ----------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_category_create_api(request):
+    try:
+        cat = BeitNahlaOptionCategory.objects.create(
+            name=request.POST.get("name", "").strip(),
+            description=request.POST.get("description", "").strip(),
+            display_order=int(request.POST.get("display_order") or 0),
+            is_active=request.POST.get("is_active", "true").lower() == "true",
+        )
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    payload = _bn_category_payload(cat)
+    payload["items"] = []
+    return JsonResponse({"ok": True, "category": payload})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_category_update_api(request, pk):
+    cat = get_object_or_404(BeitNahlaOptionCategory, pk=pk)
+    if "name" in request.POST:
+        cat.name = request.POST["name"].strip()
+    if "description" in request.POST:
+        cat.description = request.POST["description"].strip()
+    if "display_order" in request.POST:
+        try:
+            cat.display_order = int(request.POST["display_order"] or 0)
+        except (TypeError, ValueError):
+            pass
+    if "is_active" in request.POST:
+        cat.is_active = request.POST["is_active"].lower() == "true"
+    try:
+        cat.save()
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "category": _bn_category_payload(cat)})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_category_delete_api(request, pk):
+    cat = get_object_or_404(BeitNahlaOptionCategory, pk=pk)
+    cat.delete()
+    return JsonResponse({"ok": True})
+
+
+# ---------- Option items ----------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_item_create_api(request):
+    cat_id = request.POST.get("category_id")
+    cat = get_object_or_404(BeitNahlaOptionCategory, pk=cat_id)
+    try:
+        item = BeitNahlaOptionItem.objects.create(
+            category=cat,
+            name=request.POST.get("name", "").strip(),
+            description=request.POST.get("description", "").strip(),
+            display_order=int(request.POST.get("display_order") or 0),
+            is_active=request.POST.get("is_active", "true").lower() == "true",
+        )
+        if "image" in request.FILES:
+            item.image = request.FILES["image"]
+            item.save()
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "item": _bn_item_payload(item, request)})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_item_update_api(request, pk):
+    item = get_object_or_404(BeitNahlaOptionItem, pk=pk)
+    if "name" in request.POST:
+        item.name = request.POST["name"].strip()
+    if "description" in request.POST:
+        item.description = request.POST["description"].strip()
+    if "display_order" in request.POST:
+        try:
+            item.display_order = int(request.POST["display_order"] or 0)
+        except (TypeError, ValueError):
+            pass
+    if "is_active" in request.POST:
+        item.is_active = request.POST["is_active"].lower() == "true"
+    if "image" in request.FILES:
+        item.image = request.FILES["image"]
+    try:
+        item.save()
+    except Exception as e:
+        return JsonResponse({"ok": False, "error": str(e)}, status=400)
+    return JsonResponse({"ok": True, "item": _bn_item_payload(item, request)})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_item_delete_api(request, pk):
+    item = get_object_or_404(BeitNahlaOptionItem, pk=pk)
+    item.delete()
+    return JsonResponse({"ok": True})
+
+
+# ---------- Beit Nahla orders (read + status updates) ----------
+
+def _bn_order_payload(o):
+    return {
+        "id": o.id,
+        "order_id": o.order_id,
+        "status": o.status,
+        "status_display": o.get_status_display(),
+        "mode": o.mode,
+        "customer_name": o.customer_name,
+        "customer_phone": o.customer_phone,
+        "building": o.building,
+        "street": o.street,
+        "appt": o.appt,
+        "delivery_address": o.delivery_address,
+        "latitude": str(o.latitude) if o.latitude is not None else None,
+        "longitude": str(o.longitude) if o.longitude is not None else None,
+        "distance_km": str(o.distance_km) if o.distance_km is not None else None,
+        "tier_label": o.tier_label,
+        "subtotal": str(o.subtotal),
+        "vat": str(o.vat),
+        "discount": str(o.discount),
+        "service_charge": str(o.service_charge),
+        "delivery_charge": str(o.delivery_charge),
+        "total_amount": str(o.total_amount),
+        "user": o.user.username if o.user else None,
+        "created_at": o.created_at.isoformat(),
+        "items": [
+            {
+                "id": it.id,
+                "box_name": it.box_name,
+                "unit_price": str(it.unit_price),
+                "quantity": it.quantity,
+                "selections_summary": it.selections_summary,
+            }
+            for it in o.items.all()
+        ],
+    }
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def beit_nahla_orders_view(request):
+    orders = (
+        BeitNahlaOrder.objects
+        .prefetch_related('items')
+        .order_by('-created_at')[:200]
+    )
+    return render(request, 'kitchen/beit_nahla_orders.html', {
+        'orders_json': [_bn_order_payload(o) for o in orders],
+        'status_choices': [
+            {'value': v, 'label': l} for v, l in BeitNahlaOrderStatus.choices
+        ],
+    })
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_http_methods(["POST"])
+def beit_nahla_order_status_api(request, pk):
+    order = get_object_or_404(BeitNahlaOrder, pk=pk)
+    new_status = request.POST.get('status')
+    valid = {v for v, _ in BeitNahlaOrderStatus.choices}
+    if new_status not in valid:
+        return JsonResponse({"ok": False, "error": "Invalid status"}, status=400)
+    order.status = new_status
+    order.save(update_fields=['status', 'updated_at'])
+    return JsonResponse({"ok": True, "order": _bn_order_payload(order)})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def get_active_beit_nahla_orders_api(request):
+    """
+    Returns JSON list of latest Beit Nahla orders for polling.
+    """
+    orders = (
+        BeitNahlaOrder.objects
+        .prefetch_related('items')
+        .order_by('-created_at')[:200]
+    )
+    return JsonResponse({
+        "ok": True,
+        "orders": [_bn_order_payload(o) for o in orders]
+    })

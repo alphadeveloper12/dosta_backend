@@ -526,3 +526,280 @@ class IftarBoxMenuListView(APIView):
         serializer = IftarBoxMenuSerializer(menus, many=True, context={'request': request})
         return Response(serializer.data)
 
+
+# ========== BEIT NAHLA VIEWS ==========
+
+import math
+from datetime import datetime, time as _time, timedelta
+from decimal import Decimal
+
+try:
+    from zoneinfo import ZoneInfo
+    UAE_TZ = ZoneInfo('Asia/Dubai')
+except Exception:
+    UAE_TZ = None
+
+
+def _uae_now():
+    """Current local time in Asia/Dubai (falls back to UTC+4)."""
+    if UAE_TZ:
+        return datetime.now(UAE_TZ)
+    return datetime.utcnow() + timedelta(hours=4)
+
+
+def _is_open(opening: _time, closing: _time, now_time: _time):
+    """
+    Returns True if now_time is within opening..closing.
+    Handles overnight windows where closing < opening (e.g. 10:00 -> 02:00).
+    """
+    if opening == closing:
+        return True  # 24/7
+    if opening < closing:
+        return opening <= now_time < closing
+    # Overnight (e.g. open 22:00, close 02:00)
+    return now_time >= opening or now_time < closing
+
+
+def beit_nahla_open_status(cfg=None):
+    """Returns dict { is_open_now, current_time, opening_time, closing_time }."""
+    if cfg is None:
+        cfg = BeitNahlaSettings.load()
+    now = _uae_now()
+    now_t = now.time().replace(microsecond=0)
+    return {
+        'is_open_now': _is_open(cfg.opening_time, cfg.closing_time, now_t),
+        'current_time': now_t.strftime('%H:%M'),
+        'opening_time': cfg.opening_time.strftime('%H:%M'),
+        'closing_time': cfg.closing_time.strftime('%H:%M'),
+    }
+
+
+class BeitNahlaConfigView(APIView):
+    """GET pricing + restaurant location + distance tiers + open/closed."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        settings_obj = BeitNahlaSettings.load()
+        data = BeitNahlaSettingsSerializer(settings_obj, context={'request': request}).data
+        data.update(beit_nahla_open_status(settings_obj))
+        return Response(data)
+
+
+class BeitNahlaMealBoxListView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        boxes = BeitNahlaMealBox.objects.filter(is_active=True).prefetch_related('images').order_by('display_order', 'name')
+        serializer = BeitNahlaMealBoxSerializer(boxes, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+class BeitNahlaOptionsView(APIView):
+    """Return all option categories (with their items) for the selection drawer."""
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        categories = BeitNahlaOptionCategory.objects.filter(is_active=True).prefetch_related('items').order_by('display_order', 'name')
+        serializer = BeitNahlaOptionCategorySerializer(categories, many=True, context={'request': request})
+        return Response(serializer.data)
+
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    """Great-circle distance in km (fallback when OSRM fails)."""
+    r = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlmb = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlmb / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def _osrm_distance_km(lat1, lon1, lat2, lon2, timeout=4):
+    """Real road distance via public OSRM service. Returns km or None on failure."""
+    import requests
+    try:
+        url = f"http://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}"
+        resp = requests.get(url, params={'overview': 'false'}, timeout=timeout)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        if data.get('code') != 'Ok' or not data.get('routes'):
+            return None
+        return data['routes'][0]['distance'] / 1000.0
+    except Exception:
+        return None
+
+
+class BeitNahlaCreateOrderView(APIView):
+    """
+    Create a Beit Nahla order. Used by the cart checkout.
+    Expected POST payload:
+      {
+        "mode": "ORDER_NOW" | "WEEKLY",
+        "customer_phone": str,
+        "delivery_address": str,
+        "latitude": float (optional),
+        "longitude": float (optional),
+        "distance_km": float (optional),
+        "tier_label": str (optional),
+        "subtotal": Decimal,
+        "vat": Decimal,
+        "discount": Decimal,
+        "service_charge": Decimal,
+        "delivery_charge": Decimal,
+        "total_amount": Decimal,
+        "items": [
+          { "meal_box_id": int, "box_name": str, "unit_price": Decimal,
+            "quantity": int, "selections_summary": str }
+        ]
+      }
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        data = request.data
+        items_in = data.get('items') or []
+        if not isinstance(items_in, list) or len(items_in) == 0:
+            return Response({'error': 'At least one meal box is required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not data.get('customer_phone'):
+            return Response({'error': 'Phone number is required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not data.get('delivery_address'):
+            return Response({'error': 'Delivery address is required.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user if request.user.is_authenticated else None
+        try:
+            order = BeitNahlaOrder.objects.create(
+                user=user,
+                mode=data.get('mode', 'ORDER_NOW'),
+                customer_name=data.get('customer_name') or '',
+                customer_phone=data['customer_phone'],
+                building=data.get('building') or '',
+                street=data.get('street') or '',
+                appt=data.get('appt') or '',
+                delivery_address=data['delivery_address'],
+                latitude=data.get('latitude') or None,
+                longitude=data.get('longitude') or None,
+                distance_km=data.get('distance_km') or None,
+                tier_label=data.get('tier_label') or '',
+                subtotal=data.get('subtotal') or 0,
+                vat=data.get('vat') or 0,
+                discount=data.get('discount') or 0,
+                service_charge=data.get('service_charge') or 0,
+                delivery_charge=data.get('delivery_charge') or 0,
+                total_amount=data.get('total_amount') or 0,
+                notes=data.get('notes', ''),
+            )
+            for it in items_in:
+                BeitNahlaOrderItem.objects.create(
+                    order=order,
+                    meal_box_id=it.get('meal_box_id') or None,
+                    box_name=it.get('box_name', '')[:200] or 'Meal box',
+                    unit_price=it.get('unit_price') or 0,
+                    quantity=int(it.get('quantity') or 1),
+                    selections_summary=it.get('selections_summary', ''),
+                )
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({
+            'ok': True,
+            'order_id': order.order_id,
+            'status': order.status,
+            'total_amount': str(order.total_amount),
+            'created_at': order.created_at.isoformat(),
+        }, status=status.HTTP_201_CREATED)
+
+
+class BeitNahlaCalculateDeliveryView(APIView):
+    """
+    POST { user_latitude, user_longitude } -> { distance_km, deliverable,
+    service_charge, delivery_charge, total_extra, tier_label }.
+    """
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        try:
+            user_lat = float(request.data.get('user_latitude'))
+            user_lng = float(request.data.get('user_longitude'))
+        except (TypeError, ValueError):
+            return Response(
+                {'error': 'user_latitude and user_longitude are required and must be numeric.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        cfg = BeitNahlaSettings.load()
+        open_status = beit_nahla_open_status(cfg)
+        origin_lat = float(cfg.restaurant_latitude)
+        origin_lng = float(cfg.restaurant_longitude)
+
+        distance_km = _osrm_distance_km(origin_lat, origin_lng, user_lat, user_lng)
+        used_road_distance = distance_km is not None
+        if distance_km is None:
+            distance_km = _haversine_km(origin_lat, origin_lng, user_lat, user_lng)
+
+        distance_km = round(distance_km, 2)
+        max_km = float(cfg.max_deliverable_km)
+
+        def base_response():
+            return {
+                'distance_km': distance_km,
+                'used_road_distance': used_road_distance,
+                'max_deliverable_km': max_km,
+                **open_status,
+            }
+
+        if distance_km > max_km:
+            resp = base_response()
+            resp.update({
+                'deliverable': False,
+                'service_charge': 0,
+                'delivery_charge': 0,
+                'total_extra': 0,
+                'tier_label': None,
+                'message': f"Sorry, we do not deliver beyond {max_km} km.",
+            })
+            return Response(resp)
+
+        tier = (
+            BeitNahlaDistanceTier.objects
+            .filter(is_active=True, min_km__lte=distance_km, max_km__gte=distance_km)
+            .order_by('min_km')
+            .first()
+        )
+
+        if not tier:
+            resp = base_response()
+            resp.update({
+                'deliverable': False,
+                'service_charge': 0,
+                'delivery_charge': 0,
+                'total_extra': 0,
+                'tier_label': None,
+                'message': 'No matching delivery tier configured for this distance.',
+            })
+            return Response(resp)
+
+        service = float(tier.service_charge)
+        delivery = float(tier.delivery_charge)
+        resp = base_response()
+        resp.update({
+            'deliverable': True,
+            'service_charge': service,
+            'delivery_charge': delivery,
+            'total_extra': round(service + delivery, 2),
+            'tier_label': tier.label or f"{tier.min_km}-{tier.max_km} km",
+        })
+        if not open_status['is_open_now']:
+            resp['message'] = (
+                f"We are currently closed. Working hours: "
+                f"{open_status['opening_time']} – {open_status['closing_time']}."
+            )
+        return Response(resp)

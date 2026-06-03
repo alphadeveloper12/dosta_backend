@@ -566,3 +566,245 @@ class IftarBoxMenu(models.Model):
     
     def __str__(self):
         return f"{self.name or 'Iftar Box Menu'} - {self.budget_option.label}"
+
+
+# ========== BEIT NAHLA MEAL BOXES ==========
+
+class BeitNahlaSettings(models.Model):
+    """
+    Singleton-style config for the Beit Nahla flow.
+    Admin can edit prices, restaurant location, and distance-based delivery tiers.
+    """
+    from datetime import time as _t
+
+    order_now_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=40.00,
+        help_text="Price per meal box for 'Order Now' (AED)"
+    )
+    weekly_price = models.DecimalField(
+        max_digits=10, decimal_places=2, default=35.00,
+        help_text="Price per meal box for 'Weekly' (AED)"
+    )
+    restaurant_name = models.CharField(
+        max_length=200, default="Dosta Restaurant",
+        help_text="Display name for the Dosta restaurant origin point"
+    )
+    restaurant_latitude = models.DecimalField(
+        max_digits=10, decimal_places=7, default=25.2048,
+        help_text="Latitude of Dosta restaurant (origin for distance calc)"
+    )
+    restaurant_longitude = models.DecimalField(
+        max_digits=10, decimal_places=7, default=55.2708,
+        help_text="Longitude of Dosta restaurant (origin for distance calc)"
+    )
+    max_deliverable_km = models.DecimalField(
+        max_digits=6, decimal_places=2, default=25.00,
+        help_text="Beyond this distance (km) we don't deliver"
+    )
+    opening_time = models.TimeField(
+        default=_t(9, 0),
+        help_text="Daily opening time (Asia/Dubai)"
+    )
+    closing_time = models.TimeField(
+        default=_t(23, 0),
+        help_text="Daily closing time (Asia/Dubai). Use a time past midnight for overnight (e.g. 02:00)"
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Beit Nahla Setting'
+        verbose_name_plural = 'Beit Nahla Settings'
+
+    def __str__(self):
+        return f"Beit Nahla Settings (last updated {self.updated_at:%Y-%m-%d %H:%M})"
+
+    def save(self, *args, **kwargs):
+        # Enforce singleton: always pk=1
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+
+class BeitNahlaDistanceTier(models.Model):
+    """
+    Distance bracket -> service + delivery charge.
+    Example: 0-5 km -> 2.5 service, 0 delivery
+             5-10 km -> 2.5 service, 7 delivery
+             10-25 km -> 2.5 service, 9 delivery
+    """
+    min_km = models.DecimalField(max_digits=6, decimal_places=2, default=0.00)
+    max_km = models.DecimalField(max_digits=6, decimal_places=2)
+    service_charge = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    delivery_charge = models.DecimalField(max_digits=8, decimal_places=2, default=0.00)
+    label = models.CharField(max_length=100, blank=True, help_text="Optional display label e.g. '0-5 km'")
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['min_km']
+        verbose_name = 'Beit Nahla Distance Tier'
+        verbose_name_plural = 'Beit Nahla Distance Tiers'
+
+    def __str__(self):
+        return self.label or f"{self.min_km}-{self.max_km} km"
+
+
+class BeitNahlaMealBox(models.Model):
+    """A meal box card displayed on the /beit-nahla page."""
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, null=True, default="")
+    image = models.FileField(upload_to='beit_nahla/', blank=True, null=True)
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+        verbose_name = 'Beit Nahla Meal Box'
+        verbose_name_plural = 'Beit Nahla Meal Boxes'
+
+    def __str__(self):
+        return self.name
+
+
+class BeitNahlaMealBoxImage(models.Model):
+    meal_box = models.ForeignKey(BeitNahlaMealBox, related_name='images', on_delete=models.CASCADE)
+    image = models.FileField(upload_to='beit_nahla/')
+    alt_text = models.CharField(max_length=200, blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['order']
+
+    def __str__(self):
+        return f"{self.meal_box.name} - Image {self.order}"
+
+
+class BeitNahlaOptionCategory(models.Model):
+    """
+    Global category shared across all meal boxes.
+    e.g. Salads, Soups, Main Dishes, Sides, Desserts.
+    """
+    name = models.CharField(max_length=100)
+    description = models.CharField(max_length=255, blank=True, default="")
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+        verbose_name = 'Beit Nahla Option Category'
+        verbose_name_plural = 'Beit Nahla Option Categories'
+
+    def __str__(self):
+        return self.name
+
+
+class BeitNahlaOptionItem(models.Model):
+    """A selectable item inside a category, e.g. 'Arabic Salad' under 'Salads'."""
+    category = models.ForeignKey(BeitNahlaOptionCategory, related_name='items', on_delete=models.CASCADE)
+    name = models.CharField(max_length=200)
+    description = models.TextField(blank=True, default="")
+    image = models.FileField(upload_to='beit_nahla_options/', blank=True, null=True)
+    display_order = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ['display_order', 'name']
+        verbose_name = 'Beit Nahla Option Item'
+        verbose_name_plural = 'Beit Nahla Option Items'
+
+    def __str__(self):
+        return f"{self.category.name} - {self.name}"
+
+
+# ========== BEIT NAHLA ORDER ==========
+
+class BeitNahlaOrderStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending'
+    CONFIRMED = 'CONFIRMED', 'Confirmed'
+    PREPARING = 'PREPARING', 'Preparing'
+    OUT_FOR_DELIVERY = 'OUT_FOR_DELIVERY', 'Out for delivery'
+    DELIVERED = 'DELIVERED', 'Delivered'
+    CANCELLED = 'CANCELLED', 'Cancelled'
+
+
+class BeitNahlaOrder(models.Model):
+    """
+    A complete Beit Nahla order. Stores the order snapshot (items + chosen
+    options + delivery details + pricing) so the kitchen can fulfil it
+    without needing to look anything up.
+    """
+    order_id = models.CharField(max_length=20, unique=True, editable=False)
+    user = models.ForeignKey(
+        User, on_delete=models.SET_NULL, related_name='beit_nahla_orders',
+        null=True, blank=True
+    )
+    status = models.CharField(
+        max_length=20, choices=BeitNahlaOrderStatus.choices,
+        default=BeitNahlaOrderStatus.PENDING
+    )
+
+    MODE_CHOICES = [('ORDER_NOW', 'Order Now'), ('WEEKLY', 'Weekly')]
+    mode = models.CharField(max_length=20, choices=MODE_CHOICES, default='ORDER_NOW')
+
+    # Customer / delivery
+    customer_name = models.CharField(max_length=150, blank=True, default="")
+    customer_phone = models.CharField(max_length=20)
+    building = models.CharField(max_length=150, blank=True, default="")
+    street = models.CharField(max_length=150, blank=True, default="")
+    appt = models.CharField(max_length=100, blank=True, default="")
+    delivery_address = models.TextField()
+    latitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7, null=True, blank=True)
+    distance_km = models.DecimalField(max_digits=6, decimal_places=2, null=True, blank=True)
+    tier_label = models.CharField(max_length=100, blank=True, default="")
+
+    # Pricing snapshot
+    subtotal = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    vat = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    discount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    service_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+    notes = models.TextField(blank=True, default="")
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Beit Nahla Order'
+        verbose_name_plural = 'Beit Nahla Orders'
+
+    def save(self, *args, **kwargs):
+        if not self.order_id:
+            import uuid
+            self.order_id = f"BN-{uuid.uuid4().hex[:6].upper()}"
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.order_id} ({self.customer_phone})"
+
+
+class BeitNahlaOrderItem(models.Model):
+    """A single meal box inside an order, with its chosen options snapshot."""
+    order = models.ForeignKey(BeitNahlaOrder, related_name='items', on_delete=models.CASCADE)
+    meal_box = models.ForeignKey(
+        BeitNahlaMealBox, related_name='order_items',
+        on_delete=models.SET_NULL, null=True, blank=True
+    )
+    # Snapshot of name + price so historical orders stay accurate even if
+    # the meal box is renamed / repriced / deleted later.
+    box_name = models.CharField(max_length=200)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2)
+    quantity = models.PositiveIntegerField(default=1)
+    # "Salads: Arabic Salad, Greek Salad | Soups: Lentil Soup | ..."
+    selections_summary = models.TextField(blank=True, default="")
+
+    def __str__(self):
+        return f"{self.box_name} x{self.quantity}"

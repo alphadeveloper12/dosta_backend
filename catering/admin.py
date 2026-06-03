@@ -1,10 +1,13 @@
+from django import forms
 from django.contrib import admin
 from .models import (
     EventType, EventName, ProviderType, ServiceStyle, ServiceStylePrivate, ServiceStylePrivateChef, Cuisine,
     Course, MenuItem, Location, BudgetOption, Pax, CateringPlan,
     CoffeeBreakRotation, CoffeeBreakItem, PlatterItem, BoxedMealItem, LiveStationItem,
     FixedCateringMenu, AmericanMenu, AmericanMenuItem, RamadanMenu, RamadanMenuCourse, RamadanMenuItem,
-    IftarBoxMenu, SweetsItem, SweetsItemVariation, SweetsItemImage
+    IftarBoxMenu, SweetsItem, SweetsItemVariation, SweetsItemImage,
+    BeitNahlaSettings, BeitNahlaDistanceTier, BeitNahlaMealBox, BeitNahlaMealBoxImage,
+    BeitNahlaOptionCategory, BeitNahlaOptionItem,
 )
 
 # Helper to safely register/unregister
@@ -302,5 +305,135 @@ class SweetsItemAdmin(admin.ModelAdmin):
     search_fields = ('name', 'master_item__name')
     autocomplete_fields = ['master_item']
     inlines = [SweetsItemImageInline, SweetsItemVariationInline]
+
+
+# ========== BEIT NAHLA ADMIN ==========
+
+class _TwelveHourTimeInput(forms.TextInput):
+    """TextInput that renders a TimeField as '9:00 AM' instead of '09:00:00'."""
+
+    def __init__(self, attrs=None):
+        merged = {'placeholder': 'e.g. 9:00 AM', 'style': 'width: 10em;'}
+        if attrs:
+            merged.update(attrs)
+        super().__init__(attrs=merged)
+
+    def format_value(self, value):
+        if value in (None, ''):
+            return ''
+        if hasattr(value, 'strftime'):
+            # 24h -> 12h with AM/PM, no leading zero on hour
+            return value.strftime('%I:%M %p').lstrip('0')
+        # Already a string (e.g. from form re-submit) — leave as typed
+        return str(value)
+
+
+# Input formats accepted from the admin form. The first one is the canonical
+# 12-hour format; the rest are forgiving fallbacks so e.g. "9 AM", "21:00",
+# or "9:00am" all parse correctly.
+_TWELVE_HOUR_FORMATS = [
+    '%I:%M %p',  # 9:00 AM
+    '%I:%M%p',   # 9:00AM
+    '%I %p',     # 9 AM
+    '%I%p',      # 9AM
+    '%H:%M',     # 21:00 (24h still accepted)
+    '%H:%M:%S',  # 21:00:00
+]
+
+
+class BeitNahlaSettingsForm(forms.ModelForm):
+    opening_time = forms.TimeField(
+        input_formats=_TWELVE_HOUR_FORMATS,
+        widget=_TwelveHourTimeInput(),
+        help_text="Format: HH:MM AM/PM — e.g. 9:00 AM",
+    )
+    closing_time = forms.TimeField(
+        input_formats=_TWELVE_HOUR_FORMATS,
+        widget=_TwelveHourTimeInput(),
+        help_text="Format: HH:MM AM/PM — e.g. 11:00 PM",
+    )
+
+    class Meta:
+        model = BeitNahlaSettings
+        fields = '__all__'
+
+
+@admin.register(BeitNahlaSettings)
+class BeitNahlaSettingsAdmin(admin.ModelAdmin):
+    form = BeitNahlaSettingsForm
+    list_display = ('restaurant_name', 'order_now_price', 'weekly_price', 'opening_display', 'closing_display', 'max_deliverable_km', 'updated_at')
+    fieldsets = (
+        ('Pricing', {
+            'fields': ('order_now_price', 'weekly_price'),
+        }),
+        ('Restaurant Origin', {
+            'fields': ('restaurant_name', 'restaurant_latitude', 'restaurant_longitude'),
+        }),
+        ('Working Hours (Asia/Dubai)', {
+            'fields': ('opening_time', 'closing_time'),
+            'description': 'Enter times in 12-hour AM/PM format (e.g. 9:00 AM, 11:00 PM). For overnight hours (e.g. 10:00 PM–2:00 AM) set closing_time to a time before opening_time.',
+        }),
+        ('Delivery Range', {
+            'fields': ('max_deliverable_km',),
+        }),
+    )
+
+    @admin.display(description='Opens', ordering='opening_time')
+    def opening_display(self, obj):
+        return obj.opening_time.strftime('%I:%M %p').lstrip('0') if obj.opening_time else '-'
+
+    @admin.display(description='Closes', ordering='closing_time')
+    def closing_display(self, obj):
+        return obj.closing_time.strftime('%I:%M %p').lstrip('0') if obj.closing_time else '-'
+
+    def has_add_permission(self, request):
+        # Singleton: only one settings row
+        return not BeitNahlaSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(BeitNahlaDistanceTier)
+class BeitNahlaDistanceTierAdmin(admin.ModelAdmin):
+    list_display = ('label', 'min_km', 'max_km', 'service_charge', 'delivery_charge', 'is_active')
+    list_editable = ('min_km', 'max_km', 'service_charge', 'delivery_charge', 'is_active')
+    ordering = ('min_km',)
+
+
+class BeitNahlaMealBoxImageInline(admin.TabularInline):
+    model = BeitNahlaMealBoxImage
+    extra = 3
+    fields = ('image', 'alt_text', 'order')
+
+
+@admin.register(BeitNahlaMealBox)
+class BeitNahlaMealBoxAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'display_order', 'updated_at')
+    list_editable = ('is_active', 'display_order')
+    search_fields = ('name', 'description')
+    inlines = [BeitNahlaMealBoxImageInline]
+
+
+class BeitNahlaOptionItemInline(admin.TabularInline):
+    model = BeitNahlaOptionItem
+    extra = 2
+    fields = ('name', 'description', 'image', 'display_order', 'is_active')
+
+
+@admin.register(BeitNahlaOptionCategory)
+class BeitNahlaOptionCategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'display_order', 'is_active')
+    list_editable = ('display_order', 'is_active')
+    search_fields = ('name',)
+    inlines = [BeitNahlaOptionItemInline]
+
+
+@admin.register(BeitNahlaOptionItem)
+class BeitNahlaOptionItemAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'display_order', 'is_active')
+    list_filter = ('category', 'is_active')
+    list_editable = ('display_order', 'is_active')
+    search_fields = ('name', 'category__name')
 
 

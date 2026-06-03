@@ -72,6 +72,13 @@
                     class="px-8 py-3 rounded-xl text-sm font-bold transition-all duration-300 text-gray-600 hover:bg-gray-50 hover:text-gray-900">
                     Sweets / Snacks
                 </button>
+                <button onclick="setTab('beit_nahla')" id="tab-beit_nahla"
+                    class="px-8 py-3 rounded-xl text-sm font-bold transition-all duration-300 text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+                    Beit Nahla
+                    {% if bn_orders_json|length %}
+                    <span class="ml-2 inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded-full">{{ bn_orders_json|length }}</span>
+                    {% endif %}
+                </button>
             </div>
         </div>
 
@@ -105,6 +112,8 @@
     <!-- Toast Notification Container -->
     <div id="toast-container" class="fixed top-6 right-6 z-[100] flex flex-col gap-3 pointer-events-none"></div>
 
+    <!-- Vending / Kitchen Orders (default view; hidden when Beit Nahla tab is active) -->
+    <div id="vending-orders-section">
     <!-- Order Cards Grid -->
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8 auto-rows-fr">
         {% for order in orders %}
@@ -242,7 +251,32 @@
         </div>
         {% endfor %}
     </div>
+    </div><!-- /#vending-orders-section -->
+
+    <!-- ====================== BEIT NAHLA ORDERS ====================== -->
+    <!-- Hidden by default; shown when the Beit Nahla tab is active. -->
+    <div id="bn-filter-bar" class="hidden mb-6">
+        <div class="bg-white p-1.5 rounded-2xl shadow-sm border border-gray-200 inline-flex flex-wrap gap-1">
+            <button type="button" data-bn-status="ALL"
+                class="bn-status-btn px-5 py-2 rounded-xl text-xs font-bold transition-all duration-200 bg-gray-900 text-white shadow">
+                All
+                <span class="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold bg-white/20 text-white rounded-full" data-bn-count="ALL">0</span>
+            </button>
+            {% for s in bn_status_choices %}
+            <button type="button" data-bn-status="{{ s.value }}"
+                class="bn-status-btn px-5 py-2 rounded-xl text-xs font-bold transition-all duration-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900">
+                {{ s.label }}
+                <span class="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-600 rounded-full" data-bn-count="{{ s.value }}">0</span>
+            </button>
+            {% endfor %}
+        </div>
+    </div>
+    <div id="beit-nahla-section" class="hidden space-y-4"></div>
+    <p id="bn-empty" class="hidden text-gray-400 text-center py-12">No Beit Nahla orders yet.</p>
 </div>
+
+{{ bn_orders_json|json_script:"bn-orders-data" }}
+{{ bn_status_choices|json_script:"bn-status-data" }}
 
 <!-- Sound -->
 <!-- Logic moved to Sidebar Shell (base.html) -->
@@ -251,10 +285,16 @@
     const pollInterval = 5000;
     let currentOrders = new Map();
     let activeTab = 'all';
+    let bnOrders = [];
+    let bnStatuses = [];
+    try {
+        bnOrders   = JSON.parse(document.getElementById('bn-orders-data')?.textContent || '[]');
+        bnStatuses = JSON.parse(document.getElementById('bn-status-data')?.textContent || '[]');
+    } catch (e) { console.warn('Beit Nahla data parse failed', e); }
 
     function setTab(tab) {
         activeTab = tab;
-        ['all', 'meals', 'sweets'].forEach(t => {
+        ['all', 'meals', 'sweets', 'beit_nahla'].forEach(t => {
             const btn = document.getElementById(`tab-${t}`);
             if (btn) {
                 if (t === tab) {
@@ -264,7 +304,24 @@
                 }
             }
         });
-        applyFilter();
+
+        // Toggle vending vs Beit Nahla sections
+        const vendingSection = document.getElementById('vending-orders-section');
+        const bnSection      = document.getElementById('beit-nahla-section');
+        const bnEmpty        = document.getElementById('bn-empty');
+        const bnFilterBar    = document.getElementById('bn-filter-bar');
+        if (tab === 'beit_nahla') {
+            vendingSection?.classList.add('hidden');
+            bnSection?.classList.remove('hidden');
+            bnFilterBar?.classList.remove('hidden');
+            renderBeitNahlaOrders();
+        } else {
+            vendingSection?.classList.remove('hidden');
+            bnSection?.classList.add('hidden');
+            bnEmpty?.classList.add('hidden');
+            bnFilterBar?.classList.add('hidden');
+            applyFilter();
+        }
     }
 
     function applyFilter() {
@@ -568,10 +625,229 @@
     }
 
     setInterval(syncOrders, pollInterval);
+    setInterval(syncBeitNahlaOrders, pollInterval);
 
     window.simulateOrder = () => {
         playNotification();
         showToast("Test Notification: New Order #000", "success");
     };
+
+    function syncBeitNahlaOrders() {
+        fetch('{% url "kitchen:bn_active_orders_api" %}')
+            .then((response) => response.json())
+            .then((data) => {
+                if (!data.ok || !data.orders) return;
+
+                let hasNewOrder = false;
+
+                // Process active orders
+                data.orders.forEach(order => {
+                    const existingOrder = bnOrders.find(o => o.id === order.id);
+
+                    if (!existingOrder) {
+                        hasNewOrder = true;
+                        playNotification();
+                        showToast(`New Beit Nahla Order #${order.order_id} Received!`, "success");
+                    } else if (existingOrder.status !== order.status) {
+                        showToast(`Beit Nahla Order #${order.order_id} status updated to ${order.status_display}!`, "info");
+                    }
+                });
+
+                // Update local in-memory array and render if anything changed or on initial loads
+                bnOrders = data.orders;
+                renderBeitNahlaOrders();
+            })
+            .catch((err) => console.error("Beit Nahla sync error:", err));
+    }
+
+    // ====================== BEIT NAHLA RENDERING ======================
+
+    const bnCsrf = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+    function bnEsc(s){return String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+    function bnBadge(status) {
+        const m = {
+            PENDING:          'bg-yellow-50 text-yellow-700 border border-yellow-200',
+            CONFIRMED:        'bg-blue-50 text-blue-700 border border-blue-200',
+            PREPARING:        'bg-indigo-50 text-indigo-700 border border-indigo-200',
+            OUT_FOR_DELIVERY: 'bg-purple-50 text-purple-700 border border-purple-200',
+            DELIVERED:        'bg-green-50 text-green-700 border border-green-200',
+            CANCELLED:        'bg-red-50 text-red-700 border border-red-200',
+        };
+        return m[status] || 'bg-gray-50 text-gray-700 border border-gray-200';
+    }
+
+    function bnOrderCard(o) {
+        const itemRows = (o.items || []).map(it => `
+            <div class="flex items-start justify-between gap-3 py-2 border-b border-gray-50 last:border-0">
+                <div class="min-w-0">
+                    <div class="font-bold text-sm text-gray-900">${bnEsc(it.box_name)} <span class="text-gray-400 font-medium">× ${it.quantity}</span></div>
+                    ${it.selections_summary ? `<div class="text-xs text-gray-500 mt-0.5">${bnEsc(it.selections_summary)}</div>` : ''}
+                </div>
+                <div class="text-sm font-bold text-gray-700 whitespace-nowrap">AED ${Number(it.unit_price).toFixed(2)}</div>
+            </div>
+        `).join('') || '<p class="text-xs text-gray-400 italic">No items recorded.</p>';
+
+        const statusOptions = bnStatuses.map(s =>
+            `<option value="${s.value}" ${s.value === o.status ? 'selected' : ''}>${bnEsc(s.label)}</option>`
+        ).join('');
+
+        const modeBadge = o.mode === 'WEEKLY'
+            ? '<span class="bg-purple-50 text-purple-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-purple-200 ml-2">Weekly</span>'
+            : '<span class="bg-blue-50 text-blue-700 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border border-blue-200 ml-2">Order Now</span>';
+
+        return `
+            <div data-id="${o.id}" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <div class="px-5 py-4 flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gray-50/40">
+                    <div class="flex items-center gap-3">
+                        <span class="font-mono text-sm font-bold text-gray-900">${bnEsc(o.order_id)}</span>
+                        ${modeBadge}
+                        <span class="text-xs px-2.5 py-1 rounded-full font-bold ${bnBadge(o.status)}">${bnEsc(o.status_display)}</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <select data-action="bn-status" class="text-xs h-8 px-2 rounded-lg border border-gray-200 bg-white focus:border-indigo-500 outline-none">
+                            ${statusOptions}
+                        </select>
+                        <span class="text-xs text-gray-400">${new Date(o.created_at).toLocaleString()}</span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-0">
+                    <div class="md:col-span-2 p-5 border-b md:border-b-0 md:border-r border-gray-100">
+                        <h4 class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Items</h4>
+                        ${itemRows}
+                    </div>
+                    <div class="p-5 text-sm space-y-2">
+                        <div>
+                            <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1">Customer</div>
+                            <div class="text-gray-900 font-bold">${bnEsc(o.customer_name || 'No Name')}</div>
+                            <div class="text-xs text-gray-600 font-medium">${bnEsc(o.customer_phone)}</div>
+                            ${o.user ? `<div class="text-xs text-gray-400">${bnEsc(o.user)}</div>` : '<div class="text-xs text-gray-400 italic">Guest</div>'}
+                        </div>
+                        <div>
+                            <div class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1 mt-2">Delivery</div>
+                            <div class="text-gray-700 text-xs leading-snug font-semibold">
+                                ${o.appt ? `Appt ${bnEsc(o.appt)}, ` : ''}${o.building ? `${bnEsc(o.building)}, ` : ''}${o.street ? `${bnEsc(o.street)}, ` : ''}
+                            </div>
+                            <div class="text-gray-500 text-xs mt-1 leading-normal">${bnEsc(o.delivery_address)}</div>
+                            <div class="text-xs text-gray-400 mt-1">
+                                ${o.distance_km ? Number(o.distance_km).toFixed(2) + ' km' : '–'} ${o.tier_label ? ' · ' + bnEsc(o.tier_label) : ''}
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-gray-100 mt-2 space-y-1 text-xs">
+                            <div class="flex justify-between"><span class="text-gray-500">Subtotal</span><span class="font-medium text-gray-700">AED ${Number(o.subtotal).toFixed(2)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">VAT</span><span class="font-medium text-gray-700">AED ${Number(o.vat).toFixed(2)}</span></div>
+                            ${Number(o.discount) > 0 ? `<div class="flex justify-between"><span class="text-gray-500">Discount</span><span class="font-medium text-gray-700">- AED ${Number(o.discount).toFixed(2)}</span></div>` : ''}
+                            <div class="flex justify-between"><span class="text-gray-500">Service</span><span class="font-medium text-gray-700">AED ${Number(o.service_charge).toFixed(2)}</span></div>
+                            <div class="flex justify-between"><span class="text-gray-500">Delivery</span><span class="font-medium text-gray-700">AED ${Number(o.delivery_charge).toFixed(2)}</span></div>
+                            <div class="flex justify-between pt-1 border-t border-gray-100 font-bold text-gray-900">
+                                <span>Total</span><span class="text-indigo-700">AED ${Number(o.total_amount).toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    let bnActiveStatus = 'ALL';
+
+    function bnUpdateCounts() {
+        // ALL count
+        const totalEl = document.querySelector('[data-bn-count="ALL"]');
+        if (totalEl) totalEl.textContent = bnOrders.length;
+        // Per-status counts
+        bnStatuses.forEach(s => {
+            const el = document.querySelector(`[data-bn-count="${s.value}"]`);
+            if (el) el.textContent = bnOrders.filter(o => o.status === s.value).length;
+        });
+    }
+
+    function bnUpdateFilterButtons() {
+        document.querySelectorAll('.bn-status-btn').forEach(btn => {
+            const isActive = btn.dataset.bnStatus === bnActiveStatus;
+            if (isActive) {
+                btn.className = "bn-status-btn px-5 py-2 rounded-xl text-xs font-bold transition-all duration-200 bg-gray-900 text-white shadow";
+                btn.querySelectorAll('[data-bn-count]').forEach(p => {
+                    p.className = "ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold bg-white/20 text-white rounded-full";
+                });
+            } else {
+                btn.className = "bn-status-btn px-5 py-2 rounded-xl text-xs font-bold transition-all duration-200 text-gray-600 hover:bg-gray-50 hover:text-gray-900";
+                btn.querySelectorAll('[data-bn-count]').forEach(p => {
+                    p.className = "ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-600 rounded-full";
+                });
+            }
+        });
+    }
+
+    function renderBeitNahlaOrders() {
+        const wrap  = document.getElementById('beit-nahla-section');
+        const empty = document.getElementById('bn-empty');
+        if (!wrap) return;
+
+        bnUpdateCounts();
+        bnUpdateFilterButtons();
+
+        // Update the tab badge count dynamically
+        const tabBn = document.getElementById('tab-beit_nahla');
+        if (tabBn) {
+            let badge = tabBn.querySelector('span');
+            if (bnOrders.length > 0) {
+                if (!badge) {
+                    badge = document.createElement('span');
+                    badge.className = "ml-2 inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded-full";
+                    tabBn.appendChild(badge);
+                }
+                badge.textContent = bnOrders.length;
+            } else {
+                badge?.remove();
+            }
+        }
+
+        const filtered = bnActiveStatus === 'ALL'
+            ? bnOrders
+            : bnOrders.filter(o => o.status === bnActiveStatus);
+
+        if (filtered.length === 0) {
+            wrap.innerHTML = '';
+            if (empty) {
+                empty.textContent = bnOrders.length === 0
+                    ? 'No Beit Nahla orders yet.'
+                    : 'No orders match this status.';
+                empty.classList.remove('hidden');
+            }
+            return;
+        }
+        empty?.classList.add('hidden');
+        wrap.innerHTML = filtered.map(bnOrderCard).join('');
+    }
+
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.bn-status-btn');
+        if (!btn) return;
+        bnActiveStatus = btn.dataset.bnStatus || 'ALL';
+        renderBeitNahlaOrders();
+    });
+
+    document.addEventListener('change', async (e) => {
+        const sel = e.target;
+        if (!sel.matches('select[data-action="bn-status"]')) return;
+        const card = sel.closest('[data-id]');
+        const id   = card?.dataset.id;
+        if (!id) return;
+        const prev = sel.dataset.prev || sel.value;
+        try {
+            const fdata = new FormData();
+            fdata.append('status', sel.value);
+            const res  = await fetch(`/kitchen/beit-nahla/api/orders/${id}/status/`, {
+                method: 'POST', body: fdata, headers: { 'X-CSRFToken': bnCsrf }
+            });
+            const data = await res.json();
+            if (!res.ok || !data.ok) throw new Error(data.error || ('HTTP ' + res.status));
+            const idx = bnOrders.findIndex(o => String(o.id) === id);
+            if (idx >= 0) bnOrders[idx] = data.order;
+            renderBeitNahlaOrders();
+        } catch (err) {
+            showToast('Failed to update status: ' + err.message, 'error');
+            sel.value = prev;
+        }
+    });
 </script>
 {% endblock %}

@@ -1,0 +1,487 @@
+{% extends 'kitchen/base.html' %}
+{% load static %}
+{% block content %}
+<div class="max-w-7xl mx-auto" id="bn-root">
+
+ <!-- Header -->
+ <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+  <div>
+   <h2 class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-700">
+    Beit Nahla Control
+   </h2>
+   <p class="text-gray-500 mt-1 text-sm">
+    Manage prices, working hours, distance tiers, meal boxes and option items. Edits save instantly without a page reload.
+   </p>
+  </div>
+  <div id="bn-status" class="text-sm font-medium text-transparent transition-all">Idle</div>
+ </div>
+
+ <!-- Tabs -->
+ <div class="flex flex-wrap gap-2 mb-6 bg-white p-1.5 rounded-2xl border border-gray-100 shadow-sm inline-flex">
+  <button data-tab="settings" class="bn-tab px-4 py-2 rounded-xl text-sm font-bold transition-colors bg-indigo-50 text-indigo-700">Settings</button>
+  <button data-tab="tiers" class="bn-tab px-4 py-2 rounded-xl text-sm font-bold transition-colors text-gray-500 hover:bg-gray-50">Distance Tiers</button>
+  <button data-tab="boxes" class="bn-tab px-4 py-2 rounded-xl text-sm font-bold transition-colors text-gray-500 hover:bg-gray-50">Meal Boxes</button>
+  <button data-tab="options" class="bn-tab px-4 py-2 rounded-xl text-sm font-bold transition-colors text-gray-500 hover:bg-gray-50">Option Categories</button>
+ </div>
+
+ <!-- ============================== SETTINGS TAB ============================== -->
+ <section id="bn-tab-settings" class="bn-panel">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
+   <h3 class="text-lg font-bold text-gray-900 mb-4">Pricing &amp; Restaurant Origin</h3>
+   <form id="bn-settings-form" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <label class="text-sm">
+     <span class="block text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">Order Now price (AED)</span>
+     <input name="order_now_price" type="number" step="0.01" class="w-full h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" />
+    </label>
+    <label class="text-sm">
+     <span class="block text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">Weekly price (AED)</span>
+     <input name="weekly_price" type="number" step="0.01" class="w-full h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" />
+    </label>
+    <label class="text-sm md:col-span-2">
+     <span class="block text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">Restaurant name</span>
+     <input name="restaurant_name" type="text" class="w-full h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" />
+    </label>
+    <label class="text-sm">
+     <span class="block text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">Origin latitude</span>
+     <input name="restaurant_latitude" type="number" step="0.0000001" class="w-full h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" />
+    </label>
+    <label class="text-sm">
+     <span class="block text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">Origin longitude</span>
+     <input name="restaurant_longitude" type="number" step="0.0000001" class="w-full h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" />
+    </label>
+    <label class="text-sm">
+     <span class="block text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">Max deliverable distance (km)</span>
+     <input name="max_deliverable_km" type="number" step="0.01" class="w-full h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" />
+    </label>
+    <label class="text-sm">
+     <span class="block text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">Opening time (HH:MM)</span>
+     <input name="opening_time" type="time" class="w-full h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" />
+    </label>
+    <label class="text-sm">
+     <span class="block text-gray-500 font-bold uppercase text-[10px] tracking-wider mb-1">Closing time (HH:MM)</span>
+     <input name="closing_time" type="time" class="w-full h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none" />
+    </label>
+    <div class="md:col-span-2 flex justify-end">
+     <button type="submit" class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200 text-sm">
+      Save settings
+     </button>
+    </div>
+   </form>
+  </div>
+ </section>
+
+ <!-- ============================== TIERS TAB ============================== -->
+ <section id="bn-tab-tiers" class="bn-panel hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+   <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+    <h3 class="text-lg font-bold text-gray-900">Distance Tiers</h3>
+    <button type="button" onclick="bnAddTierRow()" class="px-4 py-2 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors text-xs shadow-md shadow-indigo-200">+ Add tier</button>
+   </div>
+   <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+     <thead>
+      <tr class="bg-gray-50 border-b border-gray-100">
+       <th class="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Label</th>
+       <th class="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Min km</th>
+       <th class="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Max km</th>
+       <th class="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Service (AED)</th>
+       <th class="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Delivery (AED)</th>
+       <th class="text-left px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Active</th>
+       <th class="text-right px-4 py-3 text-xs font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+      </tr>
+     </thead>
+     <tbody id="bn-tiers-body" class="divide-y divide-gray-50"></tbody>
+    </table>
+   </div>
+  </div>
+ </section>
+
+ <!-- ============================== BOXES TAB ============================== -->
+ <section id="bn-tab-boxes" class="bn-panel hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
+   <h3 class="text-lg font-bold text-gray-900 mb-3">Add new meal box</h3>
+   <form id="bn-box-create-form" class="grid grid-cols-1 md:grid-cols-2 gap-3" enctype="multipart/form-data">
+    <input name="name" placeholder="Meal box name" required class="h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 outline-none text-sm" />
+    <input name="display_order" type="number" placeholder="Display order (0)" class="h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 outline-none text-sm" />
+    <textarea name="description" placeholder="Short description (optional)" rows="2" class="md:col-span-2 px-3 py-2 rounded-xl border border-gray-200 focus:border-indigo-500 outline-none text-sm"></textarea>
+    <input name="image" type="file" accept="image/*" class="md:col-span-2 text-sm" />
+    <label class="flex items-center gap-2 text-xs text-gray-600">
+     <input type="checkbox" name="is_active" value="true" checked /> Active (shown to customers)
+    </label>
+    <div class="md:col-span-2 flex justify-end">
+     <button type="submit" class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors text-sm">+ Create meal box</button>
+    </div>
+   </form>
+  </div>
+
+  <div id="bn-boxes-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+ </section>
+
+ <!-- ============================== OPTIONS TAB ============================== -->
+ <section id="bn-tab-options" class="bn-panel hidden">
+  <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 mb-6">
+   <h3 class="text-lg font-bold text-gray-900 mb-3">Add new category</h3>
+   <form id="bn-cat-create-form" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <input name="name" placeholder="Category name (e.g. Salads)" required class="h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 outline-none text-sm" />
+    <input name="description" placeholder="Short hint (optional)" class="h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 outline-none text-sm" />
+    <input name="display_order" type="number" placeholder="Order" class="h-11 px-3 rounded-xl border border-gray-200 focus:border-indigo-500 outline-none text-sm" />
+    <div class="md:col-span-3 flex justify-end">
+     <button type="submit" class="px-5 py-2.5 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-colors text-sm">+ Create category</button>
+    </div>
+   </form>
+  </div>
+
+  <div id="bn-cats-list" class="space-y-4"></div>
+ </section>
+
+</div>
+
+{{ settings_json|json_script:"bn-settings-data" }}
+{{ tiers_json|json_script:"bn-tiers-data" }}
+{{ boxes_json|json_script:"bn-boxes-data" }}
+{{ categories_json|json_script:"bn-cats-data" }}
+
+<script>
+(function() {
+ // ---- helpers ----
+ const csrftoken = document.cookie.split('; ').find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+ const status = document.getElementById('bn-status');
+ function flash(msg, type) {
+  status.textContent = msg;
+  status.className = 'text-sm font-medium transition-all ' + (
+   type === 'err' ? 'text-red-600' :
+   type === 'ok' ? 'text-green-600' :
+   'text-gray-400'
+  );
+  if (type === 'ok') setTimeout(() => { status.textContent = 'Idle'; status.className = 'text-sm font-medium text-gray-300'; }, 1800);
+ }
+ async function post(url, formData) {
+  flash('Saving...', 'info');
+  try {
+   const res = await fetch(url, { method: 'POST', body: formData, headers: { 'X-CSRFToken': csrftoken } });
+   const data = await res.json().catch(() => ({ ok: false, error: 'Bad JSON' }));
+   if (!res.ok || !data.ok) {
+    flash(data.error || ('HTTP ' + res.status), 'err');
+    return null;
+   }
+   flash('Saved ✓', 'ok');
+   return data;
+  } catch (e) {
+   flash('Network error', 'err');
+   return null;
+  }
+ }
+ function fd(obj) {
+  const f = new FormData();
+  Object.entries(obj).forEach(([k, v]) => f.append(k, v == null ? '' : v));
+  return f;
+ }
+ function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ }
+
+ // ---- tab switching ----
+ const tabs = document.querySelectorAll('.bn-tab');
+ const panels = document.querySelectorAll('.bn-panel');
+ tabs.forEach(t => t.addEventListener('click', () => {
+  tabs.forEach(x => x.className = 'bn-tab px-4 py-2 rounded-xl text-sm font-bold transition-colors text-gray-500 hover:bg-gray-50');
+  t.className = 'bn-tab px-4 py-2 rounded-xl text-sm font-bold transition-colors bg-indigo-50 text-indigo-700';
+  panels.forEach(p => p.classList.add('hidden'));
+  document.getElementById('bn-tab-' + t.dataset.tab).classList.remove('hidden');
+ }));
+
+ // ---- SETTINGS ----
+ const settingsForm = document.getElementById('bn-settings-form');
+ function fillSettings(s) {
+  Object.entries(s).forEach(([k, v]) => {
+   const el = settingsForm.elements[k];
+   if (el) el.value = v;
+  });
+ }
+ fillSettings(JSON.parse(document.getElementById('bn-settings-data').textContent));
+ settingsForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const data = await post('/kitchen/beit-nahla/api/settings/', new FormData(settingsForm));
+  if (data) fillSettings(data.settings);
+ });
+
+ // ---- TIERS ----
+ const tiersBody = document.getElementById('bn-tiers-body');
+ const tiersData = JSON.parse(document.getElementById('bn-tiers-data').textContent);
+ function tierRow(t) {
+  return `
+   <tr data-id="${t.id || 'new'}" class="hover:bg-gray-50/40">
+    <td class="px-4 py-2"><input data-field="label"           value="${esc(t.label)}"           class="w-32 h-9 px-2 rounded-lg border border-gray-200 text-sm" /></td>
+    <td class="px-4 py-2"><input data-field="min_km"          value="${esc(t.min_km)}"          type="number" step="0.01" class="w-24 h-9 px-2 rounded-lg border border-gray-200 text-sm" /></td>
+    <td class="px-4 py-2"><input data-field="max_km"          value="${esc(t.max_km)}"          type="number" step="0.01" class="w-24 h-9 px-2 rounded-lg border border-gray-200 text-sm" /></td>
+    <td class="px-4 py-2"><input data-field="service_charge"  value="${esc(t.service_charge)}"  type="number" step="0.01" class="w-24 h-9 px-2 rounded-lg border border-gray-200 text-sm" /></td>
+    <td class="px-4 py-2"><input data-field="delivery_charge" value="${esc(t.delivery_charge)}" type="number" step="0.01" class="w-24 h-9 px-2 rounded-lg border border-gray-200 text-sm" /></td>
+    <td class="px-4 py-2"><input data-field="is_active"       type="checkbox" ${t.is_active !== false ? 'checked' : ''} /></td>
+    <td class="px-4 py-2 text-right space-x-2">
+     <button type="button" class="bn-tier-save text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 font-bold hover:bg-green-100">${t.id ? 'Save' : 'Create'}</button>
+     ${t.id ? `<button type="button" class="bn-tier-delete text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 font-bold hover:bg-red-100">Delete</button>` : `<button type="button" class="bn-tier-cancel text-xs px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">Cancel</button>`}
+    </td>
+   </tr>`;
+ }
+ function renderTiers() {
+  tiersBody.innerHTML = tiersData.map(tierRow).join('');
+ }
+ renderTiers();
+ window.bnAddTierRow = function() {
+  tiersBody.insertAdjacentHTML('beforeend', tierRow({}));
+ };
+ tiersBody.addEventListener('click', async (e) => {
+  const tr = e.target.closest('tr');
+  if (!tr) return;
+  const id = tr.dataset.id;
+  if (e.target.classList.contains('bn-tier-cancel')) { tr.remove(); return; }
+  if (e.target.classList.contains('bn-tier-save')) {
+   const payload = {};
+   tr.querySelectorAll('[data-field]').forEach(i => {
+    payload[i.dataset.field] = i.type === 'checkbox' ? (i.checked ? 'true' : 'false') : i.value;
+   });
+   const url = id === 'new'
+    ? '/kitchen/beit-nahla/api/tiers/create/'
+    : `/kitchen/beit-nahla/api/tiers/${id}/update/`;
+   const res = await post(url, fd(payload));
+   if (res) {
+    if (id === 'new') {
+     tiersData.push(res.tier);
+    } else {
+     const i = tiersData.findIndex(x => String(x.id) === id);
+     if (i >= 0) tiersData[i] = res.tier;
+    }
+    renderTiers();
+   }
+  }
+  if (e.target.classList.contains('bn-tier-delete')) {
+   if (!confirm('Delete this tier?')) return;
+   const res = await post(`/kitchen/beit-nahla/api/tiers/${id}/delete/`, fd({}));
+   if (res) {
+    const i = tiersData.findIndex(x => String(x.id) === id);
+    if (i >= 0) tiersData.splice(i, 1);
+    renderTiers();
+   }
+  }
+ });
+
+ // ---- BOXES ----
+ const boxesGrid = document.getElementById('bn-boxes-grid');
+ const boxesData = JSON.parse(document.getElementById('bn-boxes-data').textContent);
+ function boxCard(b) {
+  const img = b.image_url ? `<img src="${esc(b.image_url)}" class="w-full h-32 object-cover rounded-lg mb-3 bg-gray-100" />`
+                          : `<div class="w-full h-32 rounded-lg mb-3 bg-gray-100 flex items-center justify-center text-gray-400 text-xs">No image</div>`;
+  return `
+   <div data-id="${b.id}" class="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm">
+    ${img}
+    <div class="space-y-2">
+     <input data-field="name"         value="${esc(b.name)}"         class="w-full h-9 px-2 rounded-lg border border-gray-200 text-sm font-bold" />
+     <textarea data-field="description" rows="2" class="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-xs">${esc(b.description)}</textarea>
+     <div class="grid grid-cols-2 gap-2">
+      <input data-field="display_order" value="${esc(b.display_order)}" type="number" placeholder="Order" class="h-9 px-2 rounded-lg border border-gray-200 text-xs" />
+      <label class="flex items-center gap-1 text-xs text-gray-600">
+       <input data-field="is_active" type="checkbox" ${b.is_active ? 'checked' : ''} /> Active
+      </label>
+     </div>
+     <input data-field="image" type="file" accept="image/*" class="text-xs w-full" />
+     <div class="flex gap-2">
+      <button type="button" class="bn-box-save flex-1 text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 font-bold hover:bg-green-100">Save</button>
+      <button type="button" class="bn-box-delete text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 font-bold hover:bg-red-100">Delete</button>
+     </div>
+    </div>
+   </div>`;
+ }
+ function renderBoxes() {
+  boxesGrid.innerHTML = boxesData.length
+   ? boxesData.map(boxCard).join('')
+   : '<p class="text-gray-400 text-sm col-span-full text-center py-10">No meal boxes yet — use the form above to add one.</p>';
+ }
+ renderBoxes();
+ document.getElementById('bn-box-create-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const formData = new FormData(form);
+  // Checkbox: only present if checked. Add explicit false.
+  if (!formData.has('is_active')) formData.append('is_active', 'false');
+  const res = await post('/kitchen/beit-nahla/api/boxes/create/', formData);
+  if (res) {
+   boxesData.unshift(res.box);
+   renderBoxes();
+   form.reset();
+  }
+ });
+ boxesGrid.addEventListener('click', async (e) => {
+  const card = e.target.closest('[data-id]');
+  if (!card) return;
+  const id = card.dataset.id;
+  if (e.target.classList.contains('bn-box-save')) {
+   const fdata = new FormData();
+   card.querySelectorAll('[data-field]').forEach(i => {
+    if (i.type === 'checkbox') {
+     fdata.append(i.dataset.field, i.checked ? 'true' : 'false');
+    } else if (i.type === 'file') {
+     if (i.files[0]) fdata.append('image', i.files[0]);
+    } else {
+     fdata.append(i.dataset.field, i.value);
+    }
+   });
+   const res = await post(`/kitchen/beit-nahla/api/boxes/${id}/update/`, fdata);
+   if (res) {
+    const i = boxesData.findIndex(x => String(x.id) === id);
+    if (i >= 0) boxesData[i] = res.box;
+    renderBoxes();
+   }
+  }
+  if (e.target.classList.contains('bn-box-delete')) {
+   if (!confirm('Delete this meal box?')) return;
+   const res = await post(`/kitchen/beit-nahla/api/boxes/${id}/delete/`, fd({}));
+   if (res) {
+    const i = boxesData.findIndex(x => String(x.id) === id);
+    if (i >= 0) boxesData.splice(i, 1);
+    renderBoxes();
+   }
+  }
+ });
+
+ // ---- CATEGORIES + ITEMS ----
+ const catsList = document.getElementById('bn-cats-list');
+ const catsData = JSON.parse(document.getElementById('bn-cats-data').textContent);
+
+ function itemRow(it) {
+  const img = it.image_url ? `<img src="${esc(it.image_url)}" class="w-10 h-10 rounded-md object-cover" />` : '<div class="w-10 h-10 rounded-md bg-gray-100"></div>';
+  return `
+   <div data-id="${it.id || 'new'}" class="bn-item flex items-center gap-3 px-3 py-2 border border-gray-100 rounded-xl bg-white">
+    ${img}
+    <input data-field="name"        value="${esc(it.name)}"        placeholder="Item name" class="flex-1 h-9 px-2 rounded-lg border border-gray-200 text-sm" />
+    <input data-field="display_order" value="${esc(it.display_order ?? 0)}" type="number" placeholder="Order" class="w-20 h-9 px-2 rounded-lg border border-gray-200 text-sm" />
+    <label class="flex items-center gap-1 text-xs text-gray-500"><input data-field="is_active" type="checkbox" ${it.is_active !== false ? 'checked' : ''} /> Active</label>
+    <input data-field="image" type="file" accept="image/*" class="text-xs w-32" />
+    <div class="flex gap-1">
+     <button type="button" class="bn-item-save text-xs px-2 py-1.5 rounded-lg bg-green-50 text-green-700 font-bold hover:bg-green-100">${it.id ? 'Save' : 'Create'}</button>
+     ${it.id ? `<button type="button" class="bn-item-delete text-xs px-2 py-1.5 rounded-lg bg-red-50 text-red-700 font-bold hover:bg-red-100">Del</button>` : `<button type="button" class="bn-item-cancel text-xs px-2 py-1.5 rounded-lg bg-gray-100 text-gray-600 font-bold hover:bg-gray-200">Cancel</button>`}
+    </div>
+   </div>`;
+ }
+
+ function catBlock(c) {
+  return `
+   <div data-id="${c.id}" class="bn-cat bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+    <div class="flex items-center gap-3 px-5 py-3 bg-gray-50/60 border-b border-gray-100">
+     <input data-field="name"          value="${esc(c.name)}"          class="flex-1 h-9 px-2 rounded-lg border border-gray-200 text-sm font-bold" />
+     <input data-field="description"   value="${esc(c.description)}"   placeholder="Hint" class="flex-1 h-9 px-2 rounded-lg border border-gray-200 text-sm" />
+     <input data-field="display_order" value="${esc(c.display_order)}" type="number" placeholder="Order" class="w-20 h-9 px-2 rounded-lg border border-gray-200 text-sm" />
+     <label class="flex items-center gap-1 text-xs text-gray-500"><input data-field="is_active" type="checkbox" ${c.is_active !== false ? 'checked' : ''} /> Active</label>
+     <button type="button" class="bn-cat-save text-xs px-3 py-1.5 rounded-lg bg-green-50 text-green-700 font-bold hover:bg-green-100">Save</button>
+     <button type="button" class="bn-cat-delete text-xs px-3 py-1.5 rounded-lg bg-red-50 text-red-700 font-bold hover:bg-red-100">Delete category</button>
+    </div>
+    <div class="p-4 space-y-2 bn-items-wrap">
+     ${(c.items || []).map(itemRow).join('') || '<p class="text-xs text-gray-400">No items yet.</p>'}
+    </div>
+    <div class="px-4 pb-4">
+     <button type="button" class="bn-item-add text-xs px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-700 font-bold hover:bg-indigo-100">+ Add item</button>
+    </div>
+   </div>`;
+ }
+
+ function renderCats() {
+  catsList.innerHTML = catsData.length
+   ? catsData.map(catBlock).join('')
+   : '<p class="text-gray-400 text-sm text-center py-10">No categories yet — use the form above to add one.</p>';
+ }
+ renderCats();
+
+ document.getElementById('bn-cat-create-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  const res = await post('/kitchen/beit-nahla/api/categories/create/', new FormData(form));
+  if (res) {
+   catsData.push({ ...res.category, items: [] });
+   renderCats();
+   form.reset();
+  }
+ });
+
+ catsList.addEventListener('click', async (e) => {
+  const catEl = e.target.closest('.bn-cat');
+  if (!catEl) return;
+  const catId = catEl.dataset.id;
+
+  // ---- Add item row to this category ----
+  if (e.target.classList.contains('bn-item-add')) {
+   const wrap = catEl.querySelector('.bn-items-wrap');
+   // Remove "No items yet." placeholder if present
+   const placeholder = wrap.querySelector('p.text-xs.text-gray-400');
+   if (placeholder) placeholder.remove();
+   wrap.insertAdjacentHTML('beforeend', itemRow({}));
+   return;
+  }
+
+  // ---- Save / delete the CATEGORY itself ----
+  if (e.target.classList.contains('bn-cat-save')) {
+   const fdata = new FormData();
+   catEl.querySelectorAll(':scope > div.flex > [data-field]').forEach(i => {
+    fdata.append(i.dataset.field, i.type === 'checkbox' ? (i.checked ? 'true' : 'false') : i.value);
+   });
+   const res = await post(`/kitchen/beit-nahla/api/categories/${catId}/update/`, fdata);
+   if (res) {
+    const i = catsData.findIndex(x => String(x.id) === catId);
+    if (i >= 0) catsData[i] = { ...catsData[i], ...res.category };
+   }
+   return;
+  }
+  if (e.target.classList.contains('bn-cat-delete')) {
+   if (!confirm('Delete category AND all its items?')) return;
+   const res = await post(`/kitchen/beit-nahla/api/categories/${catId}/delete/`, fd({}));
+   if (res) {
+    const i = catsData.findIndex(x => String(x.id) === catId);
+    if (i >= 0) catsData.splice(i, 1);
+    renderCats();
+   }
+   return;
+  }
+
+  // ---- Save / delete / cancel an ITEM row ----
+  const itemEl = e.target.closest('.bn-item');
+  if (!itemEl) return;
+  const itemId = itemEl.dataset.id;
+
+  if (e.target.classList.contains('bn-item-cancel')) { itemEl.remove(); return; }
+  if (e.target.classList.contains('bn-item-save')) {
+   const fdata = new FormData();
+   itemEl.querySelectorAll('[data-field]').forEach(i => {
+    if (i.type === 'checkbox') fdata.append(i.dataset.field, i.checked ? 'true' : 'false');
+    else if (i.type === 'file') { if (i.files[0]) fdata.append('image', i.files[0]); }
+    else fdata.append(i.dataset.field, i.value);
+   });
+   if (itemId === 'new') fdata.append('category_id', catId);
+   const url = itemId === 'new'
+    ? '/kitchen/beit-nahla/api/items/create/'
+    : `/kitchen/beit-nahla/api/items/${itemId}/update/`;
+   const res = await post(url, fdata);
+   if (res) {
+    const cat = catsData.find(x => String(x.id) === catId);
+    if (cat) {
+     if (itemId === 'new') {
+      cat.items = (cat.items || []).concat(res.item);
+     } else {
+      const idx = cat.items.findIndex(y => String(y.id) === itemId);
+      if (idx >= 0) cat.items[idx] = res.item;
+     }
+    }
+    renderCats();
+   }
+   return;
+  }
+  if (e.target.classList.contains('bn-item-delete')) {
+   if (!confirm('Delete this item?')) return;
+   const res = await post(`/kitchen/beit-nahla/api/items/${itemId}/delete/`, fd({}));
+   if (res) {
+    const cat = catsData.find(x => String(x.id) === catId);
+    if (cat) cat.items = cat.items.filter(y => String(y.id) !== itemId);
+    renderCats();
+   }
+  }
+ });
+})();
+</script>
+{% endblock %}

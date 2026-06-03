@@ -32,5 +32,11 @@ urlpatterns = [
     # Iftar Box Menus
     path('iftar-box-menus/', IftarBoxMenuListView.as_view(), name='iftar-box-menu-list'),
 
+    # Beit Nahla
+    path('beit-nahla/config/', BeitNahlaConfigView.as_view(), name='beit-nahla-config'),
+    path('beit-nahla/meal-boxes/', BeitNahlaMealBoxListView.as_view(), name='beit-nahla-meal-boxes'),
+    path('beit-nahla/options/', BeitNahlaOptionsView.as_view(), name='beit-nahla-options'),
+    path('beit-nahla/calculate-delivery/', BeitNahlaCalculateDeliveryView.as_view(), name='beit-nahla-calculate-delivery'),
+    path('beit-nahla/orders/create/', BeitNahlaCreateOrderView.as_view(), name='beit-nahla-create-order'),
 ]
 
