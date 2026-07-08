@@ -40,9 +40,19 @@
        ===================================================== */
 
     /* Arbitrary text sizes */
+    .text-\[11px\] { font-size: 11px; line-height: 1.5; }
     .text-\[10px\] { font-size: 10px; line-height: 1.5; }
     .text-\[9px\]  { font-size: 9px;  line-height: 1.5; }
     .text-\[8px\]  { font-size: 8px;  line-height: 1.5; }
+
+    /* Notification bell badge / panel sizing */
+    .min-w-\[18px\] { min-width: 18px; }
+    .h-\[18px\]     { height: 18px; }
+    .-top-0\.5      { top: -0.125rem; }
+    .-right-0\.5    { right: -0.125rem; }
+    .max-h-\[26rem\] { max-height: 26rem; }
+    .max-w-\[calc\(100vw-2rem\)\] { max-width: calc(100vw - 2rem); }
+    .z-\[70\] { z-index: 70; }
 
     /* Arbitrary max/min heights — critical for table scroll containers */
     .max-h-\[600px\] { max-height: 600px; }
@@ -473,7 +483,9 @@
       }
     }
 
-    async function initAudio() {
+    // Create (if needed) + resume the AudioContext and unlock autoplay with a
+    // silent buffer. Must be called from within a user gesture the first time.
+    async function ensureAudioContext() {
       if (!window.kitchenAudioContext) {
         window.kitchenAudioContext = new (
           window.AudioContext || window.webkitAudioContext
@@ -490,6 +502,10 @@
       source.buffer = buffer;
       source.connect(window.kitchenAudioContext.destination);
       source.start(0);
+    }
+
+    async function initAudio() {
+      await ensureAudioContext();
 
       window.isAudioEnabled = true;
       localStorage.setItem("kitchenAudioEnabled", "true");
@@ -513,12 +529,31 @@
       }
     });
 
+    // ---- Auto re-arm after page reload ----
+    // Browsers require a user gesture to (re)start audio, and the AudioContext is
+    // lost on every reload. If the user had already enabled sound, silently
+    // re-unlock it on their FIRST interaction anywhere on the page, so they never
+    // have to click "Enable Sound" again after a refresh.
+    function autoRearmAudio() {
+      if (!window.isAudioEnabled) return removeRearmListeners();
+      ensureAudioContext().catch(() => {});
+      removeRearmListeners();
+    }
+    function removeRearmListeners() {
+      ["click", "keydown", "touchstart", "pointerdown"].forEach((evt) =>
+        document.removeEventListener(evt, autoRearmAudio, true),
+      );
+    }
+
     // Initialize UI on load
     if (window.isAudioEnabled) {
-      // We can't auto-resume context without interaction, but we can show "On" state
-      // and resume on next click if needed, or prompt user.
-      // For now, let's show state but wait for click if context is missing.
       updateAudioUI();
+      ["click", "keydown", "touchstart", "pointerdown"].forEach((evt) =>
+        document.addEventListener(evt, autoRearmAudio, {
+          capture: true,
+          passive: true,
+        }),
+      );
     }
 
     // EXPOSED GLOBAL FUNCTION

@@ -125,7 +125,7 @@
      {% if item.heating %}
      <span class="bg-orange-50 text-orange-700 px-2 py-0.5 rounded font-bold flex items-center gap-1">
       🔥 Heating
-      {% if item.maximum_heating > 0 %}<span class="font-normal opacity-75">{{ item.maximum_heating }}m</span>{% endif %}
+      {% if item.maximum_heating > 0 %}<span class="font-normal opacity-75">{{ item.maximum_heating }}s</span>{% endif %}
      </span>
      {% endif %}
     </div>
@@ -260,8 +260,8 @@
         </div>
         <input type="hidden" name="heating" id="heatingValue" value="false" />
         <div id="maxHeatingWrapper" class="flex items-center gap-2 hidden">
-         <label class="text-sm text-gray-600 whitespace-nowrap">Max minutes:</label>
-         <input type="number" name="maximum_heating" id="editMaxHeating" min="0" max="60"
+         <label class="text-sm text-gray-600 whitespace-nowrap">Max seconds:</label>
+         <input type="number" name="maximum_heating" id="editMaxHeating" min="0" max="600"
           class="w-20 rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm text-sm" />
         </div>
        </div>

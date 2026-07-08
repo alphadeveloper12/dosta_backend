@@ -41,9 +41,39 @@
             </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-3">
+        <div class="flex flex-wrap items-center gap-3" >
+            <!-- Notifications Bell -->
+            <div class="relative" id="notif-wrapper" >
+                <button type="button" id="notif-bell-btn" onclick="toggleNotifPanel()" ondblclick="simulateOrder()" 
+                    class="relative p-2.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200"
+                    title="Notifications (Double-click to test)">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
+                        </path>
+                    </svg>
+                    <span id="notif-badge"
+                        class="hidden absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 flex items-center justify-center text-[10px] font-bold text-white bg-red-500 rounded-full ring-2 ring-white">0</span>
+                </button>
+
+                <!-- Notification Panel -->
+                <div id="notif-panel"
+                    class="hidden absolute right-0 mt-3 w-96 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-2xl shadow-gray-300/50 border border-gray-100 z-[70] overflow-hidden">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50">
+                        <div class="flex items-center gap-2">
+                            <h3 class="text-sm font-bold text-gray-900">Notifications</h3>
+                            <span id="notif-unread-pill"
+                                class="hidden text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full"></span>
+                        </div>
+                        <button type="button" onclick="clearNotifications()" 
+                            class="text-xs font-semibold text-gray-400 hover:text-red-500 transition-colors">Clear all</button>
+                    </div>
+                    <div id="notif-list" class="max-h-[26rem] overflow-y-auto divide-y divide-gray-50"></div>
+                </div>
+            </div>
+
             <!-- Test Button (Debug) -->
-            <button onclick="simulateOrder()"
+            <!-- <button onclick="simulateOrder()"
                 class="p-2.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all duration-200"
                 title="Test Notification">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -51,7 +81,7 @@
                         d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9">
                     </path>
                 </svg>
-            </button>
+            </button> -->
         </div>
     </div>
 
@@ -440,6 +470,149 @@
         }, 5000);
     }
 
+    // ====================== NOTIFICATION CENTER ======================
+    // Persisted notification tiles shown in the bell dropdown. Survives reloads
+    // via localStorage so the kitchen sees a running history of order events.
+    const NOTIF_KEY = "kitchenNotifications";
+    const NOTIF_MAX = 50;
+    let notifications = [];
+    try {
+        notifications = JSON.parse(localStorage.getItem(NOTIF_KEY) || "[]");
+    } catch (e) { notifications = []; }
+
+    function saveNotifications() {
+        try {
+            localStorage.setItem(NOTIF_KEY, JSON.stringify(notifications.slice(0, NOTIF_MAX)));
+        } catch (e) { /* storage full / unavailable */ }
+    }
+
+    function pushNotification(title, message, type = "info") {
+        notifications.unshift({
+            id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+            title,
+            message,
+            type,
+            time: new Date().toISOString(),
+            read: false,
+        });
+        if (notifications.length > NOTIF_MAX) notifications = notifications.slice(0, NOTIF_MAX);
+        saveNotifications();
+        renderNotifications();
+    }
+
+    function unreadCount() {
+        return notifications.filter(n => !n.read).length;
+    }
+
+    function notifTimeAgo(iso) {
+        const then = new Date(iso).getTime();
+        if (isNaN(then)) return "";
+        const s = Math.max(1, Math.floor((Date.now() - then) / 1000));
+        if (s < 60) return `${s}s ago`;
+        const m = Math.floor(s / 60);
+        if (m < 60) return `${m}m ago`;
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${h}h ago`;
+        return `${Math.floor(h / 24)}d ago`;
+    }
+
+    function notifAccent(type) {
+        if (type === "success") return { dot: "bg-green-500", bg: "bg-green-50", text: "text-green-600" };
+        if (type === "error") return { dot: "bg-red-500", bg: "bg-red-50", text: "text-red-600" };
+        return { dot: "bg-indigo-500", bg: "bg-indigo-50", text: "text-indigo-600" };
+    }
+
+    function notifEsc(s) {
+        return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    function renderNotifications() {
+        const badge = document.getElementById("notif-badge");
+        const list = document.getElementById("notif-list");
+        const pill = document.getElementById("notif-unread-pill");
+        const count = unreadCount();
+
+        if (badge) {
+            if (count > 0) {
+                badge.textContent = count > 99 ? "99+" : count;
+                badge.classList.remove("hidden");
+            } else {
+                badge.classList.add("hidden");
+            }
+        }
+        if (pill) {
+            if (count > 0) {
+                pill.textContent = `${count} new`;
+                pill.classList.remove("hidden");
+            } else {
+                pill.classList.add("hidden");
+            }
+        }
+
+        if (!list) return;
+
+        if (notifications.length === 0) {
+            list.innerHTML = `
+              <div class="flex flex-col items-center justify-center py-14 text-center px-6">
+                  <div class="bg-gray-50 p-3 rounded-full mb-3">
+                      <svg class="w-7 h-7 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                  </div>
+                  <p class="text-sm font-semibold text-gray-500">You're all caught up</p>
+                  <p class="text-xs text-gray-400 mt-1">New order alerts will appear here.</p>
+              </div>`;
+            return;
+        }
+
+        list.innerHTML = notifications.map(n => {
+            const a = notifAccent(n.type);
+            return `
+              <div class="flex items-start gap-3 px-5 py-4 transition-colors ${n.read ? "" : a.bg} hover:bg-gray-50">
+                  <span class="mt-1.5 flex-shrink-0 w-2 h-2 rounded-full ${n.read ? "bg-gray-200" : a.dot}"></span>
+                  <div class="flex-grow min-w-0">
+                      <p class="text-sm font-bold text-gray-900 leading-snug">${notifEsc(n.title)}</p>
+                      <p class="text-sm text-gray-600 leading-snug mt-0.5">${notifEsc(n.message)}</p>
+                      <p class="text-[11px] font-medium text-gray-400 mt-1">${notifTimeAgo(n.time)}</p>
+                  </div>
+              </div>`;
+        }).join("");
+    }
+
+    function toggleNotifPanel() {
+        const panel = document.getElementById("notif-panel");
+        if (!panel) return;
+        const opening = panel.classList.contains("hidden");
+        panel.classList.toggle("hidden");
+        // Opening the panel marks everything as read.
+        if (opening) markAllNotificationsRead();
+    }
+
+    function markAllNotificationsRead() {
+        let changed = false;
+        notifications.forEach(n => { if (!n.read) { n.read = true; changed = true; } });
+        if (changed) {
+            saveNotifications();
+            renderNotifications();
+        }
+    }
+
+    function clearNotifications() {
+        notifications = [];
+        saveNotifications();
+        renderNotifications();
+    }
+
+    // Close the panel when clicking outside of it.
+    document.addEventListener("click", (e) => {
+        const wrapper = document.getElementById("notif-wrapper");
+        const panel = document.getElementById("notif-panel");
+        if (wrapper && panel && !panel.classList.contains("hidden") && !wrapper.contains(e.target)) {
+            panel.classList.add("hidden");
+        }
+    });
+
+    // Initial paint from persisted history.
+    renderNotifications();
+
     // Render Order Card HTML
     function renderOrderCard(order) {
         // Helper function to get status badge classes
@@ -580,6 +753,11 @@
                         // Trigger Play/Notify only for new orders
                         playNotification();
                         showToast(`New Order #${order.id} Received!`, "success");
+                        pushNotification(
+                            `New Order #${order.id}`,
+                            `${order.items_count} item${order.items_count === 1 ? "" : "s"}${order.location_name ? ` • ${order.location_name}` : ""}`,
+                            "success",
+                        );
 
                         // Animate in
                         setTimeout(() => {
@@ -601,6 +779,11 @@
                             card.classList.add("ring-2", "ring-indigo-400");
                             setTimeout(() => card.classList.remove("ring-2", "ring-indigo-400"), 1000);
                         }
+                        pushNotification(
+                            `Order #${order.id} updated`,
+                            `Status changed to ${order.status_display}`,
+                            "info",
+                        );
                     }
                 });
 
@@ -630,6 +813,7 @@
     window.simulateOrder = () => {
         playNotification();
         showToast("Test Notification: New Order #000", "success");
+        pushNotification("New Order #000", "Test notification", "success");
     };
 
     function syncBeitNahlaOrders() {
@@ -648,8 +832,18 @@
                         hasNewOrder = true;
                         playNotification();
                         showToast(`New Beit Nahla Order #${order.order_id} Received!`, "success");
+                        pushNotification(
+                            `New Beit Nahla Order #${order.order_id}`,
+                            "New order received",
+                            "success",
+                        );
                     } else if (existingOrder.status !== order.status) {
                         showToast(`Beit Nahla Order #${order.order_id} status updated to ${order.status_display}!`, "info");
+                        pushNotification(
+                            `Beit Nahla Order #${order.order_id} updated`,
+                            `Status changed to ${order.status_display}`,
+                            "info",
+                        );
                     }
                 });
 

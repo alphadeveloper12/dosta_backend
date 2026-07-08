@@ -8,6 +8,26 @@ VENDING_API_BASE = "http://www.hnzczy.cn:8087"
 VENDING_USER = "C202405128888"
 VENDING_PASS = "8888"
 
+# Heating duration (in seconds) sent to the machine when an item has no
+# per-item maximum_heating configured. maximum_heating is stored in seconds.
+DEFAULT_HEATING_SECONDS = 15
+
+
+def resolve_heating_seconds(order_or_cart_item):
+    """
+    Resolve the heating duration (in seconds) for an OrderItem/CartItem.
+
+    MasterItem.maximum_heating is stored directly in seconds, so it is sent to
+    the machine as-is. Falls back to DEFAULT_HEATING_SECONDS when the item has
+    no linked master item or its maximum_heating is unset/0.
+    """
+    master = getattr(order_or_cart_item, "master_item", None)
+    if master is None:
+        menu_item = getattr(order_or_cart_item, "menu_item", None)
+        master = getattr(menu_item, "master_item", None) if menu_item else None
+    seconds = getattr(master, "maximum_heating", 0) or 0
+    return seconds if seconds > 0 else DEFAULT_HEATING_SECONDS
+
 class VendingService:
     @staticmethod
     def get_token():
@@ -205,7 +225,7 @@ class VendingService:
              })
              if item.heating_requested:
                  pickup_items[-1]["serviceType"] = 1
-                 pickup_items[-1]["serviceVal"] = "15"
+                 pickup_items[-1]["serviceVal"] = str(resolve_heating_seconds(item))
 
         if not pickup_items:
             print("❌ No valid items for pickup generation.")

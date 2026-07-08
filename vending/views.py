@@ -1162,8 +1162,9 @@ class KitchenOrderItemCompleteView(APIView):
             }]
             
             if item.heating_requested:
+                from .services import resolve_heating_seconds
                 goods_list[0]['serviceType'] = 1
-                goods_list[0]['serviceVal'] = "15"
+                goods_list[0]['serviceVal'] = str(resolve_heating_seconds(item))
 
             pick_payload = {
                 "goodsList": goods_list,
@@ -1700,8 +1701,12 @@ class ExternalProductionPickView(APIView):
                     total_quantity += qty
                     
                     if item.get('heating_requested') is True or item.get('heatingChoice') == 'yes':
+                        from .services import DEFAULT_HEATING_SECONDS
+                        # maximum_heating is already stored/sent in seconds; use it
+                        # directly when the client provides it, else the default.
+                        heat_seconds = item.get('maximum_heating') or DEFAULT_HEATING_SECONDS
                         item['serviceType'] = 1
-                        item['serviceVal'] = "15"
+                        item['serviceVal'] = str(heat_seconds)
             
             pick_payload['goodsNumber'] = total_quantity
             
