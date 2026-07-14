@@ -1,4 +1,7 @@
+from django import forms
 from django.contrib import admin
+from django.shortcuts import render, redirect
+from django.contrib import messages
 from .models import (
     Menu, MenuItem, Offer,
     VendingLocation, UserLocationSelection,
@@ -8,6 +11,7 @@ from .models import (
     MealPlan, MealPlanItem,
     FavoriteMenuItem, VendingMachineStock,
     LocationItemPrice,
+    Category,
 )
 
 # -----------------------------------------------------------
@@ -30,15 +34,80 @@ class MenuAdmin(admin.ModelAdmin):
 
 from .models import MasterItem
 
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "item_count", "created_at")
+    search_fields = ("name",)
+    ordering = ("name",)
+
+    @admin.display(description="Items")
+    def item_count(self, obj):
+        return obj.items.count()
+
+
+class AssignCategoryForm(forms.Form):
+    """Intermediate form: pick which category to assign to the selected items.
+
+    The selected item ids ride along as ``_selected_action`` hidden inputs in the
+    template, so Django's changelist rebuilds the queryset for us — this form only
+    needs to capture the chosen category.
+    """
+    category = forms.ModelChoiceField(
+        queryset=Category.objects.all(),
+        label="Assign selected items to category",
+    )
+
+
 @admin.register(MasterItem)
 class MasterItemAdmin(admin.ModelAdmin):
-    list_display = ("name", "calories", "heating", "created_at")
+    list_display = ("name", "category_list", "calories", "heating", "created_at")
+    list_filter = ("categories",)
     search_fields = ("name", "description")
     ordering = ("name",)
     readonly_fields = ("created_at", "updated_at")
+    filter_horizontal = ("categories",)
+    actions = ["assign_to_category"]
+
+    @admin.display(description="Categories")
+    def category_list(self, obj):
+        return ", ".join(c.name for c in obj.categories.all()) or "—"
+
+    @admin.action(description="Assign selected items to a category…")
+    def assign_to_category(self, request, queryset):
+        """
+        Bulk-categorize workflow: admin selects one or more items, chooses this
+        action, then picks the target category on an intermediate page.
+        """
+        if "apply" in request.POST:
+            form = AssignCategoryForm(request.POST)
+            if form.is_valid():
+                category = form.cleaned_data["category"]
+                for item in queryset:
+                    item.categories.add(category)
+                self.message_user(
+                    request,
+                    f"Assigned {queryset.count()} item(s) to “{category.name}”.",
+                    messages.SUCCESS,
+                )
+                return redirect(request.get_full_path())
+        else:
+            form = AssignCategoryForm()
+
+        return render(
+            request,
+            "admin/vending/assign_category.html",
+            {
+                "items": queryset,
+                "form": form,
+                "title": "Assign items to a category",
+                "action_checkbox_name": admin.helpers.ACTION_CHECKBOX_NAME,
+            },
+        )
+
     fieldsets = (
         ("Basic Info", {
-            "fields": ("name", "description", "ingredients")
+            "fields": ("name", "categories", "description", "ingredients")
         }),
         ("Pricing & Nutrition", {
             "fields": ("default_price", "calories", "protein", "carbs", "fats")

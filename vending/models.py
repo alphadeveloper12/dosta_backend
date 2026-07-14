@@ -63,12 +63,36 @@ class Menu(models.Model):
         return f"Week {self.week_number} - {self.day_of_week}"
 
 
+class Category(models.Model):
+    """
+    Grouping for vending MasterItems (e.g. Main Courses, Sweets, Salads,
+    Sandwiches). An item may belong to zero, one, or many categories.
+    Admins can create additional categories at any time.
+    """
+    name = models.CharField(max_length=100, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Category"
+        verbose_name_plural = "Categories"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
 class MasterItem(models.Model):
     """
     Unique representation of an item, independent of menu scheduling.
     Used to normalize data so updates (name, macros, image) propagate.
     """
     name = models.CharField(max_length=255, unique=True, db_index=True)
+    categories = models.ManyToManyField(
+        Category,
+        related_name="items",
+        blank=True,
+        help_text="One or more categories this item belongs to.",
+    )
     description = models.TextField(blank=True, null=True)
     ingredients = models.TextField(blank=True, null=True)
     calories = models.PositiveIntegerField(default=0, help_text="kcal")

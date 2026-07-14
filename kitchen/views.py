@@ -700,6 +700,9 @@ def vending_master_item_create_view(request):
 
     try:
         master.save()
+        category_ids = request.POST.getlist('category_ids')
+        if category_ids:
+            master.categories.set(category_ids)
         messages.success(request, f"Master item '{master.name}' created successfully.")
     except Exception as e:
         from django.db import IntegrityError
@@ -707,6 +710,60 @@ def vending_master_item_create_view(request):
             messages.error(request, f"A master item named '{name}' already exists. Please choose a different name.")
         else:
             messages.error(request, f"Could not create item: {e}")
+    return redirect('kitchen:vending_master_list')
+
+
+# -----------------------------------------------------------
+# VENDING CATEGORIES
+# -----------------------------------------------------------
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def vending_category_create_view(request):
+    """Creates a new vending Category from the 'Add Category' modal."""
+    from vending.models import Category
+    name = request.POST.get('name', '').strip()
+    if not name:
+        messages.error(request, "Category name is required.")
+        return redirect('kitchen:vending_master_list')
+
+    category, created = Category.objects.get_or_create(name=name)
+    if created:
+        messages.success(request, f"Category '{category.name}' created successfully.")
+    else:
+        messages.info(request, f"Category '{category.name}' already exists.")
+    return redirect('kitchen:vending_master_list')
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def vending_categorize_items_view(request):
+    """
+    Bulk-categorize: assign one or many selected master items to a category.
+    Expects 'category_id' and one or more 'item_ids'.
+    """
+    from vending.models import Category, MasterItem
+    category_id = request.POST.get('category_id')
+    item_ids = request.POST.getlist('item_ids')
+
+    if not category_id:
+        messages.error(request, "Please choose a category to assign.")
+        return redirect('kitchen:vending_master_list')
+    if not item_ids:
+        messages.error(request, "Please select at least one item to categorize.")
+        return redirect('kitchen:vending_master_list')
+
+    category = get_object_or_404(Category, pk=category_id)
+    items = MasterItem.objects.filter(id__in=item_ids)
+    for item in items:
+        item.categories.add(category)
+
+    messages.success(
+        request,
+        f"Assigned {items.count()} item(s) to '{category.name}'."
+    )
     return redirect('kitchen:vending_master_list')
 
 
@@ -749,7 +806,11 @@ def vending_master_item_edit_view(request, pk):
         master.image2 = request.FILES['image2']
 
     master.save() # Triggers signal to update any existing menu items' name/desc
-    
+
+    # Update category assignments (only when the edit form submitted them)
+    if 'category_ids' in request.POST:
+        master.categories.set(request.POST.getlist('category_ids'))
+
     # 2. Update Schedules (Diff-based to preserve Cart links)
     schedules_json = request.POST.get('schedules_json', '[]')
     try:
@@ -826,7 +887,8 @@ def vending_master_schedule_api(request, pk):
         
     return JsonResponse({
         'schedules': schedules,
-        'weekly_schedules': weekly_schedules
+        'weekly_schedules': weekly_schedules,
+        'category_ids': list(master.categories.values_list('id', flat=True)),
     })
 
 
@@ -1075,22 +1137,51 @@ def vending_machine_items_view(request):
             stock_url = "http://www.hnzczy.cn:8087/commodityinfo/queryGoodsStock"
             headers = {"Authorization": token}
             
-            # Pre-fetch local images to fix broken external URLs
-            from vending.models import MenuItem
+            # Pre-fetch local images to fix broken/missing external URLs.
+            # Images live on MasterItem (image → image2 fallback); MenuItem.image is only
+            # used to fill gaps for goods that aren't represented as a master item.
+            from vending.models import MenuItem, MasterItem
             import re
-            
+
             def normalize_name(name):
                 if not name: return ""
                 name = name.replace("&", "and")
                 return re.sub(r'[^a-zA-Z0-9]', '', name).lower()
 
+            def first_image_url(*candidates):
+                """First usable image URL from the given ImageField candidates."""
+                for field in candidates:
+                    if field:
+                        try:
+                            url = field.url
+                            if url:
+                                return url
+                        except Exception:
+                            continue
+                return None
+
             local_image_map = {}
-            for item in MenuItem.objects.exclude(image=''):
-                # Map exact name
-                if item.image:
-                    local_image_map[item.name] = item.image.url
-                    # Map normalized name
-                    local_image_map[normalize_name(item.name)] = item.image.url
+
+            def register_image(name, url):
+                # setdefault: the first (higher-priority) source registered wins.
+                if name and url:
+                    local_image_map.setdefault(name, url)
+                    local_image_map.setdefault(normalize_name(name), url)
+
+            # 1. MasterItem is the source of truth for images (image → image2).
+            for master in MasterItem.objects.only('name', 'image', 'image2'):
+                register_image(master.name, first_image_url(master.image, master.image2))
+
+            # 2. MenuItem images (and their linked master) fill any remaining gaps.
+            for item in MenuItem.objects.select_related('master_item').only(
+                'name', 'image', 'master_item__image', 'master_item__image2'
+            ):
+                master = item.master_item
+                register_image(item.name, first_image_url(
+                    item.image,
+                    master.image if master else None,
+                    master.image2 if master else None,
+                ))
             
             try:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
@@ -1311,14 +1402,19 @@ class VendingMasterListView(LoginRequiredMixin, ListView):
     def get_queryset(self):
         from django.db.models import Count, Q
         from vending.models import MenuType
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().prefetch_related('categories')
         query = self.request.GET.get('q')
         if query:
             queryset = queryset.filter(name__icontains=query)
-            
+
+        # Category filter — clicking a category chip filters the grid like a filter.
+        category_id = self.request.GET.get('category')
+        if category_id:
+            queryset = queryset.filter(categories__id=category_id)
+
         queryset = queryset.annotate(
             standard_schedules_count=Count(
-                'menu_items', 
+                'menu_items',
                 filter=Q(menu_items__menu__menu_type=MenuType.STANDARD),
                 distinct=True
             ),
@@ -1333,7 +1429,16 @@ class VendingMasterListView(LoginRequiredMixin, ListView):
                 distinct=True
             )
         )
-        return queryset
+        return queryset.distinct()
+
+    def get_context_data(self, **kwargs):
+        from vending.models import Category
+        context = super().get_context_data(**kwargs)
+        context['categories'] = Category.objects.annotate(
+            item_count=Count('items')
+        ).order_by('name')
+        context['selected_category'] = self.request.GET.get('category', '')
+        return context
 
     def post(self, request, *args, **kwargs):
         # Quick inline update handler
@@ -2228,6 +2333,208 @@ def location_price_set(request):
         })
 
     messages.success(request, msg)
+    return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def location_prices_bulk_save(request):
+    """
+    Bulk price save: persists many item overrides for one location in a single
+    request. Expects 'location_id' and 'items' as a JSON array of
+    {master_item_id, price}. Only changed rows are sent by the UI.
+    Returns JSON so the table can refresh in place.
+    """
+    from vending.models import VendingLocation, MasterItem, LocationItemPrice
+    from decimal import Decimal, InvalidOperation
+    import json
+
+    location_id = request.POST.get('location_id')
+    location = get_object_or_404(VendingLocation, pk=location_id)
+
+    try:
+        entries = json.loads(request.POST.get('items') or '[]')
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({'status': 'error', 'message': 'Invalid data format.'}, status=400)
+
+    updated = []
+    previous = []  # Prior state of each saved item, so the save can be undone.
+    errors = []
+    for entry in entries:
+        master_item_id = entry.get('master_item_id')
+        raw_price = str(entry.get('price', '')).strip()
+        if not master_item_id or raw_price == '':
+            continue
+
+        master = MasterItem.objects.filter(pk=master_item_id).first()
+        if not master:
+            continue
+
+        try:
+            price = Decimal(raw_price)
+        except (InvalidOperation, ValueError):
+            errors.append(f"Invalid price '{raw_price}' for {master.name}.")
+            continue
+        if price < 0:
+            errors.append(f"Price cannot be negative for {master.name}.")
+            continue
+
+        # Capture prior state BEFORE writing so Undo can restore it exactly.
+        existing = LocationItemPrice.objects.filter(location=location, master_item=master).first()
+        previous.append({
+            'master_item_id': master.id,
+            'had_override': existing is not None,
+            'price': str(existing.price) if existing else None,
+        })
+
+        obj, _ = LocationItemPrice.objects.update_or_create(
+            location=location,
+            master_item=master,
+            defaults={'price': price},
+        )
+        updated.append({
+            'master_item_id': master.id,
+            'effective_price': str(price),
+            'has_override': True,
+            'updated_at': obj.updated_at.strftime("%b %d, %H:%M"),
+        })
+
+    overrides_count = LocationItemPrice.objects.filter(location=location).count()
+    msg = f"Saved {len(updated)} price change(s)."
+    if errors:
+        msg += f" {len(errors)} could not be saved."
+    return JsonResponse({
+        'status': 'success',
+        'updated': updated,
+        'previous': previous,
+        'errors': errors,
+        'overrides_count': overrides_count,
+        'message': msg,
+    })
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def location_prices_restore(request):
+    """
+    Undo a bulk save: restores each item to its prior state. Expects 'location_id'
+    and 'items' as JSON [{master_item_id, had_override, price}]. Items that had an
+    override are set back to that price; items that had none get the override removed.
+    """
+    from vending.models import VendingLocation, LocationItemPrice
+    from decimal import Decimal, InvalidOperation
+    import json
+
+    location_id = request.POST.get('location_id')
+    location = get_object_or_404(VendingLocation, pk=location_id)
+
+    try:
+        entries = json.loads(request.POST.get('items') or '[]')
+    except (json.JSONDecodeError, TypeError):
+        return JsonResponse({'status': 'error', 'message': 'Invalid data format.'}, status=400)
+
+    restored = 0
+    for entry in entries:
+        master_item_id = entry.get('master_item_id')
+        if not master_item_id:
+            continue
+        if entry.get('had_override'):
+            try:
+                price = Decimal(str(entry.get('price')))
+            except (InvalidOperation, ValueError, TypeError):
+                continue
+            LocationItemPrice.objects.update_or_create(
+                location=location, master_item_id=master_item_id, defaults={'price': price}
+            )
+        else:
+            LocationItemPrice.objects.filter(
+                location=location, master_item_id=master_item_id
+            ).delete()
+        restored += 1
+
+    overrides_count = LocationItemPrice.objects.filter(location=location).count()
+    return JsonResponse({
+        'status': 'success',
+        'restored': restored,
+        'overrides_count': overrides_count,
+        'message': f"Reverted {restored} price change(s).",
+    })
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+def location_prices_source_data(request):
+    """
+    GET: source_location_id → returns each master item's effective price at that
+    location (override if set, else master default) as {master_item_id: price}.
+    Used to load another location's prices into the editable fields so they can
+    be reviewed and saved via the normal bulk-save flow.
+    """
+    from vending.models import VendingLocation, MasterItem, LocationItemPrice
+
+    source_id = request.GET.get('source_location_id')
+    source = get_object_or_404(VendingLocation, pk=source_id)
+
+    overrides = {
+        o.master_item_id: o.price
+        for o in LocationItemPrice.objects.filter(location=source)
+    }
+    prices = {
+        str(item.id): str(overrides.get(item.id, item.default_price))
+        for item in MasterItem.objects.all()
+    }
+    return JsonResponse({'status': 'success', 'source_name': source.name, 'prices': prices})
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
+def location_prices_copy_from(request):
+    """
+    Copies all pricing from a source location onto the current (target) location
+    so their effective prices match: source overrides are applied to the target,
+    and any target overrides the source doesn't have are cleared (both then fall
+    back to the master default).
+    """
+    from vending.models import VendingLocation, LocationItemPrice
+
+    location_id = request.POST.get('location_id')
+    source_id = request.POST.get('source_location_id')
+
+    target = get_object_or_404(VendingLocation, pk=location_id)
+
+    if not source_id or str(source_id) == str(location_id):
+        messages.error(request, "Choose a different location to copy pricing from.")
+        return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")
+
+    source = get_object_or_404(VendingLocation, pk=source_id)
+
+    source_overrides = {
+        o.master_item_id: o.price
+        for o in LocationItemPrice.objects.filter(location=source)
+    }
+
+    applied = 0
+    for master_item_id, price in source_overrides.items():
+        LocationItemPrice.objects.update_or_create(
+            location=target,
+            master_item_id=master_item_id,
+            defaults={'price': price},
+        )
+        applied += 1
+
+    # Clear target overrides the source doesn't have, so both use master default there.
+    cleared = LocationItemPrice.objects.filter(location=target).exclude(
+        master_item_id__in=source_overrides.keys()
+    ).delete()[0]
+
+    messages.success(
+        request,
+        f"Copied pricing from {source.name} → {target.name}: "
+        f"{applied} price(s) applied, {cleared} reverted to default."
+    )
     return redirect(f"{reverse('kitchen:location_based_prices')}?location_id={location_id}")
 
 

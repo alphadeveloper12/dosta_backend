@@ -67,7 +67,33 @@
         </div>
         <div class="text-right">
           <p class="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Active Overrides</p>
-          <p class="text-2xl font-bold text-blue-600">{{ overrides_count }}</p>
+          <p id="overrides-count" class="text-2xl font-bold text-blue-600">{{ overrides_count }}</p>
+        </div>
+      </div>
+
+      <!-- Copy pricing from another location -->
+      <div class="px-6 py-4 border-b border-gray-100 bg-amber-50/40">
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] uppercase tracking-widest text-amber-700 font-bold">Copy pricing from another location</label>
+          <div class="flex items-center gap-2 flex-wrap">
+            <select id="copySourceSelect"
+                    class="min-w-[240px] px-3 py-2 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">Select a location to copy from…</option>
+              {% for loc in locations %}
+                {% if loc.id != selected_location.id %}
+                  <option value="{{ loc.id }}">{{ loc.name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <span id="copyLoadingIndicator" style="display:none" class="text-xs font-bold text-amber-700 inline-flex items-center gap-1">
+              <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+              Loading…
+            </span>
+          </div>
+          <p class="text-[11px] text-amber-700/80">
+            Selecting a location loads its prices into the fields below and highlights what will change.
+            Review, then click <b>Save Changes</b> to apply them to <b>{{ selected_location.name }}</b>.
+          </p>
         </div>
       </div>
 
@@ -179,18 +205,14 @@
                 </td>
                 <td class="px-6 py-4 text-right">
                   <div class="flex items-center justify-end gap-2">
-                    <form method="post" action="{% url 'kitchen:location_price_set' %}" class="ajax-price-form flex items-center gap-2">
-                      {% csrf_token %}
-                      <input type="hidden" name="location_id" value="{{ selected_location.id }}"/>
-                      <input type="hidden" name="master_item_id" value="{{ item.id }}"/>
-                      <input type="number" step="0.01" min="0" name="price"
+                    <div class="relative flex items-center">
+                      <span class="absolute left-2 text-[10px] font-bold text-gray-400">AED</span>
+                      <input type="number" step="0.01" min="0"
+                             class="price-input w-28 pl-9 pr-3 py-1.5 border border-gray-200 rounded-md text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
                              value="{{ item.effective_price }}"
-                             class="w-24 px-3 py-1.5 border border-gray-200 rounded-md text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-                      <button type="submit"
-                              class="submit-btn bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-3 py-1.5 rounded-md shadow-sm">
-                        {% if item.has_override %}Update{% else %}Set{% endif %}
-                      </button>
-                    </form>
+                             data-master-id="{{ item.id }}"
+                             data-original="{{ item.effective_price }}"/>
+                    </div>
                     <div class="reset-form-container">
                       {% if item.has_override %}
                         <form method="post" action="{% url 'kitchen:location_price_clear' %}" class="ajax-reset-form"
@@ -223,122 +245,305 @@
         </table>
       </div>
 
-      <script>
-        document.addEventListener('DOMContentLoaded', function() {
-          const tableBody = document.getElementById('items-table-body');
-          
-          function handleFormSubmit(e) {
-            if (e.target.classList.contains('ajax-price-form') || e.target.classList.contains('ajax-reset-form')) {
-              e.preventDefault();
-              const form = e.target;
-              const formData = new FormData(form);
-              const url = form.action;
-              const row = form.closest('tr');
-              const submitBtn = form.querySelector('button[type="submit"]');
-              
-              const originalBtnHtml = submitBtn.innerHTML;
-              submitBtn.disabled = true;
-              submitBtn.innerHTML = '<svg class="animate-spin h-4 w-4 text-white mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>';
+      <input type="hidden" id="lp-csrf" value="{{ csrf_token }}"/>
+    </div>
 
-              fetch(url, {
-                method: 'POST',
-                body: formData,
-                headers: {
-                  'X-Requested-With': 'XMLHttpRequest',
-                  'X-CSRFToken': formData.get('csrfmiddlewaretoken')
-                }
-              })
-              .then(response => response.json())
-              .then(data => {
-                if (data.status === 'success') {
-                  // Update Price Display
-                  const priceDisplay = row.querySelector('.effective-price-display');
-                  priceDisplay.textContent = 'AED ' + data.effective_price;
-                  
-                  if (data.has_override) {
-                    priceDisplay.classList.add('text-blue-700');
-                    priceDisplay.classList.remove('text-gray-900');
-                  } else {
-                    priceDisplay.classList.remove('text-blue-700');
-                    priceDisplay.classList.add('text-gray-900');
-                  }
+    <!-- Undo toast (after loading prices from another location) -->
+    <div id="undo-toast" style="display:none"
+         class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white rounded-xl shadow-2xl px-5 py-3 flex items-center gap-4">
+      <span class="text-sm"><span id="undo-toast-msg">Prices loaded.</span></span>
+      <button type="button" id="undo-load-btn"
+              class="text-sm font-bold text-amber-300 hover:text-amber-200 flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg>
+        Undo (<span id="undo-countdown">5</span>s)
+      </button>
+    </div>
 
-                  // Update Badge
-                  const badgeContainer = row.querySelector('.override-badge-container');
-                  if (data.has_override) {
-                    badgeContainer.innerHTML = `
-                      <p class="text-[10px] text-blue-700 font-bold uppercase tracking-wide flex items-center gap-1 mt-0.5">
-                        <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                        Updated for this location
-                        <span class="text-gray-400 font-medium normal-case tracking-normal">· ${data.updated_at || 'Just now'}</span>
-                      </p>
-                    `;
-                  } else {
-                    badgeContainer.innerHTML = '';
-                  }
+    <!-- Sticky Save Bar -->
+    <div id="save-bar"
+         class="hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-gray-200 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]">
+      <div class="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <p class="text-sm text-gray-600">
+          <span id="changed-count" class="font-bold text-blue-700">0</span> unsaved price change(s)
+        </p>
+        <div class="flex items-center gap-2">
+          <button type="button" id="discard-changes-btn"
+                  class="text-sm font-bold text-gray-500 hover:text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-100">
+            Discard
+          </button>
+          <button type="button" id="save-changes-btn"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-6 py-2.5 rounded-lg shadow-sm flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
 
-                  // Update Buttons
-                  const priceForm = row.querySelector('.ajax-price-form');
-                  const setUpdateBtn = priceForm.querySelector('.submit-btn');
-                  setUpdateBtn.textContent = data.has_override ? 'Update' : 'Set';
-                  
-                  const resetContainer = row.querySelector('.reset-form-container');
-                  if (data.has_override) {
-                    const masterItemId = formData.get('master_item_id');
-                    const locationId = formData.get('location_id');
-                    const csrf = formData.get('csrfmiddlewaretoken');
-                    resetContainer.innerHTML = `
-                      <form method="post" action="{% url 'kitchen:location_price_clear' %}" class="ajax-reset-form"
-                            onsubmit="return confirm('Remove the price override for this item at this machine?');">
-                        <input type="hidden" name="csrfmiddlewaretoken" value="${csrf}"/>
-                        <input type="hidden" name="location_id" value="${locationId}"/>
-                        <input type="hidden" name="master_item_id" value="${masterItemId}"/>
-                        <button type="submit"
-                                class="text-xs font-bold text-red-600 hover:text-red-800 px-2 py-1.5 rounded-md hover:bg-red-50">
-                          Reset
-                        </button>
-                      </form>
-                    `;
-                  } else {
-                    resetContainer.innerHTML = '';
-                    // Also update input value to default price
-                    priceForm.querySelector('input[name="price"]').value = data.effective_price;
-                  }
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const tableBody = document.getElementById('items-table-body');
+        const saveBar = document.getElementById('save-bar');
+        const changedCountEl = document.getElementById('changed-count');
+        const saveBtn = document.getElementById('save-changes-btn');
+        const discardBtn = document.getElementById('discard-changes-btn');
+        const overridesCountEl = document.getElementById('overrides-count');
+        const csrf = document.getElementById('lp-csrf').value;
+        const LOCATION_ID = "{{ selected_location.id }}";
 
-                  // MOVE TO TOP
-                  row.style.backgroundColor = '#f0f9ff'; // Highlight blue
-                  tableBody.prepend(row);
-                  
-                  setTimeout(() => {
-                    row.style.backgroundColor = '';
-                  }, 2000);
+        // --- Track unsaved changes on price inputs ---
+        function getChangedInputs() {
+          return Array.from(tableBody.querySelectorAll('.price-input')).filter(function (inp) {
+            return inp.value !== '' && inp.value !== inp.dataset.original;
+          });
+        }
 
-                  // Show a small success toast if possible (optional, but good)
-                  console.log(data.message);
-                } else {
-                  alert('Error: ' + data.message);
-                }
-              })
-              .catch(error => {
-                console.error('Error:', error);
-                alert('Something went wrong. Please try again.');
-              })
-              .finally(() => {
-                submitBtn.disabled = false;
-                if (submitBtn.classList.contains('submit-btn')) {
-                  submitBtn.textContent = originalBtnHtml; // Reset to text
-                } else {
-                   submitBtn.innerHTML = originalBtnHtml;
-                }
+        function refreshChangeState() {
+          const changed = getChangedInputs();
+          changedCountEl.textContent = changed.length;
+          // Highlight changed inputs
+          tableBody.querySelectorAll('.price-input').forEach(function (inp) {
+            const isChanged = inp.value !== '' && inp.value !== inp.dataset.original;
+            inp.classList.toggle('ring-2', isChanged);
+            inp.classList.toggle('ring-amber-400', isChanged);
+            inp.classList.toggle('border-amber-400', isChanged);
+          });
+          saveBar.classList.toggle('hidden', changed.length === 0);
+          // Pad the page so the bar never hides the last row
+          document.body.style.paddingBottom = changed.length ? '80px' : '';
+        }
+
+        tableBody.addEventListener('input', function (e) {
+          if (e.target.classList.contains('price-input')) refreshChangeState();
+        });
+
+        // --- Discard: revert inputs to their original values ---
+        discardBtn.addEventListener('click', function () {
+          tableBody.querySelectorAll('.price-input').forEach(function (inp) {
+            inp.value = inp.dataset.original;
+          });
+          refreshChangeState();
+        });
+
+        // --- Bulk Save ---
+        saveBtn.addEventListener('click', function () {
+          const changed = getChangedInputs();
+          if (changed.length === 0) return;
+
+          const items = changed.map(function (inp) {
+            return { master_item_id: inp.dataset.masterId, price: inp.value };
+          });
+
+          const originalHtml = saveBtn.innerHTML;
+          saveBtn.disabled = true;
+          saveBtn.innerHTML = '<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Saving…';
+
+          const fd = new FormData();
+          fd.append('location_id', LOCATION_ID);
+          fd.append('items', JSON.stringify(items));
+
+          fetch("{% url 'kitchen:location_prices_bulk_save' %}", {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.status !== 'success') { alert('Error: ' + (data.message || 'Save failed.')); return; }
+              (data.updated || []).forEach(function (u) {
+                const row = document.getElementById('item-row-' + u.master_item_id);
+                if (!row) return;
+                applyRowUpdate(row, u.effective_price, true, u.updated_at);
               });
-            }
+              if (overridesCountEl && typeof data.overrides_count !== 'undefined') {
+                overridesCountEl.textContent = data.overrides_count;
+              }
+              refreshChangeState();
+              // Offer a 5s Undo of the just-saved changes
+              if (data.updated && data.updated.length) {
+                lastSavedPrevious = data.previous || [];
+                showUndoToast(data.updated.length);
+              }
+              if (data.errors && data.errors.length) alert(data.errors.join('\n'));
+            })
+            .catch(function (err) { console.error(err); alert('Something went wrong. Please try again.'); })
+            .finally(function () { saveBtn.disabled = false; saveBtn.innerHTML = originalHtml; });
+        });
+
+        // --- Shared: update a row's display after save/reset ---
+        function applyRowUpdate(row, effectivePrice, hasOverride, updatedAt) {
+          const priceDisplay = row.querySelector('.effective-price-display');
+          if (priceDisplay) {
+            priceDisplay.textContent = 'AED ' + effectivePrice;
+            priceDisplay.classList.toggle('text-blue-700', hasOverride);
+            priceDisplay.classList.toggle('text-gray-900', !hasOverride);
           }
 
-          tableBody.addEventListener('submit', handleFormSubmit);
+          const input = row.querySelector('.price-input');
+          if (input) {
+            input.value = effectivePrice;
+            input.dataset.original = effectivePrice;
+          }
+
+          const badge = row.querySelector('.override-badge-container');
+          if (badge) {
+            badge.innerHTML = hasOverride ? (
+              '<p class="text-[10px] text-blue-700 font-bold uppercase tracking-wide flex items-center gap-1 mt-0.5">' +
+              '<span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Updated for this location' +
+              '<span class="text-gray-400 font-medium normal-case tracking-normal">· ' + (updatedAt || 'Just now') + '</span></p>'
+            ) : '';
+          }
+
+          const resetContainer = row.querySelector('.reset-form-container');
+          if (resetContainer) {
+            if (hasOverride && !resetContainer.querySelector('form')) {
+              const masterId = input ? input.dataset.masterId : '';
+              resetContainer.innerHTML =
+                '<form method="post" action="{% url 'kitchen:location_price_clear' %}" class="ajax-reset-form" ' +
+                'onsubmit="return confirm(\'Remove the price override for this item at this machine?\');">' +
+                '<input type="hidden" name="csrfmiddlewaretoken" value="' + csrf + '"/>' +
+                '<input type="hidden" name="location_id" value="' + LOCATION_ID + '"/>' +
+                '<input type="hidden" name="master_item_id" value="' + masterId + '"/>' +
+                '<button type="submit" class="text-xs font-bold text-red-600 hover:text-red-800 px-2 py-1.5 rounded-md hover:bg-red-50">Reset</button>' +
+                '</form>';
+            } else if (!hasOverride) {
+              resetContainer.innerHTML = '';
+            }
+          }
+        }
+
+        // --- Per-row Reset (AJAX) ---
+        tableBody.addEventListener('submit', function (e) {
+          if (!e.target.classList.contains('ajax-reset-form')) return;
+          e.preventDefault();
+          const form = e.target;
+          const row = form.closest('tr');
+          const formData = new FormData(form);
+          const btn = form.querySelector('button[type="submit"]');
+          const orig = btn.innerHTML;
+          btn.disabled = true;
+          btn.textContent = '…';
+
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': formData.get('csrfmiddlewaretoken') }
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.status === 'success') {
+                applyRowUpdate(row, data.effective_price, false, null);
+                if (overridesCountEl) {
+                  const n = parseInt(overridesCountEl.textContent, 10) || 0;
+                  overridesCountEl.textContent = Math.max(0, n - 1);
+                }
+                refreshChangeState();
+              } else {
+                alert('Error: ' + data.message);
+                btn.disabled = false; btn.innerHTML = orig;
+              }
+            })
+            .catch(function (err) { console.error(err); alert('Something went wrong.'); btn.disabled = false; btn.innerHTML = orig; });
         });
-      </script>
-    </div>
-    
+
+        // --- Copy pricing: selecting a location loads its prices into the fields ---
+        const copySelect = document.getElementById('copySourceSelect');
+        const copyIndicator = document.getElementById('copyLoadingIndicator');
+        const undoToast = document.getElementById('undo-toast');
+        const undoMsg = document.getElementById('undo-toast-msg');
+        const undoBtn = document.getElementById('undo-load-btn');
+        const undoCountdownEl = document.getElementById('undo-countdown');
+        let lastSavedPrevious = null;  // Prior state returned by the last save, for Undo
+        let undoTimer = null;
+
+        function hideUndoToast() {
+          if (undoTimer) { clearInterval(undoTimer); undoTimer = null; }
+          undoToast.style.display = 'none';
+          lastSavedPrevious = null;
+        }
+
+        // Shown for 5s AFTER a save so the just-saved changes can be reverted
+        function showUndoToast(count) {
+          undoMsg.textContent = 'Saved ' + count + ' price change(s).';
+          undoToast.style.display = 'flex';
+          let remaining = 5;
+          undoCountdownEl.textContent = remaining;
+          if (undoTimer) clearInterval(undoTimer);
+          undoTimer = setInterval(function () {
+            remaining -= 1;
+            undoCountdownEl.textContent = remaining;
+            if (remaining <= 0) hideUndoToast();
+          }, 1000);
+        }
+
+        undoBtn.addEventListener('click', function () {
+          if (!lastSavedPrevious || !lastSavedPrevious.length) { hideUndoToast(); return; }
+          undoBtn.disabled = true;
+          const fd = new FormData();
+          fd.append('location_id', LOCATION_ID);
+          fd.append('items', JSON.stringify(lastSavedPrevious));
+          fetch("{% url 'kitchen:location_prices_restore' %}", {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.status === 'success') {
+                window.location.reload();  // reflect reverted prices, badges & count
+              } else {
+                alert('Could not undo: ' + (data.message || 'error'));
+                undoBtn.disabled = false;
+              }
+            })
+            .catch(function (err) { console.error(err); alert('Something went wrong undoing.'); undoBtn.disabled = false; });
+        });
+
+        if (copySelect) {
+          copySelect.addEventListener('change', function () {
+            const sourceId = copySelect.value;
+            if (!sourceId) return;
+            const label = copySelect.options[copySelect.selectedIndex].text;
+
+            copyIndicator.style.display = 'inline-flex';
+            copySelect.disabled = true;
+
+            fetch("{% url 'kitchen:location_prices_source_data' %}?source_location_id=" + encodeURIComponent(sourceId), {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                if (data.status !== 'success') { alert('Failed to load prices.'); return; }
+                const prices = data.prices || {};
+
+                // Load prices into the fields (not saved yet — user reviews then Saves)
+                tableBody.querySelectorAll('.price-input').forEach(function (inp) {
+                  const p = prices[inp.dataset.masterId];
+                  if (typeof p !== 'undefined') inp.value = p;
+                });
+
+                refreshChangeState();
+                if (getChangedInputs().length > 0) {
+                  saveBar.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                } else {
+                  alert('Prices from "' + label + '" already match the current prices — nothing to change.');
+                }
+              })
+              .catch(function (err) { console.error(err); alert('Something went wrong loading prices.'); })
+              .finally(function () { copyIndicator.style.display = 'none'; copySelect.disabled = false; });
+          });
+        }
+
+        // Discard also clears any pending undo toast
+        discardBtn.addEventListener('click', hideUndoToast);
+
+        // Warn before leaving with unsaved changes
+        window.addEventListener('beforeunload', function (e) {
+          if (getChangedInputs().length > 0) { e.preventDefault(); e.returnValue = ''; }
+        });
+      });
+    </script>
+
   {% endif %}
 </div>
 {% endblock %}

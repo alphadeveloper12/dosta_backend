@@ -360,7 +360,7 @@ class MenuByTypeView(APIView):
     permission_classes = [permissions.AllowAny]
 
     def get(self, request, plan_type):
-        items = MasterItem.objects.all().order_by('name')
+        items = MasterItem.objects.all().order_by('name').prefetch_related('categories')
         location_id = request.GET.get('location_id') or request.GET.get('location')
         try:
             location_id = int(location_id) if location_id else None
@@ -418,7 +418,7 @@ class PlanMenuView(APIView):
         if subtype == "WEEKLY":
             week_data = {}
             for day, _ in DayOfWeek.choices:
-                menu = Menu.objects.filter(day_of_week=day, menu_type=MenuType.WEEKLY).prefetch_related('items__master_item').first()
+                menu = Menu.objects.filter(day_of_week=day, menu_type=MenuType.WEEKLY).prefetch_related('items__master_item__categories').first()
                 week_data[day] = MenuSerializer(menu, context={'request': request, 'location_id': location_id}).data if menu else None
             return Response({
                 "plan_subtype": "WEEKLY",
@@ -431,7 +431,7 @@ class PlanMenuView(APIView):
             for week in range(1, 5):
                 week_menu = {}
                 for day, _ in DayOfWeek.choices:
-                    menu = Menu.objects.filter(day_of_week=day, week_number=week, menu_type=MenuType.MONTHLY).prefetch_related('items__master_item').first()
+                    menu = Menu.objects.filter(day_of_week=day, week_number=week, menu_type=MenuType.MONTHLY).prefetch_related('items__master_item__categories').first()
                     week_menu[day] = MenuSerializer(menu, context={'request': request, 'location_id': location_id}).data if menu else None
                 month_data.append({"week": week, "menu": week_menu})
 

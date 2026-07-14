@@ -39,6 +39,8 @@ urlpatterns = [
     path('master-items/vending/<int:pk>/delete/', views.vending_master_item_delete_view, name='vending_master_item_delete'),
     path('master-items/vending/<int:pk>/schedule/', views.vending_master_schedule_api, name='vending_master_schedule_api'),
     path('master-items/vending/sync/', views.sync_vending_master_items, name='sync_vending_master'),
+    path('master-items/vending/category/create/', views.vending_category_create_view, name='vending_category_create'),
+    path('master-items/vending/categorize/', views.vending_categorize_items_view, name='vending_categorize'),
     path('master-items/catering/', views.CateringMasterListView.as_view(), name='catering_master_list'),
     path('master-items/catering/create/', views.catering_master_item_create_view, name='catering_master_item_create'),
     path('master-items/catering/sync/', views.sync_catering_master_items, name='sync_catering_master'),
@@ -54,6 +56,10 @@ urlpatterns = [
     # Location-based item prices (per-machine pricing)
     path('location-prices/', views.location_based_prices_view, name='location_based_prices'),
     path('location-prices/set/', views.location_price_set, name='location_price_set'),
+    path('location-prices/bulk-save/', views.location_prices_bulk_save, name='location_prices_bulk_save'),
+    path('location-prices/restore/', views.location_prices_restore, name='location_prices_restore'),
+    path('location-prices/source-data/', views.location_prices_source_data, name='location_prices_source_data'),
+    path('location-prices/copy-from/', views.location_prices_copy_from, name='location_prices_copy_from'),
     path('location-prices/clear/', views.location_price_clear, name='location_price_clear'),
 
     # Beit Nahla panel (single-page AJAX CRUD)

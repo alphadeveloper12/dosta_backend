@@ -5,6 +5,7 @@ from .models import (
     Menu,
     MenuItem,
     MasterItem,
+    Category,
     Offer,
     PickupTimeSlot,
     Order,
@@ -56,6 +57,7 @@ class MenuItemSerializer(serializers.ModelSerializer):
     offers = OfferSerializer(many=True, read_only=True)
     heating = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
+    categories = serializers.SerializerMethodField()
 
     class Meta:
         model = MenuItem
@@ -69,8 +71,16 @@ class MenuItemSerializer(serializers.ModelSerializer):
             'image_url',
             'image2_url',
             'offers',
-            'heating'
+            'heating',
+            'categories'
         ]
+
+    def get_categories(self, obj):
+        """Categories come from the linked MasterItem (falls back to empty)."""
+        master = getattr(obj, 'master_item', None)
+        if not master:
+            return []
+        return [{'id': c.id, 'name': c.name} for c in master.categories.all()]
 
     def get_price(self, obj):
         loc_id = self.context.get('location_id')
@@ -127,16 +137,23 @@ class MenuSerializer(serializers.ModelSerializer):
         fields = ['id', 'day_of_week', 'date', 'items']
 
 
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name']
+
+
 class MasterItemSerializer(serializers.ModelSerializer):
     image_url = serializers.SerializerMethodField()
     image2_url = serializers.SerializerMethodField()
     price = serializers.SerializerMethodField()
     heating = serializers.SerializerMethodField()
     offers = serializers.SerializerMethodField()
+    categories = CategorySerializer(many=True, read_only=True)
 
     class Meta:
         model = MasterItem
-        fields = ['id', 'name', 'price', 'description', 'image_url', 'image2_url', 'offers', 'heating', 'maximum_heating']
+        fields = ['id', 'name', 'price', 'description', 'image_url', 'image2_url', 'offers', 'heating', 'maximum_heating', 'categories']
 
     def get_price(self, obj):
         loc_id = self.context.get('location_id')
