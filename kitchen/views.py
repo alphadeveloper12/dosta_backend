@@ -674,18 +674,6 @@ from django.views.decorators.http import require_POST
 import json
 
 
-def _heating_minutes_to_seconds(raw):
-    """
-    The admin UI enters/shows heating duration in MINUTES, but MasterItem stores
-    (and the machine receives) SECONDS. Convert minutes -> whole seconds.
-    """
-    try:
-        minutes = float(raw or 0)
-    except (ValueError, TypeError):
-        return 0
-    return max(0, int(round(minutes * 60)))
-
-
 @login_required
 @user_passes_test(is_kitchen_admin)
 @require_POST
@@ -703,7 +691,7 @@ def vending_master_item_create_view(request):
         description=request.POST.get('description', ''),
         default_price=parse_numeric(request.POST.get('price', 0)),
         heating=request.POST.get('heating') == 'true',
-        maximum_heating=_heating_minutes_to_seconds(request.POST.get('maximum_heating', 0)),
+        maximum_heating=int(request.POST.get('maximum_heating', 0) or 0),
     )
 
     if 'image' in request.FILES:
@@ -810,7 +798,7 @@ def vending_master_item_edit_view(request, pk):
     master.description = request.POST.get('description', '')
     master.default_price = parse_numeric(request.POST.get('price', master.default_price))
     master.heating = request.POST.get('heating') == 'true'
-    master.maximum_heating = _heating_minutes_to_seconds(request.POST.get('maximum_heating', 0))
+    master.maximum_heating = int(request.POST.get('maximum_heating', 0) or 0)
 
     if 'image' in request.FILES:
         master.image = request.FILES['image']

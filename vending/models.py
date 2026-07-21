@@ -113,18 +113,6 @@ class MasterItem(models.Model):
     def __str__(self):
         return self.name
 
-    @property
-    def maximum_heating_minutes(self):
-        """
-        maximum_heating is stored (and sent to the machine) in seconds. This
-        exposes it in minutes for the admin UI. Whole minutes stay integers;
-        otherwise it's rounded to 1 decimal (e.g. 90s -> 1.5).
-        """
-        if not self.maximum_heating:
-            return 0
-        minutes = self.maximum_heating / 60
-        return int(minutes) if minutes == int(minutes) else round(minutes, 1)
-
 
 class MenuItem(models.Model):
     menu = models.ForeignKey(Menu, related_name='items', on_delete=models.CASCADE)
