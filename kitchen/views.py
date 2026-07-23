@@ -740,6 +740,22 @@ def vending_category_create_view(request):
 @login_required
 @user_passes_test(is_kitchen_admin)
 @require_POST
+def vending_category_delete_view(request, pk):
+    """
+    Deletes a vending Category. Items keep existing — they simply lose this
+    category (the M2M links are removed automatically).
+    """
+    from vending.models import Category
+    category = get_object_or_404(Category, pk=pk)
+    name = category.name
+    category.delete()
+    messages.success(request, f"Category '{name}' deleted. Items are unchanged, just no longer in this category.")
+    return redirect('kitchen:vending_master_list')
+
+
+@login_required
+@user_passes_test(is_kitchen_admin)
+@require_POST
 def vending_categorize_items_view(request):
     """
     Bulk-categorize: assign one or many selected master items to a category.
@@ -808,8 +824,10 @@ def vending_master_item_edit_view(request, pk):
 
     master.save() # Triggers signal to update any existing menu items' name/desc
 
-    # Update category assignments (only when the edit form submitted them)
-    if 'category_ids' in request.POST:
+    # Update category assignments. Gate on a marker (always sent by the edit form)
+    # so deselecting ALL categories — which submits no 'category_ids' at all —
+    # still clears them instead of being silently skipped.
+    if request.POST.get('category_field_present'):
         master.categories.set(request.POST.getlist('category_ids'))
 
     # 2. Update Schedules (Diff-based to preserve Cart links)

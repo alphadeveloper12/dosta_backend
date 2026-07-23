@@ -40,6 +40,7 @@ urlpatterns = [
     path('master-items/vending/<int:pk>/schedule/', views.vending_master_schedule_api, name='vending_master_schedule_api'),
     path('master-items/vending/sync/', views.sync_vending_master_items, name='sync_vending_master'),
     path('master-items/vending/category/create/', views.vending_category_create_view, name='vending_category_create'),
+    path('master-items/vending/category/<int:pk>/delete/', views.vending_category_delete_view, name='vending_category_delete'),
     path('master-items/vending/categorize/', views.vending_categorize_items_view, name='vending_categorize'),
     path('master-items/catering/', views.CateringMasterListView.as_view(), name='catering_master_list'),
     path('master-items/catering/create/', views.catering_master_item_create_view, name='catering_master_item_create'),
