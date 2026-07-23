@@ -1,0 +1,858 @@
+{% extends 'kitchen/base.html' %} {% block content %}
+<div class="max-w-7xl mx-auto">
+ <!-- Header -->
+ <div
+  class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+  <div>
+   <h2
+    class="text-3xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-gray-900 to-gray-700">
+    Vending Master Items
+   </h2>
+   <p class="text-gray-500 mt-1">
+    Manage unique items. Updates here reflect across all menus.
+   </p>
+  </div>
+
+  <div class="flex items-center gap-3 flex-wrap">
+   <a href="{% url 'kitchen:vending_weekly_assignment' %}" class="px-4 py-2 bg-blue-50 text-blue-700 rounded-xl font-bold hover:bg-blue-100 transition-colors flex items-center gap-2 text-sm whitespace-nowrap">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+    Weekly
+   </a>
+   <a href="{% url 'kitchen:vending_monthly_assignment' %}" class="px-4 py-2 bg-purple-50 text-purple-700 rounded-xl font-bold hover:bg-purple-100 transition-colors flex items-center gap-2 text-sm whitespace-nowrap">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+    Monthly
+   </a>
+   <a
+    href="{% url 'kitchen:sync_vending_master' %}"
+    class="px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-bold hover:bg-indigo-100 transition-colors flex items-center gap-2 text-sm whitespace-nowrap">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+     <path
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      stroke-width="2"
+      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+    </svg>
+    Sync from Menu
+   </a>
+
+    <button
+     onclick="openAddModal()"
+     class="px-4 py-2 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors flex items-center gap-2 text-sm whitespace-nowrap shadow-sm shadow-green-200">
+     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+     </svg>
+     Add Item
+    </button>
+
+   <!-- Search Form -->
+   <form method="GET" class="relative group" id="searchForm">
+    <div
+     class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+     <svg
+      class="h-5 w-5 text-gray-400 group-focus-within:text-indigo-500 transition-colors"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24">
+      <path
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       stroke-width="2"
+       d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+     </svg>
+    </div>
+    <input
+     type="text"
+     name="q"
+     id="searchInput"
+     value="{{ request.GET.q|default:'' }}"
+     class="block w-full pl-10 pr-3 py-2 border border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm shadow-sm transition-all hover:shadow-md"
+     placeholder="Search items..."
+     autocapitalize="off" />
+   </form>
+  </div>
+ </div>
+
+ <!-- Category Filter Bar -->
+ {% with q=request.GET.q|default:'' %}
+ <div class="flex items-center gap-2 flex-wrap mb-6">
+  <a href="?{% if q %}q={{ q|urlencode }}{% endif %}"
+   class="px-4 py-1.5 rounded-full text-sm font-bold transition-colors {% if not selected_category %}bg-gray-900 text-white shadow-sm{% else %}bg-white text-gray-600 border border-gray-200 hover:bg-gray-50{% endif %}">
+   All Items
+  </a>
+  {% for cat in categories %}
+  <div class="inline-flex items-center rounded-full text-sm font-bold transition-colors {% if selected_category == cat.id|stringformat:'s' %}bg-indigo-600 text-white shadow-sm shadow-indigo-200{% else %}bg-white text-gray-600 border border-gray-200 hover:bg-indigo-50{% endif %}">
+   <a href="?category={{ cat.id }}{% if q %}&q={{ q|urlencode }}{% endif %}"
+    class="flex items-center gap-1.5 pl-4 pr-2 py-1.5 {% if selected_category != cat.id|stringformat:'s' %}hover:text-indigo-700{% endif %}">
+    {{ cat.name }}
+    <span class="text-[10px] px-1.5 py-0.5 rounded-full {% if selected_category == cat.id|stringformat:'s' %}bg-white/20{% else %}bg-gray-100 text-gray-500{% endif %}">{{ cat.item_count }}</span>
+   </a>
+   <button type="button" title="Delete category"
+    onclick="confirmDeleteCategory('{{ cat.id }}', '{{ cat.name|escapejs }}')"
+    class="pr-3 pl-1 py-1.5 {% if selected_category == cat.id|stringformat:'s' %}text-white/70 hover:text-white{% else %}text-gray-400 hover:text-red-600{% endif %}">
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+   </button>
+  </div>
+  {% endfor %}
+
+  <!-- Add Category -->
+  <button onclick="openAddCategoryModal()"
+   class="px-3 py-1.5 rounded-full text-sm font-bold text-green-700 bg-green-50 border border-green-200 hover:bg-green-100 transition-colors flex items-center gap-1">
+   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+   Add Category
+  </button>
+
+  <!-- Categorize Items toggle -->
+  <button id="categorizeToggleBtn" onclick="toggleSelectMode()"
+   class="ml-auto px-4 py-1.5 rounded-full text-sm font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-colors flex items-center gap-1.5">
+   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+   Categorize Items
+  </button>
+ </div>
+ {% endwith %}
+
+ <!-- Items Grid -->
+ <div id="itemGridContainer"
+  class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+  {% for item in items %}
+  <div
+   data-item-id="{{ item.id }}"
+   data-item-name="{{ item.name|escapejs }}"
+   class="item-card relative bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-all overflow-hidden group">
+   <!-- Selection checkbox (visible in categorize mode) -->
+   <label class="select-checkbox hidden absolute top-3 left-3 z-20 cursor-pointer">
+    <input type="checkbox" class="item-select-cb w-5 h-5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 shadow" onchange="onItemSelectChange()" />
+   </label>
+   <!-- Image Area -->
+   <div class="h-48 bg-gray-100 relative overflow-hidden group">
+    {% if item.image %}
+    <img
+     src="{{ item.image.url }}"
+     alt="{{ item.name }}"
+     class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+    {% else %}
+    <div class="w-full h-full flex items-center justify-center text-gray-300">
+     <svg
+      class="w-12 h-12"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24">
+      <path
+       stroke-linecap="round"
+       stroke-linejoin="round"
+       stroke-width="2"
+       d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+     </svg>
+    </div>
+    {% endif %}
+
+    <!-- Quick Edit Overlay -->
+    <div
+     class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+      <button
+       onclick="openEditModal('{{ item.id }}', '{{ item.name|escapejs }}', '{{ item.description|escapejs }}', '{{ item.default_price }}', {{ item.heating|yesno:'true,false' }}, '{{ item.maximum_heating }}', '{% if item.image %}{{ item.image.url }}{% endif %}', '{% if item.image2 %}{{ item.image2.url }}{% endif %}')"
+       class="bg-white text-gray-900 px-4 py-2 rounded-lg font-bold shadow-lg hover:bg-indigo-50 transition-colors cursor-pointer">
+       Edit Item
+      </button>
+    </div>
+   </div>
+
+   <!-- Content -->
+   <div class="p-4">
+    <h3 class="font-bold text-gray-900 mb-1 truncate" title="{{ item.name }}">
+     {{ item.name }}
+    </h3>
+    <p class="text-xs text-gray-500 line-clamp-2 min-h-[2.5em]">
+     {{ item.description|default:"No description" }}
+    </p>
+
+    {% if item.categories.all %}
+    <div class="mt-2 flex flex-wrap gap-1">
+     {% for cat in item.categories.all %}
+     <span class="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-[10px] font-bold">{{ cat.name }}</span>
+     {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="mt-2 flex items-center gap-2 text-xs">
+     {% if item.heating %}
+     <span class="bg-orange-50 text-orange-700 px-2 py-0.5 rounded font-bold flex items-center gap-1">
+      🔥 Heating
+      {% if item.maximum_heating > 0 %}<span class="font-normal opacity-75">{{ item.maximum_heating }}s</span>{% endif %}
+     </span>
+     {% endif %}
+    </div>
+    <div class="mt-2 flex items-center justify-between text-xs font-medium">
+     <span class="text-gray-900">{{ item.default_price }} AED</span>
+     <div class="flex flex-wrap gap-1 justify-end">
+        {% if item.standard_schedules_count > 0 or item.weekly_schedules_count > 0 or item.monthly_schedules_count > 0 %}
+            {% if item.standard_schedules_count > 0 %}
+                <span class="bg-indigo-50 text-indigo-700 px-2 py-1 rounded text-[10px] font-bold">{{ item.standard_schedules_count }} Standard</span>
+            {% endif %}
+            {% if item.weekly_schedules_count > 0 %}
+                <span class="bg-green-50 text-green-700 px-2 py-1 rounded text-[10px] font-bold">{{ item.weekly_schedules_count }} Weekly</span>
+            {% endif %}
+            {% if item.monthly_schedules_count > 0 %}
+                <span class="bg-orange-50 text-orange-700 px-2 py-1 rounded text-[10px] font-bold">{{ item.monthly_schedules_count }} Monthly</span>
+            {% endif %}
+        {% else %}
+            <span class="bg-gray-100 text-gray-500 px-2 py-1 rounded text-[10px] font-bold">No schedule</span>
+        {% endif %}
+     </div>
+    </div>
+   </div>
+  </div>
+  {% endfor %}
+ </div>
+</div>
+
+<!-- Edit Modal -->
+<div
+ id="editModal"
+ class="fixed inset-0 z-50 hidden"
+ aria-labelledby="modal-title"
+ role="dialog"
+ aria-modal="true">
+ <div
+  class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm transition-opacity opacity-0"
+  id="modalBackdrop"></div>
+
+ <div class="fixed inset-0 z-10 overflow-y-auto">
+  <div
+   class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+   <div
+    class="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95 max-h-[90vh] flex flex-col"
+    id="modalPanel">
+    <form method="POST" enctype="multipart/form-data" class="p-6 overflow-y-auto flex-1" id="editForm">
+     {% csrf_token %}
+     <input type="hidden" name="item_id" id="editItemId" />
+      <input type="hidden" name="form_mode" id="formMode" value="edit" />
+
+     <div class="mb-5">
+      <h3 class="text-xl font-bold text-gray-900" id="modal-title">
+       Edit Master Item
+      </h3>
+      <p class="text-sm text-gray-500" id="modal-subtitle">
+       Changes will apply to ALL menus using this item.
+      </p>
+     </div>
+
+     <div class="space-y-4">
+      <div>
+       <label class="block text-sm font-medium text-gray-700 mb-1"
+        >Item Name</label
+       >
+       <input
+        type="text"
+        name="name"
+        id="editItemName"
+        required
+        class="w-full rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" />
+      </div>
+
+      <div>
+       <label class="block text-sm font-medium text-gray-700 mb-1"
+        >Description</label
+       >
+       <textarea
+        name="description"
+        id="editItemDesc"
+        rows="3"
+        class="w-full rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"></textarea>
+      </div>
+
+      <div>
+       <label class="block text-sm font-medium text-gray-700 mb-1">Categories</label>
+       <input type="hidden" name="category_field_present" value="1" />
+       <div id="modalCategoryList" class="flex flex-wrap gap-2">
+        {% for cat in categories %}
+        <label class="modal-cat-chip cursor-pointer">
+         <input type="checkbox" name="category_ids" value="{{ cat.id }}" class="sr-only modal-cat-cb" onchange="styleCatChip(this)" />
+         <span class="cat-chip-span inline-block px-3 py-1.5 rounded-full text-xs font-bold border border-gray-200 text-gray-600 bg-white transition-colors">{{ cat.name }}</span>
+        </label>
+        {% empty %}
+        <span class="text-xs text-gray-400 italic">No categories yet. Use "Add Category" to create one.</span>
+        {% endfor %}
+       </div>
+      </div>
+
+      <div>
+       <label class="block text-sm font-medium text-gray-700 mb-1"
+        >Price (AED)</label
+       >
+       <input
+        type="number"
+        step="0.01"
+        name="price"
+        id="editItemPrice"
+        required
+        class="w-full rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" />
+      </div>
+
+      <div class="pt-4 mt-2 border-t border-gray-100" id="scheduleSection">
+        <div class="flex items-center justify-between mb-3">
+            <label class="block text-sm font-medium text-gray-700">Monthly Schedules (Week & Day)</label>
+            <button type="button" onclick="addScheduleRow(1, 'Monday', true)" class="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded-md">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg> Add Schedule
+            </button>
+        </div>
+        <div id="scheduleRowsContainer" class="space-y-2 max-h-40 overflow-y-auto pr-1">
+            <!-- Dynamic rows go here -->
+        </div>
+        <input type="hidden" name="schedules_json" id="schedulesJson" value="[]">
+      </div>
+
+      <!-- Read-only Weekly Schedules -->
+      <div class="pt-3 mt-1 border-t border-gray-100" id="weeklyScheduleSection">
+        <label class="block text-xs font-semibold text-green-700 mb-1">Weekly Menu Assignments <span class="font-normal text-gray-400">(read-only)</span></label>
+        <div id="weeklyScheduleInfo" class="flex flex-wrap gap-1 min-h-[24px]">
+          <span class="text-xs text-gray-400 italic">Loading...</span>
+        </div>
+      </div>
+
+      <!-- Heating Settings -->
+      <div class="pt-4 border-t border-gray-100">
+       <label class="block text-sm font-medium text-gray-700 mb-3">Heating</label>
+       <div class="flex items-center gap-4">
+        <div class="flex bg-gray-100 rounded-lg p-1 gap-1">
+         <button type="button" id="heatingYesBtn"
+          onclick="setHeating(true)"
+          class="px-4 py-1.5 text-sm font-bold rounded-md transition-all">
+          Yes
+         </button>
+         <button type="button" id="heatingNoBtn"
+          onclick="setHeating(false)"
+          class="px-4 py-1.5 text-sm font-bold rounded-md transition-all">
+          No
+         </button>
+        </div>
+        <input type="hidden" name="heating" id="heatingValue" value="false" />
+        <div id="maxHeatingWrapper" class="flex items-center gap-2 hidden">
+         <label class="text-sm text-gray-600 whitespace-nowrap">Max seconds:</label>
+         <input type="number" name="maximum_heating" id="editMaxHeating" min="0" max="600"
+          class="w-20 rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm text-sm" />
+        </div>
+       </div>
+      </div>
+
+      <!-- Image 1: Card Image -->
+      <div class="pt-4 border-t border-gray-100">
+       <label class="block text-sm font-semibold text-gray-700 mb-1">
+        Image 1 — Card
+        <span class="ml-1 text-xs font-normal text-gray-400">Shown on the item card</span>
+       </label>
+       <div id="currentImage1Preview" class="mb-2 hidden">
+        <img id="currentImage1Img" src="" alt="Current card image" class="h-24 w-auto rounded-lg border border-gray-200 object-cover shadow-sm" />
+        <p class="text-[11px] text-gray-400 mt-1">Current image — upload below to replace</p>
+       </div>
+       <input
+        type="file"
+        name="image"
+        accept="image/*"
+        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+      </div>
+
+      <!-- Image 2: Sidebar Detail Image -->
+      <div class="pt-4 border-t border-gray-100">
+       <label class="block text-sm font-semibold text-gray-700 mb-1">
+        Image 2 — Sidebar Detail
+        <span class="ml-1 text-xs font-normal text-gray-400">Shown in the item detail panel (clickable full preview)</span>
+       </label>
+       <div id="currentImage2Preview" class="mb-2 hidden">
+        <img id="currentImage2Img" src="" alt="Current detail image" class="h-24 w-auto rounded-lg border border-gray-200 object-cover shadow-sm" />
+        <p class="text-[11px] text-gray-400 mt-1">Current image — upload below to replace</p>
+       </div>
+       <input
+        type="file"
+        name="image2"
+        accept="image/*"
+        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100" />
+       <p class="text-[11px] text-gray-400 mt-1.5">If left empty, Image 1 will be used as fallback.</p>
+      </div>
+     </div>
+
+     <div class="mt-8 flex items-center justify-between gap-3">
+      <!-- Delete button - only visible in edit mode -->
+      <button
+       type="button"
+       id="deleteItemBtn"
+       onclick="confirmDeleteItem()"
+       class="hidden px-4 py-2 text-sm font-bold text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2">
+       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+       Delete
+      </button>
+      <div class="flex gap-3 ml-auto">
+       <button
+        type="button"
+        onclick="closeEditModal()"
+        class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+        Cancel
+       </button>
+       <button
+        type="submit"
+        class="px-4 py-2 text-sm font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-sm shadow-indigo-200">
+         <span id="submitBtnText">Save Changes</span>
+        </button>
+      </div>
+     </div>
+    </form>
+   </div>
+  </div>
+ </div>
+</div>
+
+
+<!-- Delete Confirm Mini-Modal -->
+<div id="deleteConfirmModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+ <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+  <div class="flex items-center gap-3 mb-3">
+   <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-600 flex-shrink-0">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+   </div>
+   <h3 class="text-lg font-bold text-gray-900">Delete Master Item?</h3>
+  </div>
+  <p class="text-sm text-gray-600 mb-1">
+   You are about to permanently delete:
+  </p>
+  <p class="font-bold text-gray-900 mb-1" id="deleteConfirmName"></p>
+  <p class="text-xs text-gray-500 mb-5">This will remove the item from ALL menus and schedules. This action cannot be undone.</p>
+  <form method="POST" id="deleteConfirmForm">
+   {% csrf_token %}
+   <div class="flex justify-end gap-3">
+    <button type="button" onclick="closeDeleteConfirm()"
+     class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">
+     Cancel
+    </button>
+    <button type="submit"
+     class="px-4 py-2 text-sm font-bold text-white bg-red-600 rounded-xl hover:bg-red-700">
+     Delete
+    </button>
+   </div>
+  </form>
+ </div>
+</div>
+
+<!-- Add Category Modal -->
+<div id="addCategoryModal" class="fixed inset-0 z-[100] hidden flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+ <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+  <div class="flex items-center gap-3 mb-4">
+   <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 flex-shrink-0">
+    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a1.99 1.99 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.99 1.99 0 013 12V7a4 4 0 014-4z"/></svg>
+   </div>
+   <h3 class="text-lg font-bold text-gray-900">New Category</h3>
+  </div>
+  <form method="POST" action="{% url 'kitchen:vending_category_create' %}">
+   {% csrf_token %}
+   <label class="block text-sm font-medium text-gray-700 mb-1">Category name</label>
+   <input type="text" name="name" required autocomplete="off" placeholder="e.g. Beverages"
+    class="w-full rounded-lg border-gray-200 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm mb-5" />
+   <div class="flex justify-end gap-3">
+    <button type="button" onclick="closeAddCategoryModal()"
+     class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50">Cancel</button>
+    <button type="submit"
+     class="px-4 py-2 text-sm font-bold text-white bg-green-600 rounded-xl hover:bg-green-700">Create</button>
+   </div>
+  </form>
+ </div>
+</div>
+
+<!-- Hidden form used to delete a category (submitted by confirmDeleteCategory) -->
+<form id="deleteCategoryForm" method="POST" action="" class="hidden">
+ {% csrf_token %}
+</form>
+
+<!-- Floating Categorize Action Bar -->
+<div id="categorizeBar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[90] hidden">
+ <form method="POST" action="{% url 'kitchen:vending_categorize' %}" id="categorizeForm"
+  class="flex items-center gap-3 bg-gray-900 text-white rounded-2xl shadow-2xl px-5 py-3">
+  {% csrf_token %}
+  <span class="text-sm font-bold whitespace-nowrap"><span id="selectedCount">0</span> selected</span>
+  <div class="w-px h-6 bg-white/20"></div>
+  <select name="category_id" required
+   class="rounded-lg bg-gray-800 border-gray-700 text-white text-sm py-1.5 focus:ring-indigo-500 focus:border-indigo-500">
+   <option value="">Choose category…</option>
+   {% for cat in categories %}
+   <option value="{{ cat.id }}">{{ cat.name }}</option>
+   {% endfor %}
+  </select>
+  <div id="categorizeItemInputs"></div>
+  <button type="submit" id="assignBtn" disabled
+   class="px-4 py-1.5 rounded-lg text-sm font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">Assign</button>
+  <button type="button" onclick="toggleSelectMode()"
+   class="px-3 py-1.5 rounded-lg text-sm font-medium text-gray-300 hover:text-white hover:bg-white/10 transition-colors">Cancel</button>
+ </form>
+</div>
+
+<script>
+  const modal = document.getElementById("editModal");
+  const backdrop = document.getElementById("modalBackdrop");
+  const panel = document.getElementById("modalPanel");
+  const editForm = document.getElementById("editForm");
+  const scheduleRowsContainer = document.getElementById("scheduleRowsContainer");
+  const schedulesJsonInput = document.getElementById("schedulesJson");
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+  function setHeating(val) {
+   document.getElementById("heatingValue").value = val ? "true" : "false";
+   const yesBtn = document.getElementById("heatingYesBtn");
+   const noBtn = document.getElementById("heatingNoBtn");
+   const wrapper = document.getElementById("maxHeatingWrapper");
+   if (val) {
+    yesBtn.className = "px-4 py-1.5 text-sm font-bold rounded-md transition-all bg-white shadow text-orange-600";
+    noBtn.className = "px-4 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500";
+    wrapper.classList.remove("hidden");
+   } else {
+    noBtn.className = "px-4 py-1.5 text-sm font-bold rounded-md transition-all bg-white shadow text-gray-700";
+    yesBtn.className = "px-4 py-1.5 text-sm font-bold rounded-md transition-all text-gray-500";
+    wrapper.classList.add("hidden");
+   }
+  }
+
+  function openAddModal() {
+    document.getElementById("formMode").value = "add";
+    document.getElementById("modal-title").textContent = "Add Master Item";
+    document.getElementById("modal-subtitle").textContent = "Create a new vending item. You can assign it to menus after saving.";
+    document.getElementById("submitBtnText").textContent = "Create Item";
+    document.getElementById("editItemId").value = "";
+    document.getElementById("editItemName").value = "";
+    document.getElementById("editItemDesc").value = "";
+    document.getElementById("editItemPrice").value = "";
+    document.getElementById("editMaxHeating").value = 0;
+    setHeating(false);
+    setModalCategories([]);
+    document.getElementById("currentImage1Preview").classList.add("hidden");
+    document.getElementById("currentImage2Preview").classList.add("hidden");
+    document.getElementById("scheduleSection").classList.add("hidden");
+    document.getElementById("weeklyScheduleSection").classList.add("hidden");
+    document.getElementById("deleteItemBtn").classList.add("hidden");
+    scheduleRowsContainer.innerHTML = "";
+    editForm.action = "/kitchen/master-items/vending/create/";
+    modal.classList.remove("hidden");
+    requestAnimationFrame(() => {
+      backdrop.classList.remove("opacity-0");
+      panel.classList.remove("opacity-0", "translate-y-4", "sm:translate-y-0", "sm:scale-95");
+    });
+  }
+
+  function openEditModal(id, name, desc, price, heating, maxHeating, image1Url, image2Url) {
+    document.getElementById("formMode").value = "edit";
+    document.getElementById("modal-title").textContent = "Edit Master Item";
+    document.getElementById("modal-subtitle").textContent = "Changes will apply to ALL menus using this item.";
+    document.getElementById("submitBtnText").textContent = "Save Changes";
+    document.getElementById("scheduleSection").classList.remove("hidden");
+    document.getElementById("weeklyScheduleSection").classList.remove("hidden");
+    document.getElementById("deleteItemBtn").classList.remove("hidden");
+    currentEditId = id;
+    document.getElementById("editItemId").value = id;
+    document.getElementById("editItemName").value = name;
+    document.getElementById("editItemDesc").value = desc || "";
+    document.getElementById("editItemPrice").value = price || "0";
+    document.getElementById("editMaxHeating").value = maxHeating || 0;
+    setHeating(heating === true || heating === "true");
+
+   // Show image previews if available
+   const img1Wrap = document.getElementById("currentImage1Preview");
+   const img1El = document.getElementById("currentImage1Img");
+   if (image1Url) {
+    img1El.src = image1Url;
+    img1Wrap.classList.remove("hidden");
+   } else {
+    img1Wrap.classList.add("hidden");
+   }
+
+   const img2Wrap = document.getElementById("currentImage2Preview");
+   const img2El = document.getElementById("currentImage2Img");
+   if (image2Url) {
+    img2El.src = image2Url;
+    img2Wrap.classList.remove("hidden");
+   } else {
+    img2Wrap.classList.add("hidden");
+   }
+
+   editForm.action = `/kitchen/master-items/vending/${id}/edit/`;
+
+   // Fetch schedules
+   scheduleRowsContainer.innerHTML = '<div class="text-xs text-gray-400 text-center py-2">Loading schedules...</div>';
+   const weeklyInfoContainer = document.getElementById('weeklyScheduleInfo');
+   weeklyInfoContainer.innerHTML = '';
+
+   fetch(`/kitchen/master-items/vending/${id}/schedule/`)
+     .then(res => res.json())
+     .then(data => {
+         // -- Monthly Schedules (editable list) --
+         scheduleRowsContainer.innerHTML = '';
+         if(data.schedules && data.schedules.length > 0) {
+             data.schedules.forEach(s => addScheduleRow(s.week, s.day));
+         } else {
+             scheduleRowsContainer.innerHTML = '<div class="text-xs text-gray-400 italic text-center py-2" id="emptyScheduleMsg">No monthly schedules linked. Add one above.</div>';
+         }
+
+         // -- Categories (checkboxes) --
+         setModalCategories(data.category_ids || []);
+
+         // -- Weekly Schedules (read-only) --
+         if (data.weekly_schedules && data.weekly_schedules.length > 0) {
+             weeklyInfoContainer.innerHTML = data.weekly_schedules.map(s =>
+                 `<span class="inline-block bg-green-50 text-green-700 px-2 py-0.5 rounded text-xs font-medium">${s.day}</span>`
+             ).join('');
+         } else {
+             weeklyInfoContainer.innerHTML = '<span class="text-xs text-gray-400 italic">None</span>';
+         }
+     })
+     .catch(err => {
+         scheduleRowsContainer.innerHTML = '<div class="text-xs text-red-500 text-center py-2">Error loading schedules.</div>';
+     });
+
+   modal.classList.remove("hidden");
+   // Animate in
+   requestAnimationFrame(() => {
+    backdrop.classList.remove("opacity-0");
+    panel.classList.remove(
+     "opacity-0",
+     "translate-y-4",
+     "sm:translate-y-0",
+     "sm:scale-95",
+    );
+   });
+  }
+
+  function closeEditModal() {
+   // Animate out
+   backdrop.classList.add("opacity-0");
+   panel.classList.add(
+    "opacity-0",
+    "translate-y-4",
+    "sm:translate-y-0",
+    "sm:scale-95",
+   );
+
+   setTimeout(() => {
+    modal.classList.add("hidden");
+   }, 300);
+  }
+
+  function addScheduleRow(week = 1, day = "Monday", isNew = false) {
+      const emptyMsg = document.getElementById("emptyScheduleMsg");
+      if(emptyMsg) emptyMsg.remove();
+
+      const row = document.createElement("div");
+      row.className = "flex items-center gap-2 schedule-row bg-gray-50 p-2 rounded-lg border border-gray-100";
+
+      if (isNew) {
+          row.classList.add("border-indigo-300", "bg-indigo-50");
+      }
+      
+      const weekSelect = document.createElement("select");
+      weekSelect.className = "w-1/3 rounded-md border-gray-200 text-sm py-1.5 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm week-val bg-white";
+      [1,2,3,4].forEach(w => {
+          let opt = new Option(`Week ${w}`, w);
+          if(w == week) opt.selected = true;
+          weekSelect.add(opt);
+      });
+
+      const daySelect = document.createElement("select");
+      daySelect.className = "w-full rounded-md border-gray-200 text-sm py-1.5 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm day-val bg-white";
+      days.forEach(d => {
+          let opt = new Option(d, d);
+          if(d === day) opt.selected = true;
+          daySelect.add(opt);
+      });
+
+      const removeBtn = document.createElement("button");
+      removeBtn.type = "button";
+      removeBtn.className = "p-1.5 text-red-500 hover:bg-red-50 rounded-md transition-colors";
+      removeBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+      removeBtn.onclick = () => row.remove();
+
+      // "New" badge shown only on freshly added rows
+      if (isNew) {
+          const badge = document.createElement("span");
+          badge.className = "text-[10px] font-bold text-indigo-600 bg-indigo-100 px-1.5 py-0.5 rounded animate-pulse whitespace-nowrap";
+          badge.textContent = "New";
+          row.appendChild(badge);
+      }
+
+      row.appendChild(weekSelect);
+      row.appendChild(daySelect);
+      row.appendChild(removeBtn);
+      
+      // New rows go to the top; existing rows (loading) are appended normally
+      if (isNew && scheduleRowsContainer.firstChild) {
+          scheduleRowsContainer.insertBefore(row, scheduleRowsContainer.firstChild);
+      } else {
+          scheduleRowsContainer.appendChild(row);
+      }
+  }
+
+  editForm.onsubmit = function() {
+      const rows = Array.from(scheduleRowsContainer.querySelectorAll('.schedule-row'));
+      const schedules = rows.map(r => {
+          return {
+              week: parseInt(r.querySelector('.week-val').value),
+              day: r.querySelector('.day-val').value
+          };
+      });
+      schedulesJsonInput.value = JSON.stringify(schedules);
+  };
+
+  let currentEditId = null;
+
+  function confirmDeleteItem() {
+    if (!currentEditId) return;
+    document.getElementById("deleteConfirmModal").classList.remove("hidden");
+    document.getElementById("deleteConfirmForm").action = `/kitchen/master-items/vending/${currentEditId}/delete/`;
+    document.getElementById("deleteConfirmName").textContent = document.getElementById("editItemName").value;
+  }
+
+  function closeDeleteConfirm() {
+    document.getElementById("deleteConfirmModal").classList.add("hidden");
+  }
+</script>
+
+<script>
+  // AJAX Search
+  document.addEventListener('DOMContentLoaded', () => {
+    const searchInput = document.getElementById('searchInput');
+    const searchForm = document.getElementById('searchForm');
+    const gridContainer = document.getElementById('itemGridContainer');
+
+    let debounceTimer;
+
+    if (searchForm && searchInput && gridContainer) {
+      // Prevent default form submission to avoid full reload
+      searchForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+      });
+
+      searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        // Wait 1 second per user request
+        debounceTimer = setTimeout(() => {
+          const url = new URL(searchForm.action || window.location.href);
+          url.searchParams.set('q', searchInput.value);
+
+          // Add AJAX header
+          fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(html, 'text/html');
+              const newGrid = doc.getElementById('itemGridContainer');
+              if (newGrid) {
+                gridContainer.innerHTML = newGrid.innerHTML;
+              }
+            })
+            .catch(err => console.error("Search fetch error:", err));
+        }, 1000);
+      });
+    }
+  });
+</script>
+
+<script>
+  // ── Category checkboxes inside the item modal ────────────────────────────
+  // Tailwind v2 build has no peer-checked variant, so toggle the styling in JS.
+  function styleCatChip(cb) {
+    const span = cb.parentElement.querySelector('.cat-chip-span');
+    if (!span) return;
+    if (cb.checked) {
+      span.classList.add('bg-indigo-600', 'text-white', 'border-indigo-600');
+      span.classList.remove('bg-white', 'text-gray-600', 'border-gray-200');
+    } else {
+      span.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-600');
+      span.classList.add('bg-white', 'text-gray-600', 'border-gray-200');
+    }
+  }
+
+  function setModalCategories(selectedIds) {
+    const ids = (selectedIds || []).map(String);
+    document.querySelectorAll('.modal-cat-cb').forEach(cb => {
+      cb.checked = ids.includes(String(cb.value));
+      styleCatChip(cb);
+    });
+  }
+
+  // ── Add Category modal ───────────────────────────────────────────────────
+  function openAddCategoryModal() {
+    document.getElementById('addCategoryModal').classList.remove('hidden');
+  }
+  function confirmDeleteCategory(id, name) {
+    if (!confirm('Delete category "' + name + '"?\n\nItems will NOT be deleted — they just won’t be in this category anymore.')) return;
+    const form = document.getElementById('deleteCategoryForm');
+    form.action = '/kitchen/master-items/vending/category/' + id + '/delete/';
+    form.submit();
+  }
+
+  function closeAddCategoryModal() {
+    document.getElementById('addCategoryModal').classList.add('hidden');
+  }
+
+  // ── Categorize (multi-select) mode ───────────────────────────────────────
+  let selectMode = false;
+
+  function toggleSelectMode() {
+    selectMode = !selectMode;
+    const grid = document.getElementById('itemGridContainer');
+    const bar = document.getElementById('categorizeBar');
+    const toggleBtn = document.getElementById('categorizeToggleBtn');
+
+    grid.querySelectorAll('.select-checkbox').forEach(el => el.classList.toggle('hidden', !selectMode));
+    // Disable the hover "Edit" overlay while selecting so clicks pick items
+    grid.querySelectorAll('.item-card').forEach(card => {
+      card.classList.toggle('ring-2', false);
+      card.classList.toggle('ring-indigo-500', false);
+      const overlay = card.querySelector('.absolute.inset-0.bg-black\\/50');
+      if (overlay) overlay.style.pointerEvents = selectMode ? 'none' : '';
+      if (!selectMode) {
+        const cb = card.querySelector('.item-select-cb');
+        if (cb) cb.checked = false;
+      }
+    });
+
+    bar.classList.toggle('hidden', !selectMode);
+    toggleBtn.classList.toggle('bg-indigo-600', selectMode);
+    toggleBtn.classList.toggle('text-white', selectMode);
+    toggleBtn.classList.toggle('bg-indigo-50', !selectMode);
+    toggleBtn.classList.toggle('text-indigo-700', !selectMode);
+
+    if (selectMode) onItemSelectChange();
+  }
+
+  function onItemSelectChange() {
+    const grid = document.getElementById('itemGridContainer');
+    const checked = [];
+    grid.querySelectorAll('.item-card').forEach(card => {
+      const cb = card.querySelector('.item-select-cb');
+      const isChecked = cb && cb.checked;
+      card.classList.toggle('ring-2', isChecked);
+      card.classList.toggle('ring-indigo-500', isChecked);
+      if (isChecked) checked.push(card.getAttribute('data-item-id'));
+    });
+
+    document.getElementById('selectedCount').textContent = checked.length;
+    document.getElementById('assignBtn').disabled = checked.length === 0;
+
+    // Rebuild hidden inputs carrying the selected item ids
+    const holder = document.getElementById('categorizeItemInputs');
+    holder.innerHTML = '';
+    checked.forEach(id => {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'item_ids';
+      input.value = id;
+      holder.appendChild(input);
+    });
+  }
+
+  // Let clicking anywhere on a card toggle its checkbox while in select mode
+  document.getElementById('itemGridContainer').addEventListener('click', (e) => {
+    if (!selectMode) return;
+    if (e.target.classList.contains('item-select-cb')) return; // native toggle handles it
+    const card = e.target.closest('.item-card');
+    if (!card) return;
+    const cb = card.querySelector('.item-select-cb');
+    if (cb) { cb.checked = !cb.checked; onItemSelectChange(); }
+  });
+</script>
+{% endblock %}
+
+

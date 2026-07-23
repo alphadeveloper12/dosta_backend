@@ -68,6 +68,7 @@ INSTALLED_APPS = [
     'allauth.socialaccount.providers.google',
     'dj_rest_auth',
     'dj_rest_auth.registration',
+    'ai_agents',
 ]
 
 MIDDLEWARE = [
@@ -85,6 +86,8 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React or frontend dev server
     "http://127.0.0.1:3000",
+    "http://localhost:5173",  # Vite dev server
+    "http://127.0.0.1:5173",  # Vite dev server
     "http://127.0.0.1:5500",  # if using VS Code live server
     "http://192.168.100.58:8080",  # if using VS Code live server
     
@@ -117,10 +120,12 @@ REST_AUTH = {
 
 ROOT_URLCONF = 'dosta.urls'
 
+LOGIN_URL = '/admin/login/'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -188,3 +193,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Redirects
+LOGIN_REDIRECT_URL = '/kitchen/'
+LOGOUT_REDIRECT_URL = '/admin/login/'

@@ -1,0 +1,549 @@
+{% extends 'kitchen/base.html' %}
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+
+  <div class="mb-8 flex items-start justify-between">
+    <div>
+      <h1 class="text-3xl font-bold text-gray-900 mb-1">Location-Based Prices</h1>
+      <p class="text-gray-500">
+        Override item prices per vending machine. If no override exists, the master default price applies.
+      </p>
+    </div>
+    {% if selected_location %}
+    <a href="{% url 'kitchen:location_based_prices' %}"
+       class="text-sm font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+      </svg>
+      Change Machine
+    </a>
+    {% endif %}
+  </div>
+
+  {% if not selected_location %}
+    <!-- STEP 1: Select a Machine -->
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-sm p-8">
+      <div class="mb-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-1">Select a machine</h2>
+        <p class="text-sm text-gray-500">Choose the vending machine you want to set prices for.</p>
+      </div>
+
+      {% if locations %}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[480px] overflow-y-auto pr-2">
+          {% for loc in locations %}
+            <a href="{% url 'kitchen:location_based_prices' %}?location_id={{ loc.id }}"
+               class="block p-4 border-2 border-gray-200 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 hover:shadow-md transition-all cursor-pointer no-underline">
+              <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center text-blue-700 font-bold flex-shrink-0">
+                  {{ loc.name|slice:":1"|upper }}
+                </div>
+                <div class="min-w-0 flex-1">
+                  <p class="font-bold text-gray-900 truncate">{{ loc.name }}</p>
+                  <p class="text-xs text-gray-500 truncate">{{ loc.info }}</p>
+                  {% if loc.serial_number %}
+                  <p class="text-[10px] font-mono text-gray-400 mt-1">SN: {{ loc.serial_number }}</p>
+                  {% endif %}
+                </div>
+                <svg class="w-4 h-4 text-gray-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+              </div>
+            </a>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-sm text-gray-500">No active machines found. Add machines under the "Locations" tab first.</p>
+      {% endif %}
+    </div>
+
+  {% else %}
+    <!-- STEP 2: Items for selected location -->
+    <div class="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden mb-6">
+      <div class="px-6 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-50 to-transparent flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <p class="text-[10px] uppercase tracking-widest text-blue-700 font-bold">Pricing for</p>
+          <h2 class="text-xl font-bold text-gray-900">{{ selected_location.name }}</h2>
+          <p class="text-xs text-gray-500">{{ selected_location.info }}{% if selected_location.serial_number %} · SN {{ selected_location.serial_number }}{% endif %}</p>
+        </div>
+        <div class="text-right">
+          <p class="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Active Overrides</p>
+          <p id="overrides-count" class="text-2xl font-bold text-blue-600">{{ overrides_count }}</p>
+        </div>
+      </div>
+
+      <!-- Copy pricing from another location -->
+      <div class="px-6 py-4 border-b border-gray-100 bg-amber-50/40">
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] uppercase tracking-widest text-amber-700 font-bold">Copy pricing from another location</label>
+          <div class="flex items-center gap-2 flex-wrap">
+            <select id="copySourceSelect"
+                    class="min-w-[240px] px-3 py-2 border border-amber-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500">
+              <option value="">Select a location to copy from…</option>
+              {% for loc in locations %}
+                {% if loc.id != selected_location.id %}
+                  <option value="{{ loc.id }}">{{ loc.name }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+            <span id="copyLoadingIndicator" style="display:none" class="text-xs font-bold text-amber-700 inline-flex items-center gap-1">
+              <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+              Loading…
+            </span>
+          </div>
+          <p class="text-[11px] text-amber-700/80">
+            Selecting a location loads its prices into the fields below and highlights what will change.
+            Review, then click <b>Save Changes</b> to apply them to <b>{{ selected_location.name }}</b>.
+          </p>
+        </div>
+      </div>
+
+      <!-- Search -->
+      <div class="px-6 py-4 border-b border-gray-100">
+        <form id="locPriceSearchForm" method="get" action="{% url 'kitchen:location_based_prices' %}" class="flex gap-2 items-center">
+          <input type="hidden" name="location_id" value="{{ selected_location.id }}"/>
+          <div class="flex-1 flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-2 focus-within:ring-2 focus-within:ring-blue-500 focus-within:border-blue-500 bg-white">
+            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z"/>
+            </svg>
+            <input id="locPriceSearchInput" type="text" name="q" value="{{ search_query }}"
+                   placeholder="Search item by name..."
+                   autocomplete="off"
+                   class="flex-1 border-0 outline-none focus:outline-none focus:ring-0 text-sm bg-transparent p-0"/>
+            <span id="locPriceSearchIndicator" class="hidden text-[10px] font-bold uppercase tracking-widest text-blue-600">Searching…</span>
+          </div>
+          {% if search_query %}
+            <a href="{% url 'kitchen:location_based_prices' %}?location_id={{ selected_location.id }}"
+               class="px-4 py-2.5 text-sm font-bold text-gray-500 hover:text-gray-900">Clear</a>
+          {% endif %}
+        </form>
+      </div>
+      <script>
+        (function () {
+          const form = document.getElementById('locPriceSearchForm');
+          const input = document.getElementById('locPriceSearchInput');
+          const indicator = document.getElementById('locPriceSearchIndicator');
+          if (!form || !input) return;
+
+          let timer = null;
+          let lastSubmitted = input.value;
+
+          input.addEventListener('input', function () {
+            if (timer) clearTimeout(timer);
+            if (indicator) indicator.classList.remove('hidden');
+            timer = setTimeout(function () {
+              if (input.value === lastSubmitted) {
+                if (indicator) indicator.classList.add('hidden');
+                return;
+              }
+              lastSubmitted = input.value;
+              form.submit();
+            }, 1500);
+          });
+
+          input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              if (timer) clearTimeout(timer);
+              lastSubmitted = input.value;
+              form.submit();
+            }
+          });
+
+          // Keep focus at end after auto-submit reload
+          input.focus();
+          const v = input.value;
+          input.value = '';
+          input.value = v;
+        })();
+      </script>
+
+      <!-- Items List -->
+      <div class="overflow-x-auto">
+        <table class="min-w-full">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="text-left px-6 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Item</th>
+              <th class="text-left px-6 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Master Price</th>
+              <th class="text-left px-6 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Effective Price (this machine)</th>
+              <th class="text-right px-6 py-3 text-[10px] font-bold text-gray-500 uppercase tracking-widest">Action</th>
+            </tr>
+          </thead>
+          <tbody id="items-table-body" class="divide-y divide-gray-100">
+            {% for item in items %}
+              <tr id="item-row-{{ item.id }}" class="hover:bg-gray-50/50 transition-all duration-300">
+                <td class="px-6 py-4">
+                  <div class="flex items-center gap-3">
+                    {% if item.image_url %}
+                      <img src="{{ item.image_url }}" alt="" class="w-10 h-10 rounded-lg object-cover ring-1 ring-gray-100"/>
+                    {% else %}
+                      <div class="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 text-xs font-bold">
+                        {{ item.name|slice:":1"|upper }}
+                      </div>
+                    {% endif %}
+                    <div>
+                      <p class="font-semibold text-gray-900">{{ item.name }}</p>
+                      <div class="override-badge-container">
+                        {% if item.has_override %}
+                        <p class="text-[10px] text-blue-700 font-bold uppercase tracking-wide flex items-center gap-1 mt-0.5">
+                          <span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
+                          Updated for this location
+                          {% if item.override_updated_at %}
+                            <span class="text-gray-400 font-medium normal-case tracking-normal">· {{ item.override_updated_at|date:"M j, H:i" }}</span>
+                          {% endif %}
+                        </p>
+                        {% endif %}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-6 py-4 text-gray-500 text-sm">AED {{ item.default_price }}</td>
+                <td class="px-6 py-4">
+                  <span class="effective-price-display text-lg font-bold {% if item.has_override %}text-blue-700{% else %}text-gray-900{% endif %}">
+                    AED {{ item.effective_price }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    <div class="relative flex items-center">
+                      <span class="absolute left-2 text-[10px] font-bold text-gray-400">AED</span>
+                      <input type="number" step="0.01" min="0"
+                             class="price-input w-28 pl-9 pr-3 py-1.5 border border-gray-200 rounded-md text-sm text-right focus:outline-none focus:ring-2 focus:ring-blue-500"
+                             value="{{ item.effective_price }}"
+                             data-master-id="{{ item.id }}"
+                             data-original="{{ item.effective_price }}"/>
+                    </div>
+                    <div class="reset-form-container">
+                      {% if item.has_override %}
+                        <form method="post" action="{% url 'kitchen:location_price_clear' %}" class="ajax-reset-form"
+                              onsubmit="return confirm('Remove the price override for {{ item.name|escapejs }} at this machine?');">
+                          {% csrf_token %}
+                          <input type="hidden" name="location_id" value="{{ selected_location.id }}"/>
+                          <input type="hidden" name="master_item_id" value="{{ item.id }}"/>
+                          <button type="submit"
+                                  class="text-xs font-bold text-red-600 hover:text-red-800 px-2 py-1.5 rounded-md hover:bg-red-50">
+                            Reset
+                          </button>
+                        </form>
+                      {% endif %}
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="4" class="px-6 py-12 text-center text-sm text-gray-400">
+                  {% if search_query %}
+                    No items match "{{ search_query }}".
+                  {% else %}
+                    No vending master items found.
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <input type="hidden" id="lp-csrf" value="{{ csrf_token }}"/>
+    </div>
+
+    <!-- Undo toast (after loading prices from another location) -->
+    <div id="undo-toast" style="display:none"
+         class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white rounded-xl shadow-2xl px-5 py-3 flex items-center gap-4">
+      <span class="text-sm"><span id="undo-toast-msg">Prices loaded.</span></span>
+      <button type="button" id="undo-load-btn"
+              class="text-sm font-bold text-amber-300 hover:text-amber-200 flex items-center gap-1">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4"/></svg>
+        Undo (<span id="undo-countdown">5</span>s)
+      </button>
+    </div>
+
+    <!-- Sticky Save Bar -->
+    <div id="save-bar"
+         class="hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur border-t border-gray-200 shadow-[0_-8px_24px_rgba(0,0,0,0.08)]">
+      <div class="container mx-auto px-4 py-3 flex items-center justify-between gap-4">
+        <p class="text-sm text-gray-600">
+          <span id="changed-count" class="font-bold text-blue-700">0</span> unsaved price change(s)
+        </p>
+        <div class="flex items-center gap-2">
+          <button type="button" id="discard-changes-btn"
+                  class="text-sm font-bold text-gray-500 hover:text-gray-900 px-4 py-2 rounded-lg hover:bg-gray-100">
+            Discard
+          </button>
+          <button type="button" id="save-changes-btn"
+                  class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold px-6 py-2.5 rounded-lg shadow-sm flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        const tableBody = document.getElementById('items-table-body');
+        const saveBar = document.getElementById('save-bar');
+        const changedCountEl = document.getElementById('changed-count');
+        const saveBtn = document.getElementById('save-changes-btn');
+        const discardBtn = document.getElementById('discard-changes-btn');
+        const overridesCountEl = document.getElementById('overrides-count');
+        const csrf = document.getElementById('lp-csrf').value;
+        const LOCATION_ID = "{{ selected_location.id }}";
+
+        // --- Track unsaved changes on price inputs ---
+        function getChangedInputs() {
+          return Array.from(tableBody.querySelectorAll('.price-input')).filter(function (inp) {
+            return inp.value !== '' && inp.value !== inp.dataset.original;
+          });
+        }
+
+        function refreshChangeState() {
+          const changed = getChangedInputs();
+          changedCountEl.textContent = changed.length;
+          // Highlight changed inputs
+          tableBody.querySelectorAll('.price-input').forEach(function (inp) {
+            const isChanged = inp.value !== '' && inp.value !== inp.dataset.original;
+            inp.classList.toggle('ring-2', isChanged);
+            inp.classList.toggle('ring-amber-400', isChanged);
+            inp.classList.toggle('border-amber-400', isChanged);
+          });
+          saveBar.classList.toggle('hidden', changed.length === 0);
+          // Pad the page so the bar never hides the last row
+          document.body.style.paddingBottom = changed.length ? '80px' : '';
+        }
+
+        tableBody.addEventListener('input', function (e) {
+          if (e.target.classList.contains('price-input')) refreshChangeState();
+        });
+
+        // --- Discard: revert inputs to their original values ---
+        discardBtn.addEventListener('click', function () {
+          tableBody.querySelectorAll('.price-input').forEach(function (inp) {
+            inp.value = inp.dataset.original;
+          });
+          refreshChangeState();
+        });
+
+        // --- Bulk Save ---
+        saveBtn.addEventListener('click', function () {
+          const changed = getChangedInputs();
+          if (changed.length === 0) return;
+
+          const items = changed.map(function (inp) {
+            return { master_item_id: inp.dataset.masterId, price: inp.value };
+          });
+
+          const originalHtml = saveBtn.innerHTML;
+          saveBtn.disabled = true;
+          saveBtn.innerHTML = '<svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Saving…';
+
+          const fd = new FormData();
+          fd.append('location_id', LOCATION_ID);
+          fd.append('items', JSON.stringify(items));
+
+          fetch("{% url 'kitchen:location_prices_bulk_save' %}", {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.status !== 'success') { alert('Error: ' + (data.message || 'Save failed.')); return; }
+              (data.updated || []).forEach(function (u) {
+                const row = document.getElementById('item-row-' + u.master_item_id);
+                if (!row) return;
+                applyRowUpdate(row, u.effective_price, true, u.updated_at);
+              });
+              if (overridesCountEl && typeof data.overrides_count !== 'undefined') {
+                overridesCountEl.textContent = data.overrides_count;
+              }
+              refreshChangeState();
+              // Offer a 5s Undo of the just-saved changes
+              if (data.updated && data.updated.length) {
+                lastSavedPrevious = data.previous || [];
+                showUndoToast(data.updated.length);
+              }
+              if (data.errors && data.errors.length) alert(data.errors.join('\n'));
+            })
+            .catch(function (err) { console.error(err); alert('Something went wrong. Please try again.'); })
+            .finally(function () { saveBtn.disabled = false; saveBtn.innerHTML = originalHtml; });
+        });
+
+        // --- Shared: update a row's display after save/reset ---
+        function applyRowUpdate(row, effectivePrice, hasOverride, updatedAt) {
+          const priceDisplay = row.querySelector('.effective-price-display');
+          if (priceDisplay) {
+            priceDisplay.textContent = 'AED ' + effectivePrice;
+            priceDisplay.classList.toggle('text-blue-700', hasOverride);
+            priceDisplay.classList.toggle('text-gray-900', !hasOverride);
+          }
+
+          const input = row.querySelector('.price-input');
+          if (input) {
+            input.value = effectivePrice;
+            input.dataset.original = effectivePrice;
+          }
+
+          const badge = row.querySelector('.override-badge-container');
+          if (badge) {
+            badge.innerHTML = hasOverride ? (
+              '<p class="text-[10px] text-blue-700 font-bold uppercase tracking-wide flex items-center gap-1 mt-0.5">' +
+              '<span class="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Updated for this location' +
+              '<span class="text-gray-400 font-medium normal-case tracking-normal">· ' + (updatedAt || 'Just now') + '</span></p>'
+            ) : '';
+          }
+
+          const resetContainer = row.querySelector('.reset-form-container');
+          if (resetContainer) {
+            if (hasOverride && !resetContainer.querySelector('form')) {
+              const masterId = input ? input.dataset.masterId : '';
+              resetContainer.innerHTML =
+                '<form method="post" action="{% url 'kitchen:location_price_clear' %}" class="ajax-reset-form" ' +
+                'onsubmit="return confirm(\'Remove the price override for this item at this machine?\');">' +
+                '<input type="hidden" name="csrfmiddlewaretoken" value="' + csrf + '"/>' +
+                '<input type="hidden" name="location_id" value="' + LOCATION_ID + '"/>' +
+                '<input type="hidden" name="master_item_id" value="' + masterId + '"/>' +
+                '<button type="submit" class="text-xs font-bold text-red-600 hover:text-red-800 px-2 py-1.5 rounded-md hover:bg-red-50">Reset</button>' +
+                '</form>';
+            } else if (!hasOverride) {
+              resetContainer.innerHTML = '';
+            }
+          }
+        }
+
+        // --- Per-row Reset (AJAX) ---
+        tableBody.addEventListener('submit', function (e) {
+          if (!e.target.classList.contains('ajax-reset-form')) return;
+          e.preventDefault();
+          const form = e.target;
+          const row = form.closest('tr');
+          const formData = new FormData(form);
+          const btn = form.querySelector('button[type="submit"]');
+          const orig = btn.innerHTML;
+          btn.disabled = true;
+          btn.textContent = '…';
+
+          fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': formData.get('csrfmiddlewaretoken') }
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.status === 'success') {
+                applyRowUpdate(row, data.effective_price, false, null);
+                if (overridesCountEl) {
+                  const n = parseInt(overridesCountEl.textContent, 10) || 0;
+                  overridesCountEl.textContent = Math.max(0, n - 1);
+                }
+                refreshChangeState();
+              } else {
+                alert('Error: ' + data.message);
+                btn.disabled = false; btn.innerHTML = orig;
+              }
+            })
+            .catch(function (err) { console.error(err); alert('Something went wrong.'); btn.disabled = false; btn.innerHTML = orig; });
+        });
+
+        // --- Copy pricing: selecting a location loads its prices into the fields ---
+        const copySelect = document.getElementById('copySourceSelect');
+        const copyIndicator = document.getElementById('copyLoadingIndicator');
+        const undoToast = document.getElementById('undo-toast');
+        const undoMsg = document.getElementById('undo-toast-msg');
+        const undoBtn = document.getElementById('undo-load-btn');
+        const undoCountdownEl = document.getElementById('undo-countdown');
+        let lastSavedPrevious = null;  // Prior state returned by the last save, for Undo
+        let undoTimer = null;
+
+        function hideUndoToast() {
+          if (undoTimer) { clearInterval(undoTimer); undoTimer = null; }
+          undoToast.style.display = 'none';
+          lastSavedPrevious = null;
+        }
+
+        // Shown for 5s AFTER a save so the just-saved changes can be reverted
+        function showUndoToast(count) {
+          undoMsg.textContent = 'Saved ' + count + ' price change(s).';
+          undoToast.style.display = 'flex';
+          let remaining = 5;
+          undoCountdownEl.textContent = remaining;
+          if (undoTimer) clearInterval(undoTimer);
+          undoTimer = setInterval(function () {
+            remaining -= 1;
+            undoCountdownEl.textContent = remaining;
+            if (remaining <= 0) hideUndoToast();
+          }, 1000);
+        }
+
+        undoBtn.addEventListener('click', function () {
+          if (!lastSavedPrevious || !lastSavedPrevious.length) { hideUndoToast(); return; }
+          undoBtn.disabled = true;
+          const fd = new FormData();
+          fd.append('location_id', LOCATION_ID);
+          fd.append('items', JSON.stringify(lastSavedPrevious));
+          fetch("{% url 'kitchen:location_prices_restore' %}", {
+            method: 'POST',
+            body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRFToken': csrf }
+          })
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              if (data.status === 'success') {
+                window.location.reload();  // reflect reverted prices, badges & count
+              } else {
+                alert('Could not undo: ' + (data.message || 'error'));
+                undoBtn.disabled = false;
+              }
+            })
+            .catch(function (err) { console.error(err); alert('Something went wrong undoing.'); undoBtn.disabled = false; });
+        });
+
+        if (copySelect) {
+          copySelect.addEventListener('change', function () {
+            const sourceId = copySelect.value;
+            if (!sourceId) return;
+            const label = copySelect.options[copySelect.selectedIndex].text;
+
+            copyIndicator.style.display = 'inline-flex';
+            copySelect.disabled = true;
+
+            fetch("{% url 'kitchen:location_prices_source_data' %}?source_location_id=" + encodeURIComponent(sourceId), {
+              headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+              .then(function (r) { return r.json(); })
+              .then(function (data) {
+                if (data.status !== 'success') { alert('Failed to load prices.'); return; }
+                const prices = data.prices || {};
+
+                // Load prices into the fields (not saved yet — user reviews then Saves)
+                tableBody.querySelectorAll('.price-input').forEach(function (inp) {
+                  const p = prices[inp.dataset.masterId];
+                  if (typeof p !== 'undefined') inp.value = p;
+                });
+
+                refreshChangeState();
+                if (getChangedInputs().length > 0) {
+                  saveBar.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                } else {
+                  alert('Prices from "' + label + '" already match the current prices — nothing to change.');
+                }
+              })
+              .catch(function (err) { console.error(err); alert('Something went wrong loading prices.'); })
+              .finally(function () { copyIndicator.style.display = 'none'; copySelect.disabled = false; });
+          });
+        }
+
+        // Discard also clears any pending undo toast
+        discardBtn.addEventListener('click', hideUndoToast);
+
+        // Warn before leaving with unsaved changes
+        window.addEventListener('beforeunload', function (e) {
+          if (getChangedInputs().length > 0) { e.preventDefault(); e.returnValue = ''; }
+        });
+      });
+    </script>
+
+  {% endif %}
+</div>
+{% endblock %}

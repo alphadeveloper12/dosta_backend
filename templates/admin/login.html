@@ -1,0 +1,204 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}Dosta Admin Login{% endblock %}
+
+{% block extrastyle %}
+<!-- Tailwind CSS (Local for admin page only) -->
+<link href="{% static 'css/tailwind.min.css' %}" rel="stylesheet" />
+<style>
+    /* Global Typography (Local Plus Jakarta Sans) */
+    @import url("{% static 'css/plus_jakarta_sans.css' %}");
+
+    body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Glassmorphism Effect */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.98);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.2);
+    }
+
+    /* Custom Input Styles */
+    form input[type="text"],
+    form input[type="password"] {
+        width: 100% !important;
+        padding: 0.75rem 1rem !important;
+        border-radius: 0.75rem !important;
+        border: 1px solid #e2e8f0 !important;
+        margin-top: 0.5rem !important;
+        font-size: 0.95rem !important;
+        outline: none !important;
+        transition: all 0.2s;
+        color: #0f172a !important;
+        /* Slate-900 for blackish text */
+        background-color: #f8fafc !important;
+        /* Slate-50 */
+    }
+
+    form input[type="text"]:focus,
+    form input[type="password"]:focus {
+        border-color: #6366f1 !important;
+        /* Indigo-500 */
+        box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1) !important;
+        background-color: #ffffff !important;
+    }
+
+    form input[type="submit"] {
+        background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%) !important;
+        /* Slate-800 to Slate-900 */
+        color: white !important;
+        padding: 0.75rem 1.5rem !important;
+        border-radius: 0.75rem !important;
+        font-weight: 600 !important;
+        width: 100% !important;
+        border: none !important;
+        cursor: pointer !important;
+        transition: transform 0.2s, box-shadow 0.2s !important;
+        text-transform: uppercase !important;
+        letter-spacing: 0.05em !important;
+        font-size: 0.875rem !important;
+        margin-top: 1.5rem !important;
+    }
+
+    form input[type="submit"]:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(15, 23, 42, 0.3) !important;
+        background: linear-gradient(135deg, #334155 0%, #1e293b 100%) !important;
+    }
+
+    /* Hide Default Header/Footer */
+    #header,
+    .breadcrumbs,
+    #footer {
+        display: none !important;
+    }
+
+    #content {
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+    }
+</style>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} login-page{% endblock %}
+
+{% block content %}
+<div
+    class="min-h-screen w-full bg-gradient-to-br from-gray-900 via-indigo-950 to-black flex items-center justify-center p-4">
+
+    <!-- Abstract Background Shapes -->
+    <div class="fixed inset-0 overflow-hidden pointer-events-none">
+        <div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-indigo-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute top-[20%] right-[10%] w-[30%] h-[30%] bg-blue-500/10 rounded-full blur-3xl"></div>
+        <div class="absolute -bottom-[10%] left-[20%] w-[35%] h-[35%] bg-gray-500/10 rounded-full blur-3xl"></div>
+    </div>
+
+    <!-- Login Card -->
+    <div class="glass-card w-full max-w-md rounded-3xl p-8 relative z-10 animate-fade-in-up">
+
+        <!-- Logo / Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">
+                Dosta Kitchen
+            </h1>
+            <p class="text-gray-500 text-sm font-medium">Authentication Required</p>
+        </div>
+
+        {% if form.errors and not form.non_field_errors %}
+        <div
+            class="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl mb-6 flex items-center gap-2">
+            <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            {% if form.errors.items|length == 1 %}{% translate "Please correct the error below." %}{% else %}{%
+            translate "Please correct the errors below." %}{% endif %}
+        </div>
+        {% endif %}
+
+        {% if form.non_field_errors %}
+        {% for error in form.non_field_errors %}
+        <div class="bg-red-50 border border-red-100 text-red-600 text-sm px-4 py-3 rounded-xl mb-6">
+            {{ error }}
+        </div>
+        {% endfor %}
+        {% endif %}
+
+        <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
+
+            <div class="space-y-5">
+                <!-- Username -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">
+                        {{ form.username.label_tag }}
+                    </label>
+                    {{ form.username }}
+                    {% if form.username.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.username.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
+                <!-- Password -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">
+                        {{ form.password.label_tag }}
+                    </label>
+                    {{ form.password }}
+                    {% if form.password.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.password.errors.0 }}</p>
+                    {% endif %}
+                    <input type="hidden" name="next" value="{{ next }}">
+                </div>
+            </div>
+
+            {% url 'admin_password_reset' as password_reset_url %}
+            {% if password_reset_url %}
+            <div class="flex justify-end mt-2">
+                <a href="{{ password_reset_url }}"
+                    class="text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
+                    {% translate 'ur mom?' %}
+                </a>
+            </div>
+            {% endif %}
+
+            <div class="submit-row">
+                <input type="submit" value="{% translate 'Log in' %}">
+            </div>
+
+        </form>
+    </div>
+
+    <!-- Footer Credit -->
+    <div class="fixed bottom-6 w-full text-center pointer-events-none">
+        <p class="text-gray-500/40 text-xs font-medium">Secured by Dosta Platform</p>
+    </div>
+
+</div>
+
+<!-- Animation -->
+<style>
+    @keyframes fadeInUp {
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .animate-fade-in-up {
+        animation: fadeInUp 0.5s ease-out forwards;
+    }
+</style>
+{% endblock %}

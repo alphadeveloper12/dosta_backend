@@ -1,4 +1,7 @@
+from django import forms
 from django.contrib import admin
+from django.shortcuts import render, redirect
+from django.contrib import messages
 from .models import (
     Menu, MenuItem, Offer,
     VendingLocation, UserLocationSelection,
@@ -6,7 +9,9 @@ from .models import (
     Order, OrderItem,
     Cart, CartItem,
     MealPlan, MealPlanItem,
-    FavoriteMenuItem
+    FavoriteMenuItem, VendingMachineStock,
+    LocationItemPrice,
+    Category,
 )
 
 # -----------------------------------------------------------
@@ -27,12 +32,107 @@ class MenuAdmin(admin.ModelAdmin):
     inlines = [MenuItemInline]
 
 
+from .models import MasterItem
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ("name", "item_count", "created_at")
+    search_fields = ("name",)
+    ordering = ("name",)
+
+    @admin.display(description="Items")
+    def item_count(self, obj):
+        return obj.items.count()
+
+
+class AssignCategoryForm(forms.Form):
+    """Intermediate form: pick which category to assign to the selected items.
+
+    The selected item ids ride along as ``_selected_action`` hidden inputs in the
+    template, so Django's changelist rebuilds the queryset for us — this form only
+    needs to capture the chosen category.
+    """
+    category = forms.ModelChoiceField(
+        queryset=Category.objects.all(),
+        label="Assign selected items to category",
+    )
+
+
+@admin.register(MasterItem)
+class MasterItemAdmin(admin.ModelAdmin):
+    list_display = ("name", "category_list", "calories", "heating", "created_at")
+    list_filter = ("categories",)
+    search_fields = ("name", "description")
+    ordering = ("name",)
+    readonly_fields = ("created_at", "updated_at")
+    filter_horizontal = ("categories",)
+    actions = ["assign_to_category"]
+
+    @admin.display(description="Categories")
+    def category_list(self, obj):
+        return ", ".join(c.name for c in obj.categories.all()) or "—"
+
+    @admin.action(description="Assign selected items to a category…")
+    def assign_to_category(self, request, queryset):
+        """
+        Bulk-categorize workflow: admin selects one or more items, chooses this
+        action, then picks the target category on an intermediate page.
+        """
+        if "apply" in request.POST:
+            form = AssignCategoryForm(request.POST)
+            if form.is_valid():
+                category = form.cleaned_data["category"]
+                for item in queryset:
+                    item.categories.add(category)
+                self.message_user(
+                    request,
+                    f"Assigned {queryset.count()} item(s) to “{category.name}”.",
+                    messages.SUCCESS,
+                )
+                return redirect(request.get_full_path())
+        else:
+            form = AssignCategoryForm()
+
+        return render(
+            request,
+            "admin/vending/assign_category.html",
+            {
+                "items": queryset,
+                "form": form,
+                "title": "Assign items to a category",
+                "action_checkbox_name": admin.helpers.ACTION_CHECKBOX_NAME,
+            },
+        )
+
+    fieldsets = (
+        ("Basic Info", {
+            "fields": ("name", "categories", "description", "ingredients")
+        }),
+        ("Pricing & Nutrition", {
+            "fields": ("default_price", "calories", "protein", "carbs", "fats")
+        }),
+        ("Heating", {
+            "fields": ("heating", "maximum_heating")
+        }),
+        ("Images", {
+            "description": "• image = shown on item cards  |  • image2 = shown in the sidebar detail panel (falls back to 'image' if not set)",
+            "fields": ("image_source_url", "image", "image2")
+        }),
+        ("Timestamps", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",)
+        }),
+    )
+
+
 @admin.register(MenuItem)
 class MenuItemAdmin(admin.ModelAdmin):
-    list_display = ("name", "price", "menu", "offer")
-    search_fields = ("name",)
+    list_display = ("name", "master_item", "price", "menu", "offer")
+    search_fields = ("name", "master_item__name")
     list_filter = ("menu__day_of_week",)
     ordering = ("name",)
+    autocomplete_fields = ["master_item"] # Enable searching for master items
 
 
 @admin.register(Offer)
@@ -214,3 +314,19 @@ class FavoriteMenuItemAdmin(admin.ModelAdmin):
     list_display = ("user", "menu_item", "created_at")
     search_fields = ("user__username", "menu_item__name")
     ordering = ("-created_at",)
+
+
+@admin.register(VendingMachineStock)
+class VendingMachineStockAdmin(admin.ModelAdmin):
+    list_display = ("vending_good_uuid", "goods_name", "quantity", "updated_at")
+    search_fields = ("goods_name", "vending_good_uuid")
+    ordering = ("goods_name",)
+
+
+@admin.register(LocationItemPrice)
+class LocationItemPriceAdmin(admin.ModelAdmin):
+    list_display = ("location", "master_item", "price", "updated_at")
+    list_filter = ("location",)
+    search_fields = ("location__name", "master_item__name")
+    ordering = ("location", "master_item")
+    autocomplete_fields = ("location", "master_item")

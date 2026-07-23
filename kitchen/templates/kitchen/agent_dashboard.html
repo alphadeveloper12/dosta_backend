@@ -1,0 +1,1468 @@
+{% extends 'kitchen/base.html' %}
+{% load static %}
+
+{% block content %}
+<div class="space-y-8">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+            <h2 class="text-3xl font-extrabold text-gray-900 tracking-tight">AI Agent Command Center</h2>
+            <p class="text-gray-500 mt-1 font-medium">Monitor and manage Dosta's specialized AI workforce.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <button onclick="openGlobalSettings()"
+                class="px-4 py-2 bg-gray-900 text-white rounded-xl shadow-lg shadow-gray-200 hover:bg-gray-800 transition-all flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z">
+                    </path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                </svg>
+                <span class="text-xs font-bold uppercase tracking-wider">AI Settings</span>
+            </button>
+            <div class="px-4 py-2 bg-white rounded-xl border border-gray-200 shadow-sm flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">System Live</span>
+            </div>
+            <div id="matonBadge"
+                class="hidden px-4 py-2 bg-indigo-50 rounded-xl border border-indigo-100 shadow-sm flex items-center gap-2">
+                <span class="text-xs font-bold text-indigo-600 uppercase tracking-wider">Maton API Connected</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Status Grid -->
+    <div id="agentGrid" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6">
+        <!-- Agents will be injected here -->
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div class="lg:col-span-2 space-y-8">
+            <!-- Inquiries Table -->
+            <div
+                class="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col">
+                <div class="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+                    <div>
+                        <h3 class="font-bold text-lg text-gray-900">Recent Customer Inquiries</h3>
+                        <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">Fetched from AI Logistics
+                            Sheet</p>
+                    </div>
+                    <button id="refreshBtn"
+                        class="p-2 hover:bg-white rounded-xl transition-all text-gray-400 hover:text-indigo-600 shadow-sm border border-transparent hover:border-gray-100">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto flex-1 max-h-[600px] min-h-[300px] sidebar-scroll">
+                    <table id="inquiriesTable" class="w-full text-left border-collapse hidden">
+                        <thead class="bg-gray-50/50 sticky top-0 z-10">
+                            <tr>
+                                <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                    Customer</th>
+                                <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                    Preference</th>
+                                <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
+                                    Date/Time</th>
+                                <th
+                                    class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-center">
+                                    Pax</th>
+                                <th
+                                    class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right">
+                                    Venue</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inquiriesBody" class="divide-y divide-gray-50">
+                            <!-- Rows will be injected here -->
+                        </tbody>
+                    </table>
+                    <div id="noInquiries"
+                        class="hidden flex flex-col items-center justify-center h-full py-20 text-gray-400">
+                        <svg class="w-16 h-16 mb-4 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                            </path>
+                        </svg>
+                        <p class="font-bold">No inquiries found in the sheet.</p>
+                        <p class="text-xs">Ensure the URL is public and contains data.</p>
+                    </div>
+                    <div id="loadingState"
+                        class="flex flex-col items-center justify-center h-full py-20 text-gray-400">
+                        <div
+                            class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mb-4">
+                        </div>
+                        <p class="font-bold">Loading inquiries...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agent Tasks (Restored) -->
+            <div class="bg-white rounded-3xl border border-gray-100 shadow-xl items-center p-8">
+                <h4 class="font-bold text-gray-900 mb-6 flex items-center">
+                    <span
+                        class="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center mr-3">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2">
+                            </path>
+                        </svg>
+                    </span>
+                    Real-time Activity
+                </h4>
+                <div id="activityLog" class="space-y-6">
+                    <!-- Activities will be injected here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar / Tools -->
+        <div class="space-y-8">
+            <!-- WhatsApp Gateway Card -->
+            <div id="whatsappGatewayCard"
+                class="bg-white rounded-3xl border border-gray-100 shadow-xl p-8 overflow-hidden relative group">
+                <div class="flex items-center justify-between mb-6">
+                    <h4 class="font-bold text-gray-900 flex items-center">
+                        <span
+                            class="w-8 h-8 rounded-lg bg-green-50 text-green-600 flex items-center justify-center mr-3">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z">
+                                </path>
+                            </svg>
+                        </span>
+                        WhatsApp Gateway
+                    </h4>
+                    <span id="waStatusBadge"
+                        class="px-3 py-1 bg-gray-100 text-gray-500 text-[10px] font-black rounded-full uppercase tracking-widest">
+                        Checking...
+                    </span>
+                </div>
+
+                <div id="waContent" class="space-y-4">
+                    <!-- Dynamic content here -->
+                </div>
+
+                <div class="mt-6 pt-6 border-t border-gray-50">
+                    <button id="waResetBtn"
+                        class="flex items-center justify-center w-full py-3 bg-red-50 text-red-600 rounded-2xl font-bold text-sm hover:bg-red-100 transition-colors uppercase tracking-wider">
+                        Change Number / Reset
+                    </button>
+                    <p class="text-[9px] text-gray-400 mt-3 text-center leading-relaxed">Resetting will log out the
+                        current number and generate a new QR code for scanning.</p>
+                </div>
+            </div>
+
+
+            <!-- AI Sandbox Sandbox -->
+            <div
+                class="bg-gray-900 rounded-3xl items-center p-8 text-white shadow-2xl shadow-indigo-900/40 relative overflow-hidden">
+                <div class="absolute top-0 right-0 p-4 opacity-10">
+                    <svg class="w-24 h-24" fill="currentColor" viewBox="0 0 24 24">
+                        <path
+                            d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z" />
+                        <path
+                            d="M12 6c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6-2.69-6-6-6zm0 10c-2.21 0-4-1.79-4-4s1.79-4 4-4 4 1.79 4 4-1.79 4-4 4z" />
+                    </svg>
+                </div>
+                <h4 class="font-bold text-white mb-6 flex items-center relative z-10">
+                    <span class="w-8 h-8 rounded-lg bg-white/10 text-white flex items-center justify-center mr-3">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                        </svg>
+                    </span>
+                    Internal AI Sandbox
+                </h4>
+
+                <div class="space-y-4 relative z-10">
+                    <select id="sandboxAgentSelector"
+                        class="w-full bg-white/10 border border-white/20 rounded-xl px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="sales" class="text-gray-900">Sales Agent (Chef Ammar Digital)</option>
+                        <option value="customer_service" class="text-gray-900">Customer Support</option>
+                        <option value="lead_gen" class="text-gray-900">Lead Generation</option>
+                        <option value="marketing" class="text-gray-900">Strategic Marketer</option>
+                    </select>
+
+                    <div id="sandboxChatArea"
+                        class="h-48 overflow-y-auto sidebar-scroll bg-black/20 rounded-2xl p-4 space-y-3">
+                        <p class="text-[10px] text-white/40 text-center uppercase tracking-widest py-10">Choose an
+                            agent
+                            and type below to test memory & logic</p>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <input type="text" id="sandboxInput" placeholder="Test the agent here..."
+                            class="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button id="sandboxSendBtn"
+                            class="p-3 bg-indigo-600 rounded-xl hover:bg-indigo-500 transition-all">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M12 19l9-7-9-7V9H3v6h9v4z"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Agent Personality & Memory Management -->
+    <div
+        class="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col mt-8">
+        <div class="p-8 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+            <div class="flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-2xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                        </path>
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="font-bold text-xl text-gray-900">Agent Personality & Memory</h3>
+                    <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">Update seasonal deals, AI
+                        roles, and specialized knowledge</p>
+                </div>
+            </div>
+            <select id="configAgentSelector" onchange="loadAgentConfig()"
+                class="bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 text-sm font-bold text-gray-700 focus:outline-none">
+                <option value="sales">Sales Assistant</option>
+                <option value="customer_service">Customer Service</option>
+                <option value="lead_gen">Lead Generation</option>
+                <option value="marketing">Marketing Specialist</option>
+                <option value="accounting">Financial Assistant</option>
+            </select>
+        </div>
+
+        <div class="p-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Agent
+                        Persona / Role Description</label>
+                    <textarea id="configRole" rows="6"
+                        class="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm text-gray-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none leading-relaxed"
+                        placeholder="Define HOW the agent speaks and its main purpose..."></textarea>
+                    <p class="text-[10px] text-gray-400 mt-2 italic">This defines the agent's character (e.g.,
+                        professional, enthusiastic, helpful).</p>
+                </div>
+            </div>
+            <div class="space-y-6">
+                <div>
+                    <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Dynamic
+                        Memory & Seasonal Knowledge</label>
+                    <textarea id="configKnowledge" rows="6"
+                        class="w-full bg-gray-50 border border-gray-100 rounded-2xl p-4 text-sm text-gray-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none leading-relaxed"
+                        placeholder="Add specific current deals, new menu items, or special instructions here..."></textarea>
+                    <p class="text-[10px] text-gray-400 mt-2 italic">Example: 'Ramadan Special: 20% off all Sohour
+                        group bookings. Promo Code: RAMADAN24'</p>
+                </div>
+                <div class="pt-2">
+                    <button id="saveConfigBtn" onclick="saveAgentConfig()"
+                        class="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold text-sm transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4">
+                            </path>
+                        </svg>
+                        Apply Changes to AI Memory
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Conversation Transcripts -->
+    <div
+        class="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col mt-8">
+        <div class="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+            <div>
+                <h3 class="font-bold text-lg text-gray-900">AI Conversation Transcripts</h3>
+                <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">Recent interactions logged in
+                    the
+                    Database</p>
+            </div>
+        </div>
+        <div class="overflow-x-auto flex-1 max-h-[400px] sidebar-scroll">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-gray-50/50 sticky top-0 z-10">
+                    <tr>
+                        <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-1/6">
+                            Agent
+                        </th>
+                        <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-2/6">
+                            Customer Message</th>
+                        <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-2/6">
+                            AI
+                            Response</th>
+                        <th
+                            class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right w-1/6">
+                            Time</th>
+                    </tr>
+                </thead>
+                <tbody id="transcriptsBody" class="divide-y divide-gray-50">
+                    <!-- Transcripts will be injected here -->
+                </tbody>
+            </table>
+            <div id="noTranscripts" class="hidden flex flex-col items-center justify-center p-10 text-gray-400">
+                <p class="font-bold">No interaction logs found.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Customer Support Tickets -->
+<div
+    class="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col mt-8">
+    <div class="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+        <div>
+            <h3 class="font-bold text-lg text-gray-900">Support Tickets</h3>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">Recent Complaints & Suggestions
+                from
+                WhatsApp</p>
+        </div>
+    </div>
+    <div class="overflow-x-auto flex-1 max-h-[400px] sidebar-scroll">
+        <table class="w-full text-left border-collapse" id="ticketsTable">
+            <thead class="bg-gray-50/50 sticky top-0 z-10">
+                <tr>
+                    <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-1/6">Phone
+                    </th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-1/6">
+                        Subject
+                    </th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-3/6">
+                        Message
+                    </th>
+                    <th
+                        class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right w-1/6">
+                        Time</th>
+                </tr>
+            </thead>
+            <tbody id="ticketsBody" class="divide-y divide-gray-50">
+                <!-- Tickets will be injected here -->
+            </tbody>
+        </table>
+        <div id="noTickets" class="hidden flex flex-col items-center justify-center p-10 text-gray-400">
+            <p class="font-bold">No support tickets found.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Marketing AI Briefing -->
+<div
+    class="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col mt-8">
+    <div class="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+        <div>
+            <h3 class="font-bold text-lg text-gray-900 flex items-center gap-2">
+                <svg class="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z">
+                    </path>
+                </svg>
+                AI Marketing Briefing
+            </h3>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">Daily cross-platform performance
+                analysis</p>
+        </div>
+        <div id="marketingDate"
+            class="px-3 py-1 bg-purple-50 text-purple-600 text-[10px] font-black rounded-full uppercase tracking-widest">
+            Awaiting Data...
+        </div>
+    </div>
+    <div class="p-6 md:p-8 flex flex-col md:flex-row gap-8">
+        <!-- Spends Column -->
+        <div class="md:w-1/4 space-y-4">
+            <div class="p-4 rounded-2xl bg-blue-50 border border-blue-100">
+                <p class="text-[10px] font-bold text-blue-500 uppercase tracking-widest mb-1">Meta Ads Spend</p>
+                <p class="text-2xl font-black text-blue-900">$<span id="marketingMetaSpend">0.00</span></p>
+            </div>
+            <div class="p-4 rounded-2xl bg-red-50 border border-red-100">
+                <p class="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-1">Google Ads Spend</p>
+                <p class="text-2xl font-black text-red-900">$<span id="marketingGoogleSpend">0.00</span></p>
+            </div>
+        </div>
+
+        <!-- Analysis Column -->
+        <div class="md:w-3/4">
+            <h4 class="text-sm font-bold text-gray-900 mb-3 uppercase tracking-wider">Executive Summary</h4>
+            <div id="marketingAnalysis"
+                class="prose prose-sm prose-slate max-w-none text-gray-600 leading-relaxed space-y-4">
+                <div class="animate-pulse flex space-x-4">
+                    <div class="flex-1 space-y-4 py-1">
+                        <div class="h-2 bg-gray-200 rounded"></div>
+                        <div class="space-y-3">
+                            <div class="grid grid-cols-3 gap-4">
+                                <div class="h-2 bg-gray-200 rounded col-span-2"></div>
+                                <div class="h-2 bg-gray-200 rounded col-span-1"></div>
+                            </div>
+                            <div class="h-2 bg-gray-200 rounded"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Lead Generation Tracker -->
+<div
+    class="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col mt-8">
+    <div
+        class="p-6 border-b border-gray-50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-gray-50/30">
+        <div>
+            <h3 class="font-bold text-lg text-gray-900">Lead Generation Tracker</h3>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">Recent company leads found by the
+                AI
+                Scraper</p>
+        </div>
+        <div class="flex flex-col md:flex-row items-center gap-4">
+            <div id="scraperProgressArea" class="hidden flex-1 min-w-[200px]">
+                <div class="flex items-center justify-between mb-1">
+                    <span id="scraperSource"
+                        class="text-[10px] font-bold text-indigo-600 truncate max-w-[150px]">Starting...</span>
+                    <span id="scraperPercent" class="text-[10px] font-black text-gray-400">0%</span>
+                </div>
+                <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div id="scraperBar" class="h-full bg-indigo-500 transition-all duration-500" style="width: 0%">
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="flex gap-2 text-xs font-semibold px-3 py-1.5 rounded-full bg-gray-100/50 border border-gray-200"
+                    id="leadStats">
+                    <span class="text-gray-500">Retrieving Leads...</span>
+                </div>
+                <button id="scrapeNowBtn"
+                    class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all shadow-lg shadow-indigo-200 flex items-center gap-2">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    Scrape Now
+                </button>
+            </div>
+        </div>
+    </div>
+    <div class="overflow-x-auto flex-1 max-h-[400px] sidebar-scroll">
+        <table class="w-full text-left border-collapse">
+            <thead class="bg-gray-50/50 sticky top-0 z-10">
+                <tr>
+                    <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-2/6">
+                        Company Name</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-1/6">
+                        Contact Number</th>
+                    <th class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest w-1/6">
+                        Status</th>
+                    <th
+                        class="px-6 py-4 text-[10px] font-bold text-gray-400 uppercase tracking-widest text-right w-2/6">
+                        Discovered / Source</th>
+                </tr>
+            </thead>
+            <tbody id="leadsBody" class="divide-y divide-gray-50">
+                <!-- Leads will be injected here -->
+            </tbody>
+        </table>
+        <div id="noLeads" class="hidden flex flex-col items-center justify-center p-10 text-gray-400">
+            <p class="font-bold">No leads found in the database.</p>
+        </div>
+    </div>
+</div>
+
+<!-- Media Assets Gallery -->
+<div
+    class="bg-white rounded-3xl border border-gray-100 shadow-xl shadow-gray-200/50 overflow-hidden flex flex-col mt-8">
+    <div class="p-6 border-b border-gray-50 flex items-center justify-between bg-gray-50/30">
+        <div>
+            <h3 class="font-bold text-lg text-gray-900">Outreach Media Gallery</h3>
+            <p class="text-xs text-gray-500 font-medium uppercase tracking-wider">Current images/videos used for
+                automated outreach</p>
+        </div>
+        <button onclick="fetchMedia()" class="p-2 hover:bg-gray-100 rounded-xl transition-all text-gray-400">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15">
+                </path>
+            </svg>
+        </button>
+    </div>
+    <div class="p-6">
+        <div id="mediaGallery" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <!-- Media items will be injected here -->
+        </div>
+        <div id="noMedia" class="hidden flex flex-col items-center justify-center py-10 text-gray-400">
+            <svg class="w-12 h-12 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z">
+                </path>
+            </svg>
+            <p class="font-bold text-sm">No media assets uploaded.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const API_URL = '{% url "kitchen:agent_dashboard_api" %}';
+
+        const agentGrid = document.getElementById('agentGrid');
+        const inquiriesBody = document.getElementById('inquiriesBody');
+        const inquiriesTable = document.getElementById('inquiriesTable');
+        const noInquiries = document.getElementById('noInquiries');
+        const loadingState = document.getElementById('loadingState');
+        const activityLog = document.getElementById('activityLog');
+        const matonBadge = document.getElementById('matonBadge');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const transcriptsBody = document.getElementById('transcriptsBody');
+        const noTranscripts = document.getElementById('noTranscripts');
+        const ticketsBody = document.getElementById('ticketsBody');
+        const noTickets = document.getElementById('noTickets');
+        const ticketsTable = document.getElementById('ticketsTable');
+        const leadsBody = document.getElementById('leadsBody');
+        const noLeads = document.getElementById('noLeads');
+        const leadStats = document.getElementById('leadStats');
+        const scrapeNowBtn = document.getElementById('scrapeNowBtn');
+        const scraperProgressArea = document.getElementById('scraperProgressArea');
+        const scraperSource = document.getElementById('scraperSource');
+        const scraperPercent = document.getElementById('scraperPercent');
+        const scraperBar = document.getElementById('scraperBar');
+        let lastLeadsFound = 0;
+
+
+        function getAgentIcon(id) {
+            if (id === 'sales') return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>';
+            if (id === 'cs') return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192l-3.536 3.536M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-5 0a4 4 0 11-8 0 4 4 0 018 0z"></path>';
+            if (id === 'lead_gen') return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>';
+            if (id === 'marketing') return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z"></path>';
+            return '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>';
+        }
+
+        async function testAgent(agentId) {
+            const btn = document.querySelector(`[data-agent-id="${agentId}"] .test-btn`);
+            if (btn) btn.disabled = true;
+
+            try {
+                const chatUrl = '/api/agents/chat/';
+                const response = await fetch(chatUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        agent_type: agentId,
+                        message: "System Health Check"
+                    })
+                });
+                const data = await response.json();
+                console.log(`Test result for ${agentId}:`, data.reply);
+                fetchData();
+            } catch (error) {
+                console.error('Test failed:', error);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        function renderAgents(agents) {
+            agentGrid.innerHTML = '';
+            agents.forEach(agent => {
+                const colorClass = agent.color || 'blue';
+                const isProcessing = agent.status === 'Processing';
+                const statusColor = isProcessing ? 'amber' : (agent.status === 'Error' ? 'red' : colorClass);
+
+                const card = `
+                <div class="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 group" data-agent-id="${agent.id}">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 rounded-xl bg-${colorClass}-50 flex items-center justify-center text-${colorClass}-600 group-hover:scale-110 transition-transform">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                ${getAgentIcon(agent.id)}
+                            </svg>
+                        </div>
+                        <span class="px-2 py-1 rounded-lg bg-${statusColor}-50 text-${statusColor}-600 text-[10px] font-bold uppercase tracking-wider ${isProcessing ? 'animate-pulse' : ''}">${agent.status}</span>
+                    </div>
+                    <h3 class="font-bold text-gray-900">${agent.name}</h3>
+                    <p class="text-xs text-gray-500 mt-1 leading-relaxed h-12 overflow-hidden line-clamp-3">${agent.last_activity}</p>
+                    <div class="mt-4 pt-4 border-t border-gray-50 flex gap-2">
+                        <button onclick="window.testAgent('${agent.id}')" class="test-btn flex-1 py-2 bg-gray-50 hover:bg-${colorClass}-50 text-gray-400 hover:text-${colorClass}-600 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">
+                            Test
+                        </button>
+                        <button onclick="window.toggleAgentPause('${agent.id}')" class="pause-btn flex-1 py-2 ${agent.is_paused ? 'bg-green-50 text-green-600 hover:bg-green-100' : 'bg-red-50 text-red-600 hover:bg-red-100'} rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all">
+                            ${agent.is_paused ? 'Start' : 'Pause'}
+                        </button>
+                    </div>
+                </div>
+            `;
+                agentGrid.insertAdjacentHTML('beforeend', card);
+            });
+        }
+
+        window.testAgent = testAgent;
+
+        async function toggleAgentPause(agentId) {
+            const btn = document.querySelector(`[data-agent-id="${agentId}"] .pause-btn`);
+            if (btn) btn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/agents/toggle-pause/${agentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+                const data = await response.json();
+                console.log(`Agent ${agentId} status:`, data.message);
+                fetchData();
+            } catch (error) {
+                console.error('Toggle pause failed:', error);
+            } finally {
+                if (btn) btn.disabled = false;
+            }
+        }
+        window.toggleAgentPause = toggleAgentPause;
+
+        function renderInquiries(inquiries) {
+            if (!inquiries || inquiries.length === 0) {
+                loadingState.classList.add('hidden');
+                inquiriesTable.classList.add('hidden');
+                noInquiries.classList.remove('hidden');
+                return;
+            }
+
+            loadingState.classList.add('hidden');
+            noInquiries.classList.add('hidden');
+            inquiriesTable.classList.remove('hidden');
+
+            inquiriesBody.innerHTML = '';
+            inquiries.forEach(row => {
+                const name = row.Name || 'Anonymous';
+                const initial = name.charAt(0).toUpperCase();
+                const phone = row.Phone || '-';
+                const pref = row.Preference || '-';
+                const date = row.Date || '-';
+                const time = row.Time || '-';
+                const pax = row['Number of People'] || '-';
+                const venue = row.Venue || '-';
+
+                const tr = `
+                <tr class="hover:bg-gray-50/50 transition-colors group">
+                    <td class="px-6 py-4">
+                        <div class="flex items-center">
+                            <div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 text-xs font-bold mr-3">
+                                ${initial}
+                            </div>
+                            <div>
+                                <p class="text-sm font-bold text-gray-900">${name}</p>
+                                <p class="text-[10px] text-gray-500 font-medium">${phone}</p>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        <span class="px-3 py-1 bg-indigo-50 text-indigo-700 text-[10px] font-extrabold rounded-full uppercase tracking-wide">
+                            ${pref}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="text-xs text-gray-600 font-medium">
+                            <p>${date}</p>
+                            <p class="text-[10px] text-gray-400">${time}</p>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-center">
+                        <span class="text-sm font-bold text-gray-700">${pax}</span>
+                    </td>
+                    <td class="px-6 py-4 text-right">
+                        <span class="text-xs font-bold text-gray-600 truncate max-w-[150px] inline-block">${venue}</span>
+                    </td>
+                </tr>
+            `;
+                inquiriesBody.insertAdjacentHTML('beforeend', tr);
+            });
+        }
+
+        function renderActivity(agents_data) {
+            if (!activityLog) return;
+            activityLog.innerHTML = '';
+
+            // Show recent activities from agents
+            const activeRecent = agents_data.filter(a => a.last_activity !== 'Standing by...').slice(0, 5);
+
+            if (activeRecent.length === 0) {
+                activityLog.innerHTML = '<p class="text-[10px] text-gray-400 text-center py-4">No recent activity detected.</p>';
+                return;
+            }
+
+            activeRecent.forEach(agent => {
+                const item = `
+                <div class="flex gap-4 relative">
+                    <div class="w-8 h-8 rounded-full bg-${agent.color}-50 text-${agent.color}-600 flex items-center justify-center flex-shrink-0 z-10 border-2 border-white font-bold text-[10px] uppercase">${agent.name.charAt(0)}</div>
+                    <div>
+                        <p class="text-xs font-bold text-gray-900">${agent.name}</p>
+                        <p class="text-[10px] text-gray-500">${agent.last_activity}</p>
+                        <span class="text-[9px] text-gray-400 font-medium">${agent.updated_at || 'Just now'}</span>
+                    </div>
+                </div>
+            `;
+                activityLog.insertAdjacentHTML('beforeend', item);
+            });
+        }
+
+        function renderTranscripts(transcripts) {
+            transcriptsBody.innerHTML = '';
+
+            if (!transcripts || transcripts.length === 0) {
+                noTranscripts.classList.remove('hidden');
+                document.querySelector('#transcriptsBody').parentElement.classList.add('hidden');
+                return;
+            }
+
+            noTranscripts.classList.add('hidden');
+            document.querySelector('#transcriptsBody').parentElement.classList.remove('hidden');
+
+            transcripts.forEach(tx => {
+                const tr = `
+                <tr class="hover:bg-gray-50/50 transition-colors group border-b border-gray-100">
+                    <td class="px-6 py-4 align-top">
+                        <span class="px-3 py-1 bg-gray-100 text-gray-700 text-[10px] font-extrabold rounded-md uppercase tracking-wide">
+                            ${tx.agent_id}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 align-top">
+                        <p class="text-xs text-gray-700 whitespace-pre-wrap">${txtSafe(tx.user_message)}</p>
+                    </td>
+                    <td class="px-6 py-4 align-top border-l border-gray-100">
+                        <p class="text-xs text-indigo-700 whitespace-pre-wrap">${txtSafe(tx.ai_response)}</p>
+                    </td>
+                    <td class="px-6 py-4 align-top text-right w-32">
+                        <span class="text-[10px] font-bold text-gray-400 block">${tx.timestamp}</span>
+                    </td>
+                </tr>
+                `;
+                transcriptsBody.insertAdjacentHTML('beforeend', tr);
+            });
+        }
+
+        function renderLeads(leads, stats) {
+            leadsBody.innerHTML = '';
+
+            if (!leads || leads.length === 0) {
+                noLeads.classList.remove('hidden');
+                document.querySelector('#leadsBody').parentElement.classList.add('hidden');
+                leadStats.innerHTML = `<span class="text-gray-500">0 Leads Found</span>`;
+                return;
+            }
+
+            noLeads.classList.add('hidden');
+            document.querySelector('#leadsBody').parentElement.classList.remove('hidden');
+
+            leads.forEach(lead => {
+
+                let statusBadge = '';
+                if (lead.status === 'New') {
+                    statusBadge = `<span class="px-2.5 py-1 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-full border border-blue-100 uppercase tracking-widest flex items-center w-fit"><span class="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span>New</span>`;
+                } else if (lead.status === 'Contacted') {
+                    statusBadge = `<span class="px-2.5 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-full border border-green-100 uppercase tracking-widest flex items-center w-fit"><span class="w-1.5 h-1.5 rounded-full bg-green-500 mr-1.5"></span>Contacted</span>`;
+                } else {
+                    statusBadge = `<span class="px-2.5 py-1 bg-red-50 text-red-600 text-[10px] font-bold rounded-full border border-red-100 uppercase tracking-widest flex items-center w-fit"><span class="w-1.5 h-1.5 rounded-full bg-red-500 mr-1.5"></span>Failed</span>`;
+                }
+
+                const tr = `
+                <tr class="hover:bg-gray-50/50 transition-colors border-b border-gray-100">
+                    <td class="px-6 py-4 align-top">
+                        <p class="text-xs font-bold text-gray-900">${txtSafe(lead.company_name)}</p>
+                    </td>
+                    <td class="px-6 py-4 align-top">
+                        <p class="text-xs text-gray-600 font-medium">${txtSafe(lead.phone_number)}</p>
+                    </td>
+                    <td class="px-6 py-4 align-top">
+                        ${statusBadge}
+                    </td>
+                    <td class="px-6 py-4 align-top text-right">
+                        <span class="text-[10px] font-bold text-gray-400 block break-all overflow-hidden text-ellipsis whitespace-nowrap max-w-[200px] ml-auto" title="${txtSafe(lead.source)}">${txtSafe(lead.source)}</span>
+                        <span class="text-[9px] font-medium text-gray-400 block mt-1">${lead.date_scraped}</span>
+                    </td>
+                </tr>
+                `;
+                leadsBody.insertAdjacentHTML('beforeend', tr);
+            });
+
+            leadStats.innerHTML = `
+                <span class="text-blue-600 font-bold">${stats.New || 0} New</span>
+                <span class="text-gray-300">|</span>
+                <span class="text-green-600 font-bold">${stats.Contacted || 0} Contacted</span>
+                <span class="text-gray-300">|</span>
+                <span class="text-red-500 font-bold">${stats.Failed || 0} Failed</span>
+            `;
+        }
+
+        function renderTickets(tickets) {
+            ticketsBody.innerHTML = '';
+            if (!tickets || tickets.length === 0) {
+                noTickets.classList.remove('hidden');
+                ticketsTable.classList.add('hidden');
+                return;
+            }
+            noTickets.classList.add('hidden');
+            ticketsTable.classList.remove('hidden');
+
+            tickets.forEach(tk => {
+                const tr = `
+                <tr class="hover:bg-gray-50/50 transition-colors border-b border-gray-100">
+                    <td class="px-6 py-4 align-top"><p class="text-xs font-bold text-gray-900">${txtSafe(tk.phone)}</p></td>
+                    <td class="px-6 py-4 align-top">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-600 text-[9px] font-bold rounded uppercase">${txtSafe(tk.subject)}</span>
+                    </td>
+                    <td class="px-6 py-4 align-top"><p class="text-xs text-gray-600">${txtSafe(tk.message)}</p></td>
+                    <td class="px-6 py-4 align-top text-right text-[10px] font-bold text-gray-400">${tk.timestamp}</td>
+                </tr>`;
+                ticketsBody.insertAdjacentHTML('beforeend', tr);
+            });
+        }
+
+        async function resetWhatsApp() {
+            if (!confirm("Are you sure you want to log out of the current WhatsApp number? This will generate a new QR code.")) return;
+
+            waResetBtn.textContent = "Resetting...";
+            waResetBtn.disabled = true;
+
+            try {
+                const response = await fetch('/api/agents/whatsapp/reset/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+                });
+                const result = await response.json();
+                alert("Reset command sent. Please wait a moment for the new QR code.");
+                fetchData();
+            } catch (err) {
+                console.error("Reset failed:", err);
+                alert("Failed to reset WhatsApp gateway.");
+            } finally {
+                waResetBtn.textContent = "Change Number / Reset";
+                waResetBtn.disabled = false;
+            }
+        }
+
+        async function startWhatsAppBot() {
+            const btn = document.getElementById('waStartBtn');
+            if (btn) {
+                btn.disabled = true;
+                btn.textContent = "Launching Bot...";
+            }
+
+            try {
+                const response = await fetch('/api/agents/whatsapp/start/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert("Bot start command triggered! Please wait as it initializes.");
+                    setTimeout(fetchData, 1000); // Check again in a second
+                } else {
+                    alert(result.error || "Failed to start bot.");
+                }
+            } catch (err) {
+                console.error("Start failed:", err);
+                alert("An error occurred while connecting to the backend.");
+            } finally {
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = "Start Bot Session";
+                }
+            }
+        }
+        async function uploadOutreachMedia(input) {
+            if (!input.files || input.files.length === 0) return;
+            const file = input.files[0];
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const uploadBtn = input.nextElementSibling;
+            const originalText = uploadBtn ? uploadBtn.innerHTML : "Upload Media Assets";
+            if (uploadBtn) {
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = "Uploading...";
+            }
+
+            try {
+                const response = await fetch('/api/agents/whatsapp/upload/', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: formData
+                });
+                const result = await response.json();
+
+                if (response.ok) {
+                    alert("Media successfully uploaded to outreach assets!");
+                } else {
+                    alert(result.error || "Upload failed.");
+                }
+            } catch (err) {
+                console.error("Upload failed:", err);
+                alert("An error occurred during file upload.");
+            } finally {
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerHTML = originalText;
+                }
+                input.value = ''; // Reset input
+            }
+        }
+        async function fetchMedia() {
+            try {
+                const response = await fetch('/api/agents/whatsapp/media/list/');
+                const data = await response.json();
+                renderMedia(data.media);
+            } catch (err) {
+                console.error("Failed to fetch media:", err);
+            }
+        }
+
+        function renderMedia(media) {
+            const gallery = document.getElementById('mediaGallery');
+            const noMedia = document.getElementById('noMedia');
+
+            if (!media || media.length === 0) {
+                gallery.innerHTML = '';
+                noMedia.classList.remove('hidden');
+                return;
+            }
+
+            noMedia.classList.add('hidden');
+            gallery.innerHTML = media.map(filename => {
+                const isVideo = filename.toLowerCase().endsWith('.mp4');
+                const viewUrl = `/api/agents/whatsapp/media/view/${filename}/`;
+
+                return `
+                    <div class="group relative bg-gray-50 rounded-2xl overflow-hidden border border-gray-100 aspect-square">
+                        ${isVideo ? `
+                            <div class="w-full h-full flex items-center justify-center bg-gray-900">
+                                <svg class="w-8 h-8 text-white opacity-50" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.5 9a2.996 2.996 0 00-2.414-1.5L8 9v2l4.086 1.5A2.996 2.996 0 0014.5 11V9z"></path>
+                                </svg>
+                            </div>
+                        ` : `
+                            <img src="${viewUrl}" class="w-full h-full object-cover" alt="${filename}">
+                        `}
+                        <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2">
+                             <a href="${viewUrl}" target="_blank" class="p-2 bg-white/20 hover:bg-white/40 rounded-full text-white backdrop-blur-sm transition-all" title="View Full">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                </svg>
+                             </a>
+                             <button onclick="deleteMedia('${filename}')" class="p-2 bg-red-500/20 hover:bg-red-500/80 rounded-full text-white backdrop-blur-sm transition-all" title="Delete Asset">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                             </button>
+                        </div>
+                        <div class="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
+                            <p class="text-[8px] text-white font-medium truncate">${filename}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function deleteMedia(filename) {
+            if (!confirm(`Are you sure you want to delete ${filename}?`)) return;
+
+            try {
+                const response = await fetch(`/api/agents/whatsapp/media/delete/${filename}/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken')
+                    }
+                });
+                if (response.ok) {
+                    fetchMedia();
+                } else {
+                    alert("Failed to delete asset.");
+                }
+            } catch (err) {
+                console.error("Delete failed:", err);
+            }
+        }
+
+        window.deleteMedia = deleteMedia;
+        window.fetchMedia = fetchMedia;
+
+        window.startWhatsAppBot = startWhatsAppBot;
+        window.uploadOutreachMedia = uploadOutreachMedia;
+
+        function renderWhatsAppGateway(gateway) {
+            const statusBadge = document.getElementById('waStatusBadge');
+            const waContent = document.getElementById('waContent');
+
+            // Update Status Badge
+            statusBadge.className = 'px-3 py-1 text-[10px] font-black rounded-full uppercase tracking-widest ';
+            if (gateway.status === 'CONNECTED') {
+                statusBadge.classList.add('bg-green-100', 'text-green-700');
+                statusBadge.textContent = 'Connected';
+            } else if (gateway.status === 'QR_READY') {
+                statusBadge.classList.add('bg-yellow-100', 'text-yellow-700');
+                statusBadge.textContent = 'Scanning...';
+            } else {
+                statusBadge.classList.add('bg-gray-100', 'text-gray-500');
+                statusBadge.textContent = 'Disconnected';
+            }
+
+            // Update Content
+            if (gateway.status === 'CONNECTED') {
+                waContent.innerHTML = `
+                    <div class="p-6 bg-green-50 rounded-2xl border border-green-100 flex flex-col items-center text-center">
+                        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center text-green-600 shadow-sm mb-4">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-xs font-black text-green-800 uppercase tracking-widest mb-1">Outreach Active</p>
+                        <p class="text-[10px] text-green-600 font-bold mb-4 uppercase tracking-tighter">Sending from: ${gateway.phone_number}</p>
+                        
+                        <div class="w-full pt-4 border-t border-green-100 mt-2">
+                             <input type="file" id="mediaUploadInput" class="hidden" accept="image/*,video/mp4" onchange="uploadOutreachMedia(this)">
+                             <button onclick="document.getElementById('mediaUploadInput').click()" 
+                                class="w-full py-2 bg-white text-green-600 border border-green-200 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-green-100 transition-all flex items-center justify-center gap-2">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path>
+                                </svg>
+                                Upload Media Assets
+                             </button>
+                             <p class="text-[9px] text-green-500 mt-2">Upload images/videos to include in outreach messages</p>
+                        </div>
+                    </div>
+                `;
+            } else if (gateway.status === 'QR_READY' && gateway.qr_code) {
+                waContent.innerHTML = `
+                    <div class="flex flex-col items-center text-center">
+                        <p class="text-xs font-bold text-gray-600 mb-4 uppercase tracking-wider italic">Scan the code below to login</p>
+                        <div class="p-4 bg-white border-2 border-gray-100 rounded-3xl shadow-lg">
+                            <img src="${gateway.qr_code}" alt="WhatsApp QR Code" class="w-48 h-48">
+                        </div>
+                        <p class="text-[10px] text-gray-400 mt-4 leading-relaxed">Open WhatsApp > Linked Devices > Link a Device</p>
+                    </div>
+                `;
+            } else {
+                waContent.innerHTML = `
+                    <div class="py-10 text-center text-gray-400">
+                        <p class="font-bold">Gateway Disconnected</p>
+                        <p class="text-xs mb-6 text-gray-500">The bot process is not running.</p>
+                        <button id="waStartBtn" onclick="startWhatsAppBot()"
+                            class="inline-flex items-center justify-center px-6 py-3 bg-indigo-600 text-white rounded-2xl font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200">
+                            Start Bot Session
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // CSRF helper
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        waResetBtn.addEventListener('click', resetWhatsApp);
+        function txtSafe(str) {
+            if (!str) return '';
+            return str.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        async function fetchData(silent = false) {
+            // refreshBtn spinning if exists
+            if (!silent) refreshBtn.classList.add('animate-spin');
+
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+
+                if (data.maton_configured) {
+                    matonBadge.classList.remove('hidden');
+                }
+
+                // 5. Render Marketing Report
+                const marketingDate = document.getElementById('marketingDate');
+                const metaSpend = document.getElementById('marketingMetaSpend');
+                const googleSpend = document.getElementById('marketingGoogleSpend');
+                const analysisContainer = document.getElementById('marketingAnalysis');
+
+                if (data.marketing_report) {
+                    marketingDate.textContent = data.marketing_report.date;
+                    metaSpend.textContent = data.marketing_report.meta_spend;
+                    googleSpend.textContent = data.marketing_report.google_spend;
+
+                    // Convert line breaks to paragraphs
+                    const paragraphs = data.marketing_report.ai_analysis.split('\n\n').filter(p => p.trim() !== '');
+                    analysisContainer.innerHTML = paragraphs.map(p => `<p>${p}</p>`).join('');
+                } else {
+                    marketingDate.textContent = "No Report Yet";
+                    analysisContainer.innerHTML = "<p>The Marketing Agent has not generated a briefing for today yet. Ensure the daily scheduled task is running.</p>";
+                }
+
+
+                // Update specific agent cards if needed
+                renderAgents(data.agents);
+                renderInquiries(data.inquiries);
+                renderActivity(data.agents);
+                renderTickets(data.tickets);
+                renderTranscripts(data.transcripts);
+                fetchMedia();
+                if (data.leads) {
+                    renderLeads(data.leads, data.lead_stats);
+                }
+                if (data.whatsapp_gateway) {
+                    renderWhatsAppGateway(data.whatsapp_gateway);
+                }
+
+            } catch (error) {
+                console.error('Error fetching agent data:', error);
+                loadingState.innerHTML = `<p class="text-red-500 font-bold">Failed to load data: ${error.message}</p>`;
+            } finally {
+                loadingState.classList.add('hidden');
+                if (!silent) refreshBtn.classList.remove('animate-spin');
+
+                // DYNAMIC POLLING: Check status and set next timeout
+                const currentStatus = document.getElementById('waStatusBadge').textContent.trim().toUpperCase();
+                const pollInterval = (currentStatus === 'CONNECTED') ? 30000 : 5000;
+
+                if (window.fetchDataTimeout) clearTimeout(window.fetchDataTimeout);
+                window.fetchDataTimeout = setTimeout(fetchData, pollInterval);
+                console.log(`[*] Next poll in ${pollInterval / 1000}s (Status: ${currentStatus})`);
+            }
+        }
+
+        async function triggerScrape() {
+            lastLeadsFound = 0;
+            scrapeNowBtn.disabled = true;
+            scrapeNowBtn.innerHTML = `<span class="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span> Starting...`;
+
+            try {
+                const response = await fetch('/api/agents/scraper/trigger/', {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': getCookie('csrftoken') }
+                });
+                const data = await response.json();
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    console.log("Scraper started");
+                    checkScraperStatus();
+                }
+            } catch (err) {
+                console.error("Trigger scrape failed:", err);
+            } finally {
+                scrapeNowBtn.disabled = false;
+                scrapeNowBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> Scrape Now`;
+            }
+        }
+
+        async function checkScraperStatus() {
+            try {
+                const response = await fetch('/api/agents/scraper/progress/');
+                const data = await response.json();
+
+                if (data.is_running) {
+                    scraperProgressArea.classList.remove('hidden');
+                    scraperSource.textContent = data.current_source || "Searching...";
+                    scraperPercent.textContent = `${data.progress}%`;
+                    scraperBar.style.width = `${data.progress}%`;
+
+                    if (data.leads_found > lastLeadsFound) {
+                        lastLeadsFound = data.leads_found;
+                        fetchData(true);
+                    }
+
+                    // Poll faster when running (every 2 seconds)
+                    setTimeout(checkScraperStatus, 2000);
+                } else {
+                    scraperProgressArea.classList.add('hidden');
+                    // Refresh leads list if it just finished
+                    if (scraperBar.style.width !== '0%' && scraperBar.style.width !== '') {
+                        fetchData();
+                        scraperBar.style.width = '0%';
+                    }
+                }
+            } catch (err) {
+                console.error("Check status failed:", err);
+            }
+        }
+
+
+        // --- Agent Configuration Logic ---
+        async function loadAgentConfig() {
+            const agentId = document.getElementById('configAgentSelector').value;
+            const roleEl = document.getElementById('configRole');
+            const knowledgeEl = document.getElementById('configKnowledge');
+            const saveBtn = document.getElementById('saveConfigBtn');
+
+            roleEl.value = "Loading...";
+            knowledgeEl.value = "Loading...";
+            saveBtn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/agents/config/${agentId}/`);
+                const data = await response.json();
+                roleEl.value = data.role || "";
+                knowledgeEl.value = data.knowledge || "";
+            } catch (err) {
+                console.error("Failed to load config:", err);
+            } finally {
+                saveBtn.disabled = false;
+            }
+        }
+        window.loadAgentConfig = loadAgentConfig;
+
+        async function saveAgentConfig() {
+            const agentId = document.getElementById('configAgentSelector').value;
+            const role = document.getElementById('configRole').value;
+            const knowledge = document.getElementById('configKnowledge').value;
+            const saveBtn = document.getElementById('saveConfigBtn');
+
+            const originalHtml = saveBtn.innerHTML;
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = `<span class="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> Syncing Memory...`;
+
+            try {
+                const response = await fetch(`/api/agents/config/${agentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ role, knowledge })
+                });
+                const result = await response.json();
+                alert(result.message || "Changes applied successfully!");
+            } catch (err) {
+                console.error("Save failed:", err);
+                alert("Failed to update AI memory.");
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalHtml;
+            }
+        }
+        window.saveAgentConfig = saveAgentConfig;
+
+        // --- Sandbox Logic ---
+        const sandboxInput = document.getElementById('sandboxInput');
+        const sandboxSendBtn = document.getElementById('sandboxSendBtn');
+        const sandboxChatArea = document.getElementById('sandboxChatArea');
+
+        sandboxSendBtn.addEventListener('click', runSandboxTest);
+        sandboxInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') runSandboxTest(); });
+
+        async function runSandboxTest() {
+            const message = sandboxInput.value.trim();
+            const agentId = document.getElementById('sandboxAgentSelector').value;
+            if (!message) return;
+
+            // Add user message to UI
+            sandboxChatArea.insertAdjacentHTML('beforeend', `
+                <div class="flex justify-end">
+                    <div class="bg-indigo-600 text-white rounded-2xl rounded-tr-none px-4 py-2 max-w-[85%]">
+                        <p class="text-xs">${txtSafe(message)}</p>
+                    </div>
+                </div>
+            `);
+            sandboxChatArea.scrollTop = sandboxChatArea.scrollHeight;
+            sandboxInput.value = '';
+
+            // Loading indicator
+            const loadingId = 'loading_' + Date.now();
+            sandboxChatArea.insertAdjacentHTML('beforeend', `
+                <div id="${loadingId}" class="flex justify-start">
+                    <div class="bg-white/10 text-white/60 rounded-2xl rounded-tl-none px-4 py-2 border border-white/10">
+                        <div class="flex gap-1 py-1">
+                            <span class="w-1 h-1 bg-white/40 rounded-full animate-bounce"></span>
+                            <span class="w-1 h-1 bg-white/40 rounded-full animate-bounce" style="animation-delay: 0.1s"></span>
+                            <span class="w-1 h-1 bg-white/40 rounded-full animate-bounce" style="animation-delay: 0.2s"></span>
+                        </div>
+                    </div>
+                </div>
+            `);
+            sandboxChatArea.scrollTop = sandboxChatArea.scrollHeight;
+
+            try {
+                const response = await fetch('/api/agents/chat/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({
+                        agent_type: agentId,
+                        message: message,
+                        phone: 'SANDBOX_USER'
+                    })
+                });
+                const data = await response.json();
+                document.getElementById(loadingId).remove();
+
+                sandboxChatArea.insertAdjacentHTML('beforeend', `
+                    <div class="flex justify-start">
+                        <div class="bg-white/10 text-white rounded-2xl rounded-tl-none px-4 py-2 border border-white/20 shadow-lg">
+                            <p class="text-xs leading-relaxed">${txtSafe(data.reply)}</p>
+                        </div>
+                    </div>
+                `);
+                sandboxChatArea.scrollTop = sandboxChatArea.scrollHeight;
+            } catch (err) {
+                document.getElementById(loadingId).innerHTML = `<div class="bg-red-900/40 text-red-200 rounded-2xl rounded-tl-none px-4 py-2 border border-red-900/40 text-xs">Sandbox test failed: ${err.message}</div>`;
+            }
+        }
+
+        // --- Settings Modal Logic ---
+        function openGlobalSettings() {
+            // Create modal if not exists
+            if (!document.getElementById('settingsModal')) {
+                const modalHtml = `
+                <div id="settingsModal" class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm">
+                    <div class="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden scale-in-center">
+                        <div class="p-6 border-b border-gray-50 flex items-center justify-between">
+                            <h4 class="font-bold text-gray-900 uppercase tracking-widest text-xs">Global AI Settings</h4>
+                            <button onclick="closeSettingsModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+                        <div class="p-8 space-y-6">
+                            <div>
+                                <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">OpenAI API Key</label>
+                                <div class="relative">
+                                    <input type="password" id="openaiKeyInput" class="w-full bg-gray-50 border border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="sk-...">
+                                    <button onclick="toggleVisibility('openaiKeyInput')" class="absolute right-3 top-3.5 text-gray-300 hover:text-gray-500">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                                    </button>
+                                </div>
+                                <p class="text-[9px] text-gray-400 mt-2">Changes apply immediately to all agents.</p>
+                            </div>
+                            <button onclick="saveGlobalSettings()" id="saveSettingsBtn" class="w-full py-4 bg-gray-900 text-white rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-black transition-all shadow-xl shadow-gray-200">
+                                Update API Key
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                `;
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+            }
+
+            // Populate value
+            fetch('/api/agents/settings/')
+                .then(r => r.json())
+                .then(data => {
+                    const keyInput = document.getElementById('openaiKeyInput');
+                    if (data.settings && data.settings.OPENAI_API_KEY) {
+                        keyInput.value = data.settings.OPENAI_API_KEY;
+                    }
+                });
+
+            document.getElementById('settingsModal').classList.remove('hidden');
+        }
+        window.openGlobalSettings = openGlobalSettings;
+
+        function closeSettingsModal() {
+            document.getElementById('settingsModal').classList.add('hidden');
+        }
+        window.closeSettingsModal = closeSettingsModal;
+
+        function toggleVisibility(id) {
+            const input = document.getElementById(id);
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+        window.toggleVisibility = toggleVisibility;
+
+        async function saveGlobalSettings() {
+            const key = document.getElementById('openaiKeyInput').value;
+            const btn = document.getElementById('saveSettingsBtn');
+            btn.disabled = true;
+            btn.textContent = "Updating...";
+
+            try {
+                await fetch('/api/agents/settings/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ key: 'OPENAI_API_KEY', value: key })
+                });
+                alert("API Key updated successfully.");
+                closeSettingsModal();
+            } catch (err) {
+                alert("Failed to update settings.");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "Update API Key";
+            }
+        }
+        window.saveGlobalSettings = saveGlobalSettings;
+
+        loadAgentConfig();
+        // --- End Agent Configuration Logic ---
+
+        scrapeNowBtn.addEventListener('click', triggerScrape);
+        refreshBtn.addEventListener('click', fetchData);
+        fetchData();
+        checkScraperStatus();
+
+    });
+</script>
+
+<style>
+    .max-w-latest {
+        max-width: 1400px;
+    }
+
+    /* Animated spinner */
+    @keyframes spin {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .animate-spin {
+        animation: spin 1s linear infinite;
+    }
+</style>
+{% endblock %}

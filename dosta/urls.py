@@ -18,10 +18,14 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
+from django.contrib.auth import views as auth_views
+from django.views.generic import RedirectView
 
 
 
 urlpatterns = [
+    path('', RedirectView.as_view(url='kitchen/')),
+    path('admin/login/', auth_views.LoginView.as_view(template_name='admin/login.html'), name='admin_login'),
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
     path('api/catering/', include('catering.urls')),
@@ -30,6 +34,8 @@ urlpatterns = [
     path('api/auth/', include('dj_rest_auth.urls')),
     path('api/auth/registration/', include('dj_rest_auth.registration.urls')),
     path('api/auth/social/', include('allauth.socialaccount.urls')),
+    path('api/chatbot/', include('chatbot.urls')),
+    path('api/agents/', include('ai_agents.urls')),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

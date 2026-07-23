@@ -15,6 +15,12 @@ class DayOfWeek(models.TextChoices):
     SUNDAY = 'Sunday', 'Sunday'
 
 
+class MenuType(models.TextChoices):
+    STANDARD = 'STANDARD', 'Standard'
+    WEEKLY = 'WEEKLY', 'Weekly'
+    MONTHLY = 'MONTHLY', 'Monthly'
+
+
 class PlanType(models.TextChoices):
     ORDER_NOW = "ORDER_NOW", "Order now"
     START_PLAN = "START_PLAN", "Start a plan"
@@ -40,6 +46,7 @@ class OrderStatus(models.TextChoices):
     READY = "READY", "Ready"
     COMPLETED = "COMPLETED", "Completed"
     CANCELLED = "CANCELLED", "Cancelled"
+    PENDING_FULFILLMENT = "PENDING_FULFILLMENT", "Pending Fulfillment"
 
 
 # -----------------------------------------------------------
@@ -47,6 +54,7 @@ class OrderStatus(models.TextChoices):
 # -----------------------------------------------------------
 
 class Menu(models.Model):
+    menu_type = models.CharField(max_length=20, choices=MenuType.choices, default=MenuType.STANDARD)
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices)
     week_number = models.PositiveSmallIntegerField(default=1, help_text="Week number (1-4) for monthly rotation")
     date = models.DateField(null=True, blank=True)
@@ -55,8 +63,62 @@ class Menu(models.Model):
         return f"Week {self.week_number} - {self.day_of_week}"
 
 
+class Category(models.Model):
+    """
+    Grouping for vending MasterItems (e.g. Main Courses, Sweets, Salads,
+    Sandwiches). An item may belong to zero, one, or many categories.
+    Admins can create additional categories at any time.
+    """
+    name = models.CharField(max_length=100, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Category"
+        verbose_name_plural = "Categories"
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class MasterItem(models.Model):
+    """
+    Unique representation of an item, independent of menu scheduling.
+    Used to normalize data so updates (name, macros, image) propagate.
+    """
+    name = models.CharField(max_length=255, unique=True, db_index=True)
+    categories = models.ManyToManyField(
+        Category,
+        related_name="items",
+        blank=True,
+        help_text="One or more categories this item belongs to.",
+    )
+    description = models.TextField(blank=True, null=True)
+    ingredients = models.TextField(blank=True, null=True)
+    calories = models.PositiveIntegerField(default=0, help_text="kcal")
+    protein = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
+    carbs = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
+    fats = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
+    heating = models.BooleanField(default=False)
+    maximum_heating = models.PositiveIntegerField(default=0, help_text="Maximum heating duration in seconds (0 = no limit)")
+    default_price = models.DecimalField(max_digits=10, decimal_places=2, default=0, help_text="Price from sheet or admin edit. Used when creating MenuItem schedule links.")
+    image_source_url = models.URLField(max_length=500, blank=True, null=True)
+    image2_source_url = models.URLField(max_length=500, blank=True, null=True)
+    image = models.ImageField(upload_to='menu_images/', blank=True, null=True)
+    image2 = models.ImageField(upload_to='menu_images/', blank=True, null=True, help_text="Detail/sidebar image. Shown when user opens item detail panel.")
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.name
+
+
 class MenuItem(models.Model):
     menu = models.ForeignKey(Menu, related_name='items', on_delete=models.CASCADE)
+    master_item = models.ForeignKey(MasterItem, related_name='menu_items', on_delete=models.PROTECT, null=True, blank=True)
+    
+    # Denormalized fields (kept for backward compatibility with existing views/scripts)
     name = models.CharField(max_length=255)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     description = models.TextField()
@@ -67,6 +129,8 @@ class MenuItem(models.Model):
     fats = models.DecimalField(max_digits=6, decimal_places=2, default=0, help_text="grams")
     offer = models.CharField(max_length=255, blank=True, null=True)
     terms_and_conditions = models.TextField(blank=True, null=True)
+    heating = models.BooleanField(default=False)
+    image_source_url = models.URLField(max_length=500, blank=True, null=True)
     image = models.ImageField(upload_to='menu_images/')
 
     def __str__(self):
@@ -145,13 +209,40 @@ class Order(models.Model):
     pickup_type = models.CharField(max_length=20, choices=PickupType.choices, null=True, blank=True)
     pickup_date = models.DateField(null=True, blank=True)
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="orders", on_delete=models.SET_NULL, null=True, blank=True)
-    status = models.CharField(max_length=20, choices=OrderStatus.choices, default=OrderStatus.DRAFT)
+    status = models.CharField(max_length=30, choices=OrderStatus.choices, default=OrderStatus.DRAFT)
     current_step = models.PositiveSmallIntegerField(default=1)
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    pickup_code = models.CharField(max_length=50, blank=True, null=True)
+    qr_code_url = models.URLField(max_length=500, blank=True, null=True)
+    qr_used = models.BooleanField(default=False)
+    fulfillment_attempts = models.PositiveSmallIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return f"Order #{self.id} - {self.user}"
+
+    def save(self, *args, **kwargs):
+        # Auto-generate QR code if pickup_code is set
+        qr_updated = False
+        if self.pickup_code and not self.qr_code_url:
+            self.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={self.pickup_code}"
+            qr_updated = True
+        
+        # Fallback for Plan orders (Weekly/Monthly) that are confirmed but don't have a specific pickup code yet
+        if not self.qr_code_url and self.status in [OrderStatus.CONFIRMED, OrderStatus.READY, OrderStatus.COMPLETED]:
+             data = self.pickup_code if self.pickup_code else f"DOSTA-ORDER-{self.id}"
+             self.qr_code_url = f"https://api.qrserver.com/v1/create-qr-code/?size=150x150&data={data}"
+             qr_updated = True
+
+        if qr_updated and "update_fields" in kwargs and kwargs["update_fields"] is not None:
+            fields = list(kwargs["update_fields"])
+            if "qr_code_url" not in fields:
+                fields.append("qr_code_url")
+            kwargs["update_fields"] = fields
+             
+        super().save(*args, **kwargs)
 
     @property
     def is_weekly(self):
@@ -166,30 +257,151 @@ class Order(models.Model):
         return self.plan_type in [PlanType.ORDER_NOW, PlanType.SMART_GRAB]
 
     def update_total(self):
-        total = sum(item.menu_item.price * item.quantity for item in self.items.select_related('menu_item'))
-        self.total_amount = total
+        from decimal import Decimal
+        total = Decimal('0.00')
+        for item in self.items.all():
+            # Prioritize snapshot price (frozen history)
+            price = item.item_price_snapshot
+
+            # Fallback to current price if snapshot not yet taken (active order)
+            if price is None:
+                if item.menu_item:
+                    if item.menu_item.master_item:
+                        price = resolve_master_price(item.menu_item.master_item, self.location_id)
+                    else:
+                        price = item.menu_item.price
+                elif item.master_item:
+                    price = resolve_master_price(item.master_item, self.location_id)
+                elif item.sweets_item:
+                    price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
+
+            if price is not None:
+                total += Decimal(str(price)) * item.quantity
+
+        self.total_amount = total + Decimal(str(self.delivery_charge))
         self.save(update_fields=["total_amount"])
+
+    @property
+    def searchable_items(self):
+        names = []
+        for item in self.items.all():
+            name = item.item_name_snapshot
+            if not name:
+                if item.menu_item: name = item.menu_item.name
+                elif item.master_item: name = item.master_item.name
+                elif getattr(item, 'sweets_item', None): name = item.sweets_item.name
+            if name: names.append(name.lower())
+        return "|".join(names)
+
+    @property
+    def kitchen_items(self):
+        """Returns items that require kitchen preparation."""
+        return self.items.all()
+
+    @property
+    def has_meals(self):
+        return self.kitchen_items.filter(
+            models.Q(menu_item__isnull=False) | models.Q(item_type_snapshot='MEAL')
+        ).exists()
+
+    @property
+    def has_sweets(self):
+        return self.kitchen_items.filter(
+            models.Q(sweets_item__isnull=False) | models.Q(item_type_snapshot='SWEET')
+        ).exists()
 
 
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, related_name="items", on_delete=models.CASCADE)
-    menu_item = models.ForeignKey(MenuItem, related_name="order_items", on_delete=models.PROTECT)
+    menu_item = models.ForeignKey(MenuItem, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
+    master_item = models.ForeignKey(MasterItem, related_name="order_items", on_delete=models.PROTECT, null=True, blank=True)
+    sweets_item = models.ForeignKey('catering.SweetsItem', related_name="order_items", on_delete=models.PROTECT, null=True, blank=True)
+    sweets_variation = models.ForeignKey('catering.SweetsItemVariation', related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
+    
+    # Snapshots (to preserve history after wipes)
+    item_name_snapshot = models.CharField(max_length=255, blank=True, null=True)
+    item_type_snapshot = models.CharField(max_length=20, choices=[('MEAL', 'Meal'), ('SWEET', 'Sweet')], null=True, blank=True)
+    item_price_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    variation_snapshot = models.CharField(max_length=100, blank=True, null=True) # For weight/size
+    
+    # Nutrition Snapshots
+    calories_snapshot = models.JSONField(null=True, blank=True) # For complex macro strings or values
+    protein_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    carbs_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    fats_snapshot = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
+    heating_requested = models.BooleanField(default=False, null=True, blank=True)
+    
+    # Plan Context (Moved to Item level for mixed carts)
+    plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)
+    plan_subtype = models.CharField(max_length=20, choices=PlanSubType.choices, default=PlanSubType.NONE)
+    pickup_type = models.CharField(max_length=20, choices=PickupType.choices, null=True, blank=True)
+    pickup_date = models.DateField(null=True, blank=True)
+    pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="order_items", on_delete=models.SET_NULL, null=True, blank=True)
+    
+    status = models.CharField(max_length=30, choices=OrderStatus.choices, default=OrderStatus.PENDING, null=True, blank=True)
+    pickup_code = models.CharField(max_length=50, blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         indexes = [models.Index(fields=["order", "week_number", "day_of_week"])]
 
+    def save(self, *args, **kwargs):
+        if not self.item_name_snapshot:
+            if self.menu_item:
+                self.item_name_snapshot = self.menu_item.name
+                if self.menu_item.master_item:
+                    loc_id = self.order.location_id if self.order_id else None
+                    self.item_price_snapshot = resolve_master_price(self.menu_item.master_item, loc_id)
+                else:
+                    self.item_price_snapshot = self.menu_item.price
+                self.item_type_snapshot = 'MEAL'
+                # Capture nutrition from master
+                if self.menu_item.master_item:
+                    mi = self.menu_item.master_item
+                    self.calories_snapshot = mi.calories
+                    self.protein_snapshot = mi.protein
+                    self.carbs_snapshot = mi.carbs
+                    self.fats_snapshot = mi.fats
+            elif self.master_item:
+                self.item_name_snapshot = self.master_item.name
+                loc_id = self.order.location_id if self.order_id else None
+                self.item_price_snapshot = resolve_master_price(self.master_item, loc_id)
+                self.item_type_snapshot = 'MEAL'
+                self.calories_snapshot = self.master_item.calories
+                self.protein_snapshot = self.master_item.protein
+                self.carbs_snapshot = self.master_item.carbs
+                self.fats_snapshot = self.master_item.fats
+            elif self.sweets_item:
+                self.item_name_snapshot = self.sweets_item.name
+                self.item_price_snapshot = self.sweets_variation.price if self.sweets_variation else self.sweets_item.price
+                self.item_type_snapshot = 'SWEET'
+                if self.sweets_variation:
+                    self.variation_snapshot = self.sweets_variation.weight
+                elif hasattr(self.sweets_item, 'weight'): # fallback
+                    self.variation_snapshot = getattr(self.sweets_item, 'weight', '')
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        base = f"{self.menu_item.name} x {self.quantity}"
+        name = self.item_name_snapshot or (self.menu_item.name if self.menu_item else (self.master_item.name if self.master_item else "Unknown Item"))
+        base = f"{name} x {self.quantity}"
         if self.week_number:
             return f"{base} (Week {self.week_number}, {self.day_of_week})"
         if self.day_of_week:
             return f"{base} ({self.day_of_week})"
         return base
+
+    @property
+    def week_day_display(self):
+        """Helper to display 'Week X - Day' or just 'Day'."""
+        if self.week_number and self.day_of_week:
+            return f"Week {self.week_number} - {self.day_of_week}"
+        return self.day_of_week or ""
 
 
 # -----------------------------------------------------------
@@ -207,7 +419,9 @@ class Cart(models.Model):
     pickup_date = models.DateField(null=True, blank=True)
     pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="carts", on_delete=models.SET_NULL, null=True, blank=True)
 
-    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    city = models.CharField(max_length=100, blank=True, null=True)
+    delivery_charge = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     current_step = models.PositiveSmallIntegerField(default=1)
     is_checked_out = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -221,32 +435,76 @@ class Cart(models.Model):
         return sum(item.quantity for item in self.items.all())
 
     def update_total(self):
-        total = sum(item.menu_item.price * item.quantity for item in self.items.select_related('menu_item'))
-        self.total_price = total
+        from decimal import Decimal
+        total = Decimal('0.00')
+        for item in self.items.all():
+            if item.menu_item:
+                if item.menu_item.master_item:
+                    price = resolve_master_price(item.menu_item.master_item, self.location_id)
+                    total += Decimal(str(price)) * item.quantity
+                else:
+                    total += Decimal(str(item.menu_item.price)) * item.quantity
+            elif item.master_item:
+                price = resolve_master_price(item.master_item, self.location_id)
+                total += Decimal(str(price)) * item.quantity
+            elif item.sweets_item:
+                price = item.sweets_variation.price if item.sweets_variation else item.sweets_item.price
+                if price:
+                    total += Decimal(str(price)) * item.quantity
+        self.total_price = total + Decimal(str(self.delivery_charge))
         self.save(update_fields=["total_price"])
 
 
 class CartItem(models.Model):
     cart = models.ForeignKey(Cart, related_name="items", on_delete=models.CASCADE)
-    menu_item = models.ForeignKey(MenuItem, related_name="cart_items", on_delete=models.PROTECT)
+    menu_item = models.ForeignKey(MenuItem, related_name="cart_items", on_delete=models.CASCADE, null=True, blank=True)
+    master_item = models.ForeignKey(MasterItem, related_name="cart_items", on_delete=models.PROTECT, null=True, blank=True)
+    sweets_item = models.ForeignKey('catering.SweetsItem', related_name="cart_items", on_delete=models.CASCADE, null=True, blank=True)
+    sweets_variation = models.ForeignKey('catering.SweetsItemVariation', related_name="cart_items", on_delete=models.SET_NULL, null=True, blank=True)
     quantity = models.PositiveIntegerField(default=1)
-    
+
     # Item context (for weekly/monthly plans)
     day_of_week = models.CharField(max_length=10, choices=DayOfWeek.choices, null=True, blank=True)
     week_number = models.PositiveSmallIntegerField(null=True, blank=True)
     vending_good_uuid = models.CharField(max_length=255, null=True, blank=True) # NEW: Vending Good UUID
-    
+    heating_requested = models.BooleanField(default=False, null=True, blank=True)
+
+    # Plan Context (Moved to Item level for mixed carts)
+    plan_type = models.CharField(max_length=20, choices=PlanType.choices, default=PlanType.ORDER_NOW)
+    plan_subtype = models.CharField(max_length=20, choices=PlanSubType.choices, default=PlanSubType.NONE)
+    pickup_type = models.CharField(max_length=20, choices=PickupType.choices, null=True, blank=True)
+    pickup_date = models.DateField(null=True, blank=True)
+    pickup_slot = models.ForeignKey(PickupTimeSlot, related_name="cart_items_context", on_delete=models.SET_NULL, null=True, blank=True)
+
     added_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = ("cart", "menu_item")
+        unique_together = ("cart", "menu_item", "master_item", "sweets_item", "sweets_variation", "plan_type", "plan_subtype", "day_of_week", "week_number")
 
     def __str__(self):
+        if self.sweets_item:
+            name = self.sweets_item.name
+            if self.sweets_variation:
+                name = f"{name} ({self.sweets_variation.weight})"
+            return f"{name} x {self.quantity}"
+        if self.master_item:
+            return f"{self.master_item.name} x {self.quantity}"
         return f"{self.menu_item.name} x {self.quantity}"
 
     @property
     def subtotal(self):
-        return self.menu_item.price * self.quantity
+        if self.menu_item:
+            if self.menu_item.master_item:
+                loc_id = self.cart.location_id if self.cart_id else None
+                return resolve_master_price(self.menu_item.master_item, loc_id) * self.quantity
+            return self.menu_item.price * self.quantity
+        if self.master_item:
+            loc_id = self.cart.location_id if self.cart_id else None
+            return resolve_master_price(self.master_item, loc_id) * self.quantity
+        if self.sweets_item:
+            price = self.sweets_variation.price if self.sweets_variation else self.sweets_item.price
+            return price * self.quantity
+        return 0
 
 
 # -----------------------------------------------------------
@@ -299,3 +557,143 @@ class FavoriteMenuItem(models.Model):
 
     def __str__(self):
         return f"{self.user} ❤️ {self.menu_item.name}"
+
+# -----------------------------------------------------------
+# VENDING MACHINE STOCK
+# -----------------------------------------------------------
+
+class VendingMachineStock(models.Model):
+    vending_good_uuid = models.CharField(max_length=255, unique=True)
+    goods_name = models.CharField(max_length=255)
+    quantity = models.PositiveIntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.goods_name} ({self.quantity})"
+
+
+# -----------------------------------------------------------
+# LOCATION-BASED ITEM PRICING
+# -----------------------------------------------------------
+
+class LocationItemPrice(models.Model):
+    """
+    Per-machine/location override for a MasterItem's price.
+    When present, takes precedence over MasterItem.default_price for any
+    order / cart / menu request scoped to that location.
+    """
+    location = models.ForeignKey(VendingLocation, related_name="item_prices", on_delete=models.CASCADE)
+    master_item = models.ForeignKey(MasterItem, related_name="location_prices", on_delete=models.CASCADE)
+    price = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ("location", "master_item")
+        indexes = [models.Index(fields=["location", "master_item"])]
+
+    def __str__(self):
+        return f"{self.location.name} → {self.master_item.name}: {self.price}"
+
+
+def resolve_master_price(master_item, location_id=None):
+    """
+    Return the effective price for a MasterItem at a given location.
+    Falls back to master_item.default_price when no override exists.
+    """
+    if master_item is None:
+        return None
+    if location_id:
+        try:
+            override = LocationItemPrice.objects.get(
+                location_id=location_id, master_item_id=master_item.id
+            )
+            return override.price
+        except LocationItemPrice.DoesNotExist:
+            pass
+    return master_item.default_price
+
+# -----------------------------------------------------------
+# SIGNALS FOR DATA SYNC
+# -----------------------------------------------------------
+
+from django.db.models.signals import post_save, pre_save
+from django.dispatch import receiver
+
+@receiver(post_save, sender=MasterItem)
+def propagate_master_changes(sender, instance, created, **kwargs):
+    """
+    When MasterItem is updated (e.g. fixed typo in name), 
+    update all linked MenuItem instances to match.
+    """
+    if created:
+        return # New item, no children to update yet
+        
+    instance.menu_items.update(
+        name=instance.name,
+        price=instance.default_price,
+        description=instance.description,
+        ingredients=instance.ingredients,
+        calories=instance.calories,
+        protein=instance.protein,
+        carbs=instance.carbs,
+        fats=instance.fats,
+        heating=instance.heating,
+    )
+
+    # Handle nullable fields cleaner
+    if instance.image:
+        instance.menu_items.update(image=instance.image)
+    if instance.image_source_url:
+        instance.menu_items.update(image_source_url=instance.image_source_url)
+
+
+@receiver(pre_save, sender=MenuItem)
+def link_or_create_master_item(sender, instance, **kwargs):
+    """
+    When a MenuItem is about to be saved:
+    1. If it has no MasterItem, try to find one by name.
+    2. If found, link it and sync data FROM Master TO Item (Master is source of truth).
+    3. If not found, create a new MasterItem using this Item's data.
+    4. If it has a MasterItem, ensure the Item's data matches the Master (prevent divergence).
+    """
+    if not instance.name:
+        return
+
+    # Normalize name for lookup
+    clean_name = instance.name.strip()
+    
+    if not instance.master_item:
+        # Try to find existing
+        master = MasterItem.objects.filter(name__iexact=clean_name).first()
+        if master:
+            instance.master_item = master
+            # Sync to match Master
+            instance.name = master.name
+            instance.description = master.description or instance.description
+            instance.ingredients = master.ingredients or instance.ingredients
+            instance.calories = master.calories if master.calories > 0 else instance.calories
+            # ... sync other fields if needed, but 'name' is most critical
+        else:
+            # Create new Master (Auto-creation strategy)
+            # Only if this seems to be a valid item (has price etc)
+            master = MasterItem.objects.create(
+                name=clean_name,
+                description=instance.description,
+                ingredients=instance.ingredients,
+                calories=instance.calories,
+                protein=instance.protein,
+                carbs=instance.carbs,
+                fats=instance.fats,
+                heating=instance.heating,
+                image=instance.image,
+                image_source_url=instance.image_source_url
+            )
+            instance.master_item = master
+    
+    # If already linked (or just linked above), ensure compliance
+    # This enforces "Master Name rules all"
+    if instance.master_item:
+        if instance.name != instance.master_item.name:
+             instance.name = instance.master_item.name
+

@@ -12,10 +12,18 @@ from .views import (
     OrderProgressView,
     CartView,
     UserOrdersView,
+    UpdatePickupCodeView,
+    RetryFulfillmentView,
+    MarkQRUsedView,
+    RecoverOrderView,
     data_upload_view,
     ExternalCheckUserView,
     ExternalMachineGoodsView,
-    ExternalProductionPickView
+    ExternalProductionPickView,
+    ExternalUpdateCommodityView,
+    KitchenOrderItemCompleteView,
+    PaymentCallbackView,
+    InitiatePaymentView
 )
 
 # -----------------------------------------------------------
@@ -42,12 +50,21 @@ urlpatterns = [
     path('plan-options/', PlanOptionsView.as_view(), name='plan-options'),
     path('saved-plans/', SavedPlansView.as_view(), name='saved-plans'),
     path('order/confirm/', ConfirmOrderView.as_view(), name='order-confirm'),
+    path('order/update-pickup-code/', UpdatePickupCodeView.as_view(), name='order-update-pickup-code'),
+    path('order/<int:order_id>/retry-fulfillment/', RetryFulfillmentView.as_view(), name='retry-fulfillment'),
+    path('order/<int:order_id>/mark-qr-used/', MarkQRUsedView.as_view(), name='mark-qr-used'),
+    path('order/<int:order_id>/recover/', RecoverOrderView.as_view(), name='recover-order'),
     path('order/progress/', OrderProgressView.as_view(), name='order-progress'),
     path('orders/', UserOrdersView.as_view(), name='user-orders'),
     path('cart/', CartView.as_view(), name='cart'),
+    path('kitchen/complete-item/', KitchenOrderItemCompleteView.as_view(), name='kitchen-complete-item'),
 
     # External Vending API Proxies
     path('external/check-user/', ExternalCheckUserView.as_view(), name='external-check-user'),
     path('external/machine-goods/', ExternalMachineGoodsView.as_view(), name='external-machine-goods'),
     path('external/production-pick/', ExternalProductionPickView.as_view(), name='external-production-pick'),
+    path('external/update-commodity/', ExternalUpdateCommodityView.as_view(), name='external-update-commodity'),
+    
+    path('payment/callback/', PaymentCallbackView.as_view(), name='payment-callback'),
+    path('payment/initiate/', InitiatePaymentView.as_view(), name='payment-initiate'),
 ]

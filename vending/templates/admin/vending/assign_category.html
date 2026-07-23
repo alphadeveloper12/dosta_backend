@@ -1,0 +1,31 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block content %}
+<p>{% trans "You are assigning the following items to a category:" %}</p>
+
+<ul>
+  {% for item in items %}
+    <li>{{ item.name }}</li>
+  {% endfor %}
+</ul>
+
+<form action="" method="post">
+  {% csrf_token %}
+
+  {% for item in items %}
+    <input type="hidden" name="{{ action_checkbox_name }}" value="{{ item.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="assign_to_category">
+
+  <p>
+    <label for="id_category">{% trans "Category:" %}</label>
+    {{ form.category }}
+  </p>
+
+  <div class="submit-row">
+    <input type="submit" name="apply" value="{% trans 'Assign category' %}" class="default">
+    <a href="{{ request.path }}" class="button cancel-link">{% trans "Cancel" %}</a>
+  </div>
+</form>
+{% endblock %}

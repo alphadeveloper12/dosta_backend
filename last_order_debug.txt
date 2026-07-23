@@ -1,0 +1,14 @@
+Order ID: 166
+Status: PENDING
+Created: 2026-01-23 13:52:46.582626+00:00
+
+ITEMS:
+- Chicken Caesar Salad | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING
+- Fruits & More | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING
+- Quinoa Salad | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING
+- Fruits & More | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING
+- Saffron Milk Cake | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING
+- Fruits & More | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING
+- Chocolate Mousse | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING
+- Chocolate & Oreo Cake | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING
+- Fruits & More | Plan: ORDER_NOW | PickupCode: None | Status: PREPARING

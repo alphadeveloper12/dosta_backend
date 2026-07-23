@@ -9,6 +9,7 @@ from .views import (
     PaymentMethodListCreateView,
     PaymentMethodDetailView,
     GoogleLogin,
+    DeleteAccountView,
 )
 
 urlpatterns = [
@@ -20,6 +21,9 @@ urlpatterns = [
 
     # Profile
     path('profile/', ProfileView.as_view(), name='user-profile'),
+
+    # Account deletion (Apple App Store guideline 5.1.1(v))
+    path('delete-account/', DeleteAccountView.as_view(), name='delete-account'),
 
     # Addresses
     path('addresses/', AddressListCreateView.as_view(), name='address-list-create'),
